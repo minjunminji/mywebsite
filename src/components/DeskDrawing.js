@@ -123,7 +123,7 @@ const DeskDrawing = () => {
       Kbd: {
         content: (
           <>
-            This is my keyboard - I'm planning on building my own Hall Effect keyboard soon, I just need to stop spending so much money... {" "}
+            This is my keyboard - I&apos;m planning on building my own Hall Effect keyboard soon, I just need to stop spending so much money... {" "}
             <a
               href="https://monkeytype.com/profile/frostic1393"
               target="_blank"
@@ -138,7 +138,7 @@ const DeskDrawing = () => {
         content: (
           <>
             This is my Logitech G Pro Superlight, the perfect mouse in my opinion. I used
-            it to hit my peak rank in Valorant, Ascendant 2. Someday I'll hit radiant right? Surely...{" "}
+            it to hit my peak rank in Valorant, Ascendant 2. Someday I&apos;ll hit radiant right? Surely...{" "}
             <br></br>
             <a
               href="https://tracker.gg/valorant/profile/riot/chuchubluu%23pika/overview?platform=pc&playlist=competitive"
@@ -224,9 +224,9 @@ const DeskDrawing = () => {
           <>
             <p>
               This website is a personal project to showcase my skills and
-              projects in a more creative and interactive way. I've always
+              projects in a more creative and interactive way. I&apos;ve always
               loved drawing, and I wanted to incorporate that into my
-              portfolio. It's built with Next.js and uses a zoomable SVG for
+              portfolio. It&apos;s built with Next.js and uses a zoomable SVG for
               navigation.
             </p>
             <p>
