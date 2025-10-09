@@ -216,6 +216,30 @@ const DeskDrawing = () => {
     const svgContainer = svgContainerRef.current;
     if (!svgContainer || !svgContent) return;
 
+    const interactiveIds = [
+      ...Object.keys(popupsData),
+      "Resume",
+      "Github",
+      "Linkedin",
+    ];
+
+    interactiveIds.forEach((id) => {
+      const group = svgContainer.querySelector(`#${id}`);
+      if (group) {
+        const bbox = group.getBBox();
+        const rect = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        );
+        rect.setAttribute("x", bbox.x);
+        rect.setAttribute("y", bbox.y);
+        rect.setAttribute("width", bbox.width);
+        rect.setAttribute("height", bbox.height);
+        rect.setAttribute("fill", "transparent");
+        group.insertBefore(rect, group.firstChild);
+      }
+    });
+
     const handleMouseOver = (e) => {
       const target = e.target.closest("g[id]");
       if (
@@ -224,14 +248,36 @@ const DeskDrawing = () => {
           ["Resume", "Github", "Linkedin"].includes(target.id))
       ) {
         target.style.cursor = "pointer";
-        target.style.filter = "brightness(1.1)";
+        target.style.transition =
+          "transform 0.2s ease-in-out, filter 0.2s ease-in-out";
+        target.style.transform = "translateY(-2px)";
+        target.style.filter = "drop-shadow(1px 1px 1px rgb(0 0 0 / 0.4))";
+
+        const paths = target.querySelectorAll("path");
+        paths.forEach((path) => {
+          const originalStroke = path.getAttribute("stroke");
+          if (originalStroke) {
+            path.setAttribute("data-original-stroke", originalStroke);
+          }
+          path.setAttribute("stroke", "#4287f5");
+        });
       }
     };
 
     const handleMouseOut = (e) => {
       const target = e.target.closest("g[id]");
       if (target) {
+        target.style.transform = "";
         target.style.filter = "";
+
+        const paths = target.querySelectorAll("path");
+        paths.forEach((path) => {
+          const originalStroke = path.getAttribute("data-original-stroke");
+          if (originalStroke) {
+            path.setAttribute("stroke", originalStroke);
+            path.removeAttribute("data-original-stroke");
+          }
+        });
       }
     };
 
@@ -249,9 +295,9 @@ const DeskDrawing = () => {
   return (
     <div className={styles.container}>
       <TransformWrapper
-        initialScale={1}
+        initialScale={5.7}
         initialPositionX={0}
-        initialPositionY={0}
+        initialPositionY={500}
       >
         <TransformComponent>
           <div
