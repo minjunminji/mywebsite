@@ -114,22 +114,22 @@ const DeskDrawing = () => {
       },
       "DE1SOC": {
         content:
-          "I&apos;m in computer engineering and we&apos;re learning about low level systems and stuff so I use the DE1-SoC quite often and it&apos;s been a lot of fun learning about the very foundational building blocks of computers.",
+          <>In computer engineering, we&apos;re currently learning about low level digital systems so I use the DE1-SoC quite often. It&apos;s been lots of fun learning about the foundational building blocks of computers!</>,
       },
       PC: {
         content:
-          "I built my PC five years ago - it has a RTX 2080Ti and i7-8700K. I use it for school, content, music, and video games.",
+          <>This is my PC that I built five years ago - it has a RTX 2080Ti and i7-8700K. I use it for school, content, music, and video games.</>,
       },
       Kbd: {
         content: (
           <>
-            This is my keyboard (surprise){" "}
+            This is my keyboard - I'm planning on building my own Hall Effect keyboard soon, I just need to stop spending so much money... {" "}
             <a
               href="https://monkeytype.com/profile/frostic1393"
               target="_blank"
               rel="noopener noreferrer"
             >
-              monkeytype
+              my monkeytype profile
             </a>
           </>
         ),
@@ -137,14 +137,15 @@ const DeskDrawing = () => {
       Mouse: {
         content: (
           <>
-            This is my Logitech G Pro Superlight, imo the perfect mouse. I used
-            it to hit my peak rank in Valorant, Ascendant 2.{" "}
+            This is my Logitech G Pro Superlight, the perfect mouse in my opinion. I used
+            it to hit my peak rank in Valorant, Ascendant 2. Someday I'll hit radiant right? Surely...{" "}
+            <br></br>
             <a
               href="https://tracker.gg/valorant/profile/riot/chuchubluu%23pika/overview?platform=pc&playlist=competitive"
               target="_blank"
               rel="noopener noreferrer"
             >
-              Stats
+              Valorant Tracker
             </a>
           </>
         ),
@@ -190,9 +191,9 @@ const DeskDrawing = () => {
         content: (
           <>
             <p>
-              At UBC, scheduling classes through Workday was tedious — copying
+              Scheduling my classes through Workday was tedious — copying
               times by hand, fixing time zones, and juggling course changes
-              every week. So I built a web app that does it all automatically.
+              every week. So I built a web app that does it all automatically, and deployed it with Vercel.
             </p>
             <p>
               The UBC Workday → Calendar tool takes your course schedule and
@@ -219,8 +220,25 @@ const DeskDrawing = () => {
         ),
       },
       "This-website": {
-        content:
-          "This website is a personal project to showcase my skills and projects in a more creative and interactive way. It&apos;s built with Next.js and uses a zoomable SVG for navigation.",
+        content: (
+          <>
+            <p>
+              This website is a personal project to showcase my skills and
+              projects in a more creative and interactive way. I've always
+              loved drawing, and I wanted to incorporate that into my
+              portfolio. It's built with Next.js and uses a zoomable SVG for
+              navigation.
+            </p>
+            <p>
+              This is the reference I used for the website drawing (ignore my messy desk):
+            </p>
+            <img
+              src="/assets/referenceimage.jpg"
+              alt="Reference photo used for the website drawing"
+              style={{ width: "100%", height: "auto", border: "2px solid #000" }}
+            />
+          </>
+        ),
       },
       UBCCARD: {
         content: (
@@ -429,6 +447,7 @@ const DeskDrawing = () => {
 
   return (
     <div className={styles.container}>
+      <div className={styles.fixedTitle}>ryan kim</div>
       <TransformWrapper
         key={transformKey}
         ref={transformRef}
