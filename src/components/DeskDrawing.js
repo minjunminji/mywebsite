@@ -384,7 +384,7 @@ const DeskDrawing = () => {
       svgContainer.removeEventListener("mouseout", handleMouseOut);
       svgContainer.removeEventListener("click", handleSvgClick);
     };
-  }, [svgContent, handleSvgClick, popupsData]);
+  }, [svgContent, handleSvgClick, popupsData, transformKey]);
 
   useEffect(() => {
     const svgContainer = svgContainerRef.current;
@@ -397,25 +397,35 @@ const DeskDrawing = () => {
       "Linkedin",
     ];
 
-    interactiveIds.forEach((id) => {
-      const group = svgContainer.querySelector(`#${id}`);
-      if (group && !group.querySelector(".bbox")) {
+    const ensureBoundingBoxes = () => {
+      interactiveIds.forEach((id) => {
+        const group = svgContainer.querySelector(`#${id}`);
+        if (!group) return;
+
+        let rect = group.querySelector(".bbox");
+        if (!rect) {
+          const bbox = group.getBBox();
+          rect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          rect.classList.add("bbox");
+          rect.setAttribute("fill", "transparent");
+          rect.style.pointerEvents = "all";
+          group.insertBefore(rect, group.firstChild);
+        }
         const bbox = group.getBBox();
-        const rect = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "rect"
-        );
         rect.setAttribute("x", bbox.x);
         rect.setAttribute("y", bbox.y);
         rect.setAttribute("width", bbox.width);
         rect.setAttribute("height", bbox.height);
-        rect.setAttribute("fill", "transparent");
-        rect.style.pointerEvents = "all";
-        rect.classList.add("bbox");
-        group.insertBefore(rect, group.firstChild);
-      }
-    });
-  }, [svgContent, popup, popupsData]);
+      });
+    };
+
+    ensureBoundingBoxes();
+    const rafId = requestAnimationFrame(ensureBoundingBoxes);
+    return () => cancelAnimationFrame(rafId);
+  }, [svgContent, popup, popupsData, transformKey, viewerReady]);
 
   return (
     <div className={styles.container}>
