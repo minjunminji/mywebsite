@@ -5,7 +5,7 @@ import Popup from "./Popup";
 import styles from "./DeskDrawing.module.css";
 
 const DeskDrawing = () => {
-  const [svgContent, setSvgContent] = useState(null);
+  const [svgContent, setSvgContent] = useState(() => null);
   const [popup, setPopup] = useState(null);
   const svgContainerRef = useRef(null);
 
@@ -214,32 +214,7 @@ const DeskDrawing = () => {
 
   useEffect(() => {
     const svgContainer = svgContainerRef.current;
-    if (!svgContainer || !svgContent) return;
-
-    const interactiveIds = [
-      ...Object.keys(popupsData),
-      "Resume",
-      "Github",
-      "Linkedin",
-    ];
-
-    interactiveIds.forEach((id) => {
-      const group = svgContainer.querySelector(`#${id}`);
-      if (group) {
-        const bbox = group.getBBox();
-        const rect = document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "rect"
-        );
-        rect.setAttribute("x", bbox.x);
-        rect.setAttribute("y", bbox.y);
-        rect.setAttribute("width", bbox.width);
-        rect.setAttribute("height", bbox.height);
-        rect.setAttribute("fill", "transparent");
-        rect.style.pointerEvents = "all"; // Make sure the invisible rect captures mouse events
-        group.insertBefore(rect, group.firstChild);
-      }
-    });
+    if (!svgContainer) return;
 
     const handleMouseOver = (e) => {
       const target = e.target.closest("g[id]");
@@ -292,6 +267,37 @@ const DeskDrawing = () => {
       svgContainer.removeEventListener("click", handleSvgClick);
     };
   }, [svgContent, handleSvgClick, popupsData]);
+
+  useEffect(() => {
+    const svgContainer = svgContainerRef.current;
+    if (!svgContainer || !svgContent) return;
+
+    const interactiveIds = [
+      ...Object.keys(popupsData),
+      "Resume",
+      "Github",
+      "Linkedin",
+    ];
+
+    interactiveIds.forEach((id) => {
+      const group = svgContainer.querySelector(`#${id}`);
+      if (group && !group.querySelector(".bbox")) {
+        const bbox = group.getBBox();
+        const rect = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        );
+        rect.setAttribute("x", bbox.x);
+        rect.setAttribute("y", bbox.y);
+        rect.setAttribute("width", bbox.width);
+        rect.setAttribute("height", bbox.height);
+        rect.setAttribute("fill", "transparent");
+        rect.style.pointerEvents = "all";
+        rect.classList.add("bbox");
+        group.insertBefore(rect, group.firstChild);
+      }
+    });
+  }, [svgContent, popup, popupsData]);
 
   return (
     <div className={styles.container}>
