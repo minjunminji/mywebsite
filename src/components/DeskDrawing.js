@@ -33,7 +33,7 @@ const DeskDrawing = () => {
           </>
         ),
       },
-      "DE1-SoC": {
+      "DE1SOC": {
         content:
           "I&apos;m in computer engineering and we&apos;re learning about low level systems and stuff so I use the DE1-SoC quite often and it&apos;s been a lot of fun learning about the very foundational building blocks of computers.",
       },
@@ -70,7 +70,7 @@ const DeskDrawing = () => {
           </>
         ),
       },
-      Mango: {
+      "Mango": {
         content: (
           <>
             <p>
@@ -107,7 +107,7 @@ const DeskDrawing = () => {
           </>
         ),
       },
-      Ubc: {
+      "Ubc": {
         content: (
           <>
             <p>
@@ -236,6 +236,7 @@ const DeskDrawing = () => {
         rect.setAttribute("width", bbox.width);
         rect.setAttribute("height", bbox.height);
         rect.setAttribute("fill", "transparent");
+        rect.style.pointerEvents = "all"; // Make sure the invisible rect captures mouse events
         group.insertBefore(rect, group.firstChild);
       }
     });
