@@ -8,12 +8,91 @@ const DeskDrawing = () => {
   const [svgContent, setSvgContent] = useState(() => null);
   const [popup, setPopup] = useState(null);
   const svgContainerRef = useRef(null);
+  const transformRef = useRef(null);
+  const [naturalSize, setNaturalSize] = useState(null); // { w, h }
+  const [viewerReady, setViewerReady] = useState(false);
+  const [initialTransform, setInitialTransform] = useState(null);
+  const [transformKey, setTransformKey] = useState("initial");
 
   useEffect(() => {
     fetch("/assets/deskdrawing.svg")
       .then((res) => res.text())
       .then((text) => setSvgContent(text));
   }, []);
+
+  useEffect(() => {
+    if (!svgContent) return;
+    const container = svgContainerRef.current;
+    if (!container) return;
+    const svgEl = container.querySelector("svg");
+    if (!svgEl) return;
+
+    let w;
+    let h;
+    const vb = svgEl.getAttribute("viewBox");
+    if (vb) {
+      const parts = vb.trim().split(/\s+/).map(parseFloat);
+      if (parts.length === 4 && parts.every((n) => !Number.isNaN(n))) {
+        w = parts[2];
+        h = parts[3];
+      }
+    }
+    if ((!w || !h) && typeof svgEl.getBBox === "function") {
+      try {
+        const bbox = svgEl.getBBox();
+        if (bbox?.width && bbox?.height) {
+          w = bbox.width;
+          h = bbox.height;
+        }
+      } catch (_) {
+        // ignore getBBox errors (e.g., if svg not rendered yet)
+      }
+    }
+    if (!w || !h) {
+      const aw = parseFloat(svgEl.getAttribute("width"));
+      const ah = parseFloat(svgEl.getAttribute("height"));
+      if (!Number.isNaN(aw) && !Number.isNaN(ah)) {
+        w = aw;
+        h = ah;
+      }
+    }
+    if (!w || !h) {
+      w = 3840;
+      h = 2160;
+    }
+
+    setNaturalSize((prev) => {
+      if (prev && prev.w === w && prev.h === h) {
+        return prev;
+      }
+      return { w, h };
+    });
+  }, [svgContent]);
+
+  useEffect(() => {
+    if (!naturalSize) return;
+    if (typeof window === "undefined") return;
+    const ww = window.innerWidth;
+    const wh = window.innerHeight;
+    if (!ww || !wh) return;
+    const { w, h } = naturalSize;
+    const scale = Math.min(ww / w, wh / h)*13;
+    const x = (ww - w * scale) / 2;
+    const y = (wh - h * scale) / 2;
+
+    setInitialTransform((prev) => {
+      if (prev && prev.scale === scale && prev.x === x && prev.y === y) {
+        return prev;
+      }
+      return { scale, x, y };
+    });
+
+    const nextKey = `${scale.toFixed(4)}-${x.toFixed(1)}-${y.toFixed(1)}`;
+    if (transformKey !== nextKey) {
+      setViewerReady(false);
+      setTransformKey(nextKey);
+    }
+  }, [naturalSize, transformKey]);
 
   const popupsData = useMemo(
     () => ({
@@ -212,6 +291,45 @@ const DeskDrawing = () => {
     setPopup(null);
   };
 
+  const fitAndCenter = useCallback(() => {
+    const apiMaybe = transformRef.current;
+    const api = apiMaybe?.instance ?? apiMaybe; // support v3/v4 shapes
+    if (!api || !naturalSize) return;
+    const wrapper = api.wrapperComponent;
+    if (!wrapper && typeof window === "undefined") return;
+    const ww = wrapper?.clientWidth || window.innerWidth;
+    const wh = wrapper?.clientHeight || window.innerHeight;
+    const { w, h } = naturalSize;
+    if (!ww || !wh || !w || !h) return;
+    const scale = Math.min(ww / w, wh / h);
+    if (typeof api.centerView === "function") {
+      api.centerView(scale, 0);
+      return;
+    }
+    const x = (ww - w * scale) / 2;
+    const y = (wh - h * scale) / 2;
+    if (typeof api.setTransform === "function") {
+      api.setTransform(x, y, scale, 0);
+    }
+  }, [naturalSize]);
+
+  // Recenter after SVG content is injected
+  useEffect(() => {
+    if (!viewerReady || !svgContent || !naturalSize) return;
+    const id = requestAnimationFrame(() => {
+      fitAndCenter();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [svgContent, naturalSize, fitAndCenter, viewerReady]);
+
+  // Recenter on window resize
+  useEffect(() => {
+    if (!viewerReady) return;
+    const onResize = () => fitAndCenter();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [fitAndCenter, viewerReady]);
+
   useEffect(() => {
     const svgContainer = svgContainerRef.current;
     if (!svgContainer) return;
@@ -302,15 +420,26 @@ const DeskDrawing = () => {
   return (
     <div className={styles.container}>
       <TransformWrapper
-        initialScale={5.7}
-        initialPositionX={0}
-        initialPositionY={500}
+        key={transformKey}
+        ref={transformRef}
+        onInit={(ref) => {
+          transformRef.current = ref?.instance ?? ref;
+          setViewerReady(true);
+          requestAnimationFrame(() => fitAndCenter());
+        }}
+        initialScale={initialTransform?.scale ?? 1}
+        initialPositionX={initialTransform?.x ?? 0}
+        initialPositionY={initialTransform?.y ?? 0}
+        centerOnInit
+        limitToBounds
+        minScale={0.05}
+        maxScale={20}
       >
         <TransformComponent>
           <div
             ref={svgContainerRef}
             className={styles.svgContainer}
-            dangerouslySetInnerHTML={{ __html: svgContent }}
+            dangerouslySetInnerHTML={{ __html: svgContent || "" }}
           />
         </TransformComponent>
       </TransformWrapper>
