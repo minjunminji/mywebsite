@@ -17,8 +17,8 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata = {
-  title: "Ryan Kim's Portfolio",
-  description: "An interactive desk portfolio.",
+  title: "ryan kim",
+  description: "personal website",
 };
 
 export default function RootLayout({ children }) {
