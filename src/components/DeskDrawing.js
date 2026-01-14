@@ -2,11 +2,13 @@
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import Popup from "./Popup";
+import ResumePopup from "./ResumePopup";
 import styles from "./DeskDrawing.module.css";
 
 const DeskDrawing = () => {
   const [svgContent, setSvgContent] = useState(() => null);
   const [popup, setPopup] = useState(null);
+  const [resumePopup, setResumePopup] = useState(null);
   const svgContainerRef = useRef(null);
   const transformRef = useRef(null);
   const [naturalSize, setNaturalSize] = useState(null); // { w, h }
@@ -295,7 +297,7 @@ const DeskDrawing = () => {
           y: e.clientY,
         });
       } else if (id === "Resume") {
-        window.open("/assets/websiteresume.pdf", "_blank");
+        setResumePopup({ x: e.clientX, y: e.clientY });
       } else if (id === "Github") {
         window.open("https://github.com/minjunminji", "_blank");
       } else if (id === "Linkedin") {
@@ -307,6 +309,10 @@ const DeskDrawing = () => {
 
   const handleClosePopup = () => {
     setPopup(null);
+  };
+
+  const handleCloseResumePopup = () => {
+    setResumePopup(null);
   };
 
   const fitAndCenter = useCallback(() => {
@@ -428,7 +434,8 @@ const DeskDrawing = () => {
             "rect"
           );
           rect.classList.add("bbox");
-          rect.setAttribute("fill", "transparent");
+          rect.setAttribute("fill", "#000");
+          rect.setAttribute("fill-opacity", "0");
           rect.style.pointerEvents = "all";
           group.insertBefore(rect, group.firstChild);
         }
@@ -443,7 +450,7 @@ const DeskDrawing = () => {
     ensureBoundingBoxes();
     const rafId = requestAnimationFrame(ensureBoundingBoxes);
     return () => cancelAnimationFrame(rafId);
-  }, [svgContent, popup, popupsData, transformKey, viewerReady]);
+  }, [svgContent, popup, resumePopup, popupsData, transformKey, viewerReady]);
 
   return (
     <div className={styles.container}>
@@ -478,6 +485,13 @@ const DeskDrawing = () => {
           onClose={handleClosePopup}
           x={popup.x}
           y={popup.y}
+        />
+      )}
+      {resumePopup && (
+        <ResumePopup
+          onClose={handleCloseResumePopup}
+          x={resumePopup.x}
+          y={resumePopup.y}
         />
       )}
     </div>

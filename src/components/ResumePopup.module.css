@@ -1,0 +1,80 @@
+.popup {
+  position: fixed;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  border: 2px solid #000000;
+  box-shadow: none;
+  z-index: 1000;
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  width: fit-content;
+  max-width: 350px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-right: 24px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.closeButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  line-height: 1;
+  color: black;
+}
+
+.closeButton:hover {
+  color: #4287f5;
+}
+
+.resumeList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.resumeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.resumeLabel {
+  font-size: 14px;
+}
+
+.downloadButton {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: black;
+}
+
+.downloadButton:hover {
+  color: #4287f5;
+}
+
+.downloadIcon {
+  width: 20px;
+  height: 20px;
+}
