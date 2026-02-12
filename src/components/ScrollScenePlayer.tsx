@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type Phase = 'introLanding' | 'introTrainSequence' | 'trainLoop' | 'transition' | 'about';
+type Phase =
+  | 'introLanding'
+  | 'introTrainSequence'
+  | 'trainLoop'
+  | 'transition'
+  | 'about'
+  | 'transitionTwo'
+  | 'projects';
 
 const landingFrames = [
   '/Animation/landingloop1.png',
@@ -32,12 +39,44 @@ const aboutFrames = [
   '/Animation/aboutloop4.png',
 ];
 
+const transitionTwoFrames = Array.from(
+  { length: 22 },
+  (_, index) => `/Animation/2trans${index + 1}.png`,
+);
+
+const turnstileFrames = Array.from(
+  { length: 6 },
+  (_, index) => `/Animation/turnstile${index + 1}.png`,
+);
+
+const projectStills = {
+  thisWebsite: '/Animation/thiswebsite.png',
+  rebase: '/Animation/rebase.png',
+  mango: '/Animation/mango.png',
+} as const;
+
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const TRANSITION_PLAYBACK_FPS = 12;
-const SCROLL_HEIGHT_VH = 340;
+const TURNSTILE_FRAME_INTERVAL_MS = Math.round(1000 / 15);
 const TRANSITION_START_VH = 95;
 const TRANSITION_LENGTH_VH = 145;
+const ABOUT_SECTION_VH = 100;
+const TRANSITION_TWO_LENGTH_VH = 145;
+const PROJECT_THIS_WEBSITE_HOLD_VH = 56;
+const PROJECT_TURNSTILE_ENTRY_VH = 34;
+const PROJECT_REBASE_HOLD_VH = 80;
+const PROJECT_FINAL_HOLD_VH = 120;
+const SCROLL_HEIGHT_VH =
+  TRANSITION_START_VH +
+  TRANSITION_LENGTH_VH +
+  ABOUT_SECTION_VH +
+  TRANSITION_TWO_LENGTH_VH +
+  PROJECT_THIS_WEBSITE_HOLD_VH +
+  PROJECT_TURNSTILE_ENTRY_VH +
+  PROJECT_REBASE_HOLD_VH +
+  PROJECT_TURNSTILE_ENTRY_VH +
+  PROJECT_FINAL_HOLD_VH;
 const TRANSITION_COMPLETE_EPSILON = 0.995;
 const CORNER_TITLE_FADE_IN_VH = 24;
 const ABOUT_INITIAL_DELAY_MS = 260;
@@ -56,6 +95,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export default function ScrollScenePlayer() {
   const targetTransitionFrameRef = useRef(0);
+  const targetTransitionTwoFrameRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
@@ -63,12 +103,29 @@ export default function ScrollScenePlayer() {
   const [trainLoopFrame, setTrainLoopFrame] = useState(0);
   const [aboutFrame, setAboutFrame] = useState(0);
   const [transitionFrame, setTransitionFrame] = useState(0);
+  const [transitionTwoFrame, setTransitionTwoFrame] = useState(0);
+  const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
   const [cornerTitleOpacity, setCornerTitleOpacity] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
+  const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
+  const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
+  const [secondRotationTriggered, setSecondRotationTriggered] = useState(false);
+  const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
 
   useEffect(() => {
-    const allFrames = [...landingFrames, ...trainSequenceFrames, ...trainLoopFrames, ...transitionFrames, ...aboutFrames];
+    const allFrames = [
+      ...landingFrames,
+      ...trainSequenceFrames,
+      ...trainLoopFrames,
+      ...transitionFrames,
+      ...aboutFrames,
+      ...transitionTwoFrames,
+      ...turnstileFrames,
+      projectStills.thisWebsite,
+      projectStills.rebase,
+      projectStills.mango,
+    ];
     allFrames.forEach((src) => {
       const image = new Image();
       image.src = src;
@@ -137,10 +194,74 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
+    if (!firstRotationTriggered || firstRotationCompleted) {
+      return;
+    }
+
+    let frameIndex = 1;
+    setProjectFrame(turnstileFrames[frameIndex]);
+
+    const tick = window.setInterval(() => {
+      frameIndex += 1;
+
+      if (frameIndex >= turnstileFrames.length) {
+        window.clearInterval(tick);
+        setProjectFrame(projectStills.rebase);
+        setFirstRotationCompleted(true);
+        return;
+      }
+
+      setProjectFrame(turnstileFrames[frameIndex]);
+    }, TURNSTILE_FRAME_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+  }, [firstRotationTriggered, firstRotationCompleted]);
+
+  useEffect(() => {
+    if (!secondRotationTriggered || secondRotationCompleted) {
+      return;
+    }
+
+    let frameIndex = 1;
+    setProjectFrame(turnstileFrames[frameIndex]);
+
+    const tick = window.setInterval(() => {
+      frameIndex += 1;
+
+      if (frameIndex >= turnstileFrames.length) {
+        window.clearInterval(tick);
+        setProjectFrame(projectStills.mango);
+        setSecondRotationCompleted(true);
+        return;
+      }
+
+      setProjectFrame(turnstileFrames[frameIndex]);
+    }, TURNSTILE_FRAME_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+  }, [secondRotationTriggered, secondRotationCompleted]);
+
+  useEffect(() => {
     const handleScroll = () => {
       const viewportHeight = window.innerHeight;
       const transitionStart = (TRANSITION_START_VH / 100) * viewportHeight;
       const transitionLength = (TRANSITION_LENGTH_VH / 100) * viewportHeight;
+      const transitionOneEnd = transitionStart + transitionLength;
+      const aboutLength = (ABOUT_SECTION_VH / 100) * viewportHeight;
+      const aboutEnd = transitionOneEnd + aboutLength;
+      const transitionTwoLength = (TRANSITION_TWO_LENGTH_VH / 100) * viewportHeight;
+      const transitionTwoEnd = aboutEnd + transitionTwoLength;
+      const thisWebsiteHoldEnd =
+        transitionTwoEnd + (PROJECT_THIS_WEBSITE_HOLD_VH / 100) * viewportHeight;
+      const firstRotationTrigger =
+        thisWebsiteHoldEnd + (PROJECT_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+      const rebaseHoldEnd = firstRotationTrigger + (PROJECT_REBASE_HOLD_VH / 100) * viewportHeight;
+      const secondRotationTrigger =
+        rebaseHoldEnd + (PROJECT_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
       const cornerTitleFadeLength = (CORNER_TITLE_FADE_IN_VH / 100) * viewportHeight;
       const scrollY = window.scrollY;
       const maxScroll = Math.max(document.documentElement.scrollHeight - viewportHeight, 1);
@@ -157,26 +278,137 @@ export default function ScrollScenePlayer() {
       if (scrollY < transitionStart) {
         setPhase('trainLoop');
         setTransitionFrame(0);
+        setTransitionTwoFrame(0);
         targetTransitionFrameRef.current = 0;
+        targetTransitionTwoFrameRef.current = 0;
         return;
       }
 
-      const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
-      if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+      if (scrollY < transitionOneEnd) {
+        const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
+        if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+          setPhase('about');
+          setTransitionFrame(transitionFrames.length - 1);
+          targetTransitionFrameRef.current = transitionFrames.length - 1;
+          return;
+        }
+
+        const frameIndex = clamp(
+          Math.round(transitionProgress * (transitionFrames.length - 1)),
+          0,
+          transitionFrames.length - 1,
+        );
+
+        targetTransitionFrameRef.current = frameIndex;
+        setPhase('transition');
+        return;
+      }
+
+      if (scrollY < aboutEnd) {
         setPhase('about');
         setTransitionFrame(transitionFrames.length - 1);
         targetTransitionFrameRef.current = transitionFrames.length - 1;
+        setTransitionTwoFrame(0);
+        targetTransitionTwoFrameRef.current = 0;
         return;
       }
 
-      const frameIndex = clamp(
-        Math.round(transitionProgress * (transitionFrames.length - 1)),
-        0,
-        transitionFrames.length - 1,
-      );
+      if (scrollY < transitionTwoEnd) {
+        const transitionProgress = clamp((scrollY - aboutEnd) / transitionTwoLength, 0, 1);
+        if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+          setPhase('projects');
+          setTransitionTwoFrame(transitionTwoFrames.length - 1);
+          targetTransitionTwoFrameRef.current = transitionTwoFrames.length - 1;
+          return;
+        }
 
-      targetTransitionFrameRef.current = frameIndex;
-      setPhase('transition');
+        const frameIndex = clamp(
+          Math.round(transitionProgress * (transitionTwoFrames.length - 1)),
+          0,
+          transitionTwoFrames.length - 1,
+        );
+
+        targetTransitionTwoFrameRef.current = frameIndex;
+        setPhase('transitionTwo');
+        return;
+      }
+
+      setPhase('projects');
+      setTransitionFrame(transitionFrames.length - 1);
+      targetTransitionFrameRef.current = transitionFrames.length - 1;
+      setTransitionTwoFrame(transitionTwoFrames.length - 1);
+      targetTransitionTwoFrameRef.current = transitionTwoFrames.length - 1;
+
+      const beforeFirstTrigger = scrollY < firstRotationTrigger;
+      const beforeSecondTrigger = scrollY < secondRotationTrigger;
+
+      if (beforeFirstTrigger && (firstRotationTriggered || firstRotationCompleted)) {
+        setFirstRotationTriggered(false);
+        setFirstRotationCompleted(false);
+      }
+
+      if (beforeSecondTrigger && (secondRotationTriggered || secondRotationCompleted)) {
+        setSecondRotationTriggered(false);
+        setSecondRotationCompleted(false);
+      }
+
+      const firstTriggeredEffective = beforeFirstTrigger ? false : firstRotationTriggered;
+      const firstCompletedEffective = beforeFirstTrigger ? false : firstRotationCompleted;
+      const secondTriggeredEffective = beforeSecondTrigger ? false : secondRotationTriggered;
+      const secondCompletedEffective = beforeSecondTrigger ? false : secondRotationCompleted;
+
+      if (secondCompletedEffective) {
+        setProjectFrame(projectStills.mango);
+        return;
+      }
+
+      if (!firstCompletedEffective) {
+        if (scrollY < thisWebsiteHoldEnd) {
+          setProjectFrame(projectStills.thisWebsite);
+          return;
+        }
+
+        if (!firstTriggeredEffective && scrollY < firstRotationTrigger) {
+          const entryProgress = clamp(
+            (scrollY - thisWebsiteHoldEnd) / (firstRotationTrigger - thisWebsiteHoldEnd),
+            0,
+            1,
+          );
+
+          setProjectFrame(entryProgress < 0.5 ? projectStills.thisWebsite : turnstileFrames[0]);
+          return;
+        }
+
+        if (!firstTriggeredEffective && scrollY >= firstRotationTrigger) {
+          setFirstRotationTriggered(true);
+          setProjectFrame(turnstileFrames[0]);
+        }
+
+        return;
+      }
+
+      if (!secondCompletedEffective) {
+        if (scrollY < rebaseHoldEnd) {
+          setProjectFrame(projectStills.rebase);
+          return;
+        }
+
+        if (!secondTriggeredEffective && scrollY < secondRotationTrigger) {
+          const entryProgress = clamp(
+            (scrollY - rebaseHoldEnd) / (secondRotationTrigger - rebaseHoldEnd),
+            0,
+            1,
+          );
+
+          setProjectFrame(entryProgress < 0.5 ? projectStills.rebase : turnstileFrames[0]);
+          return;
+        }
+
+        if (!secondTriggeredEffective && scrollY >= secondRotationTrigger) {
+          setSecondRotationTriggered(true);
+          setProjectFrame(turnstileFrames[0]);
+        }
+      }
     };
 
     handleScroll();
@@ -185,7 +417,13 @@ export default function ScrollScenePlayer() {
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [phase]);
+  }, [
+    phase,
+    firstRotationTriggered,
+    firstRotationCompleted,
+    secondRotationTriggered,
+    secondRotationCompleted,
+  ]);
 
   useEffect(() => {
     if (phase === 'about') {
@@ -211,6 +449,44 @@ export default function ScrollScenePlayer() {
         previousTimestamp = timestamp;
         setTransitionFrame((previous) => {
           const target = targetTransitionFrameRef.current;
+          if (previous === target) {
+            return previous;
+          }
+
+          const distance = Math.abs(target - previous);
+          const step = distance > 10 ? 3 : distance > 4 ? 2 : 1;
+          return previous + Math.sign(target - previous) * step;
+        });
+      }
+
+      animationFrameId = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'transitionTwo') {
+      return;
+    }
+
+    let animationFrameId = 0;
+    let previousTimestamp = 0;
+    const frameDurationMs = 1000 / TRANSITION_PLAYBACK_FPS;
+
+    const tick = (timestamp: number) => {
+      if (previousTimestamp === 0) {
+        previousTimestamp = timestamp;
+      }
+
+      if (timestamp - previousTimestamp >= frameDurationMs) {
+        previousTimestamp = timestamp;
+        setTransitionTwoFrame((previous) => {
+          const target = targetTransitionTwoFrameRef.current;
           if (previous === target) {
             return previous;
           }
@@ -268,8 +544,25 @@ export default function ScrollScenePlayer() {
       return aboutFrames[aboutFrame];
     }
 
+    if (phase === 'transitionTwo') {
+      return transitionTwoFrames[transitionTwoFrame];
+    }
+
+    if (phase === 'projects') {
+      return projectFrame;
+    }
+
     return transitionFrames[transitionFrame];
-  }, [phase, landingFrame, trainSequenceFrame, trainLoopFrame, transitionFrame, aboutFrame]);
+  }, [
+    phase,
+    landingFrame,
+    trainSequenceFrame,
+    trainLoopFrame,
+    transitionFrame,
+    aboutFrame,
+    transitionTwoFrame,
+    projectFrame,
+  ]);
 
   const useTrainBlendMode = phase === 'introTrainSequence' || phase === 'trainLoop';
 
