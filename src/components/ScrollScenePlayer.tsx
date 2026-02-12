@@ -189,6 +189,26 @@ export default function ScrollScenePlayer() {
     }
   }, [phase]);
 
+  useEffect(() => {
+    const shouldLockScroll = phase === 'introLanding' || phase === 'introTrainSequence';
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    if (shouldLockScroll) {
+      window.scrollTo(0, 0);
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [phase]);
+
   const frameToRender = useMemo(() => {
     if (phase === 'introLanding') {
       return landingFrames[landingFrame];
