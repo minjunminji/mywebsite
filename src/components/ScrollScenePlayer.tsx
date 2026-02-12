@@ -48,6 +48,7 @@ const turnstileFrames = Array.from(
   { length: 6 },
   (_, index) => `/Animation/turnstile${index + 1}.png`,
 );
+const turnstileBackgroundFrame = '/turnstile_background.png';
 
 const projectStills = {
   thisWebsite: '/Animation/thiswebsite.png',
@@ -55,38 +56,76 @@ const projectStills = {
   mango: '/Animation/mango.png',
 } as const;
 
-const PROJECT_CONTENT = [
+type ProjectContent = {
+  key: 'thisWebsite' | 'rebase' | 'mango';
+  title: string;
+  body: readonly string[];
+  linkHref?: string;
+  imageSrc?: string;
+  imageAlt?: string;
+  imageCaption?: string;
+  carouselImages?: readonly {
+    src: string;
+    alt: string;
+  }[];
+  videoEmbedSrc?: string;
+  videoTitle?: string;
+};
+
+const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'thisWebsite',
     title: 'this website',
     body: [
-      'a hand-drawn portfolio with a custom frame-by-frame scroll timeline built in next.js + react.',
-      'i wanted the navigation itself to feel like an animation reel instead of a standard page scroll.',
+      'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a scroll-driven story so the site feels like a film you move through.',
+      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
+      'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
-    mediaSrc: '/Animation/thiswebsite.png',
-    mediaAlt: 'Project frame for this website',
+    imageSrc: '/oldwebsite.png',
+    imageAlt: 'Old portfolio website screenshot',
+    imageCaption: 'my old website',
   },
   {
     key: 'rebase',
     title: 'rebase',
+    linkHref: 'http://tryrebase.io/',
     body: [
-      'a project focused on reducing day-to-day friction in development workflows and making context switching cheaper.',
-      'the core idea is fast iteration loops with clear feedback so teams can ship with confidence.',
+      'an ai-native resume builder that stores your experience as reusable building blocks instead of rewriting one static document every time.',
+      'you paste a job description, and it pulls the most relevant experience, rewrites bullets for role fit, and exports an ats-friendly pdf with typst.',
+      'it also helps you capture wins as they happen and asks targeted follow-up questions to turn vague points into specific, credible impact.',
     ],
-    mediaSrc: '/Animation/rebase.png',
-    mediaAlt: 'Project frame for rebase',
+    carouselImages: [
+      {
+        src: '/rebase1.png',
+        alt: 'Rebase screenshot 1',
+      },
+      {
+        src: '/rebase2.png',
+        alt: 'Rebase screenshot 2',
+      },
+      {
+        src: '/rebase3.png',
+        alt: 'Rebase screenshot 3',
+      },
+      {
+        src: '/rebase4.png',
+        alt: 'Rebase screenshot 4',
+      },
+    ],
   },
   {
     key: 'mango',
     title: 'mango',
+    linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
     body: [
-      'a gesture-based control system that maps body movement to in-game input in real time.',
-      'built to make immersive control more accessible without extra hardware.',
+      'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
+      'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.',
+      'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
     ],
-    mediaSrc: '/Animation/mango.png',
-    mediaAlt: 'Project frame for mango',
+    videoEmbedSrc: 'https://www.youtube.com/embed/pdja2_o8bpY',
+    videoTitle: 'Mango full-body gesture control demo',
   },
-] as const;
+];
 
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -96,8 +135,9 @@ const TRANSITION_START_VH = 95;
 const TRANSITION_LENGTH_VH = 145;
 const ABOUT_SECTION_VH = 100;
 const TRANSITION_TWO_LENGTH_VH = 145;
-const PROJECT_THIS_WEBSITE_HOLD_VH = 56;
-const PROJECT_TURNSTILE_ENTRY_VH = 34;
+const PROJECT_THIS_WEBSITE_HOLD_VH = 39.2;
+const PROJECT_FIRST_TURNSTILE_ENTRY_VH = 23.8;
+const PROJECT_SECOND_TURNSTILE_ENTRY_VH = 34;
 const PROJECT_REBASE_HOLD_VH = 80;
 const PROJECT_FINAL_HOLD_VH = 120;
 const SCROLL_HEIGHT_VH =
@@ -106,9 +146,9 @@ const SCROLL_HEIGHT_VH =
   ABOUT_SECTION_VH +
   TRANSITION_TWO_LENGTH_VH +
   PROJECT_THIS_WEBSITE_HOLD_VH +
-  PROJECT_TURNSTILE_ENTRY_VH +
+  PROJECT_FIRST_TURNSTILE_ENTRY_VH +
   PROJECT_REBASE_HOLD_VH +
-  PROJECT_TURNSTILE_ENTRY_VH +
+  PROJECT_SECOND_TURNSTILE_ENTRY_VH +
   PROJECT_FINAL_HOLD_VH;
 const TRANSITION_COMPLETE_EPSILON = 0.995;
 const CORNER_TITLE_FADE_IN_VH = 24;
@@ -147,6 +187,33 @@ export default function ScrollScenePlayer() {
   const [secondRotationTriggered, setSecondRotationTriggered] = useState(false);
   const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
   const [projectBlockIndex, setProjectBlockIndex] = useState(0);
+  const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
+  const [projectCarouselIndex, setProjectCarouselIndex] = useState<
+    Record<ProjectContent['key'], number>
+  >({
+    thisWebsite: 0,
+    rebase: 0,
+    mango: 0,
+  });
+
+  const stepProjectCarousel = (key: ProjectContent['key'], direction: -1 | 1, total: number) => {
+    setProjectCarouselIndex((previous) => {
+      const current = previous[key] ?? 0;
+      const next = (current + direction + total) % total;
+
+      return {
+        ...previous,
+        [key]: next,
+      };
+    });
+  };
+
+  const jumpProjectCarousel = (key: ProjectContent['key'], index: number) => {
+    setProjectCarouselIndex((previous) => ({
+      ...previous,
+      [key]: index,
+    }));
+  };
 
   useEffect(() => {
     const allFrames = [
@@ -157,6 +224,7 @@ export default function ScrollScenePlayer() {
       ...aboutFrames,
       ...transitionTwoFrames,
       ...turnstileFrames,
+      turnstileBackgroundFrame,
       projectStills.thisWebsite,
       projectStills.rebase,
       projectStills.mango,
@@ -293,10 +361,10 @@ export default function ScrollScenePlayer() {
       const thisWebsiteHoldEnd =
         transitionTwoEnd + (PROJECT_THIS_WEBSITE_HOLD_VH / 100) * viewportHeight;
       const firstRotationTrigger =
-        thisWebsiteHoldEnd + (PROJECT_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+        thisWebsiteHoldEnd + (PROJECT_FIRST_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
       const rebaseHoldEnd = firstRotationTrigger + (PROJECT_REBASE_HOLD_VH / 100) * viewportHeight;
       const secondRotationTrigger =
-        rebaseHoldEnd + (PROJECT_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+        rebaseHoldEnd + (PROJECT_SECOND_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
       const cornerTitleFadeLength = (CORNER_TITLE_FADE_IN_VH / 100) * viewportHeight;
       const scrollY = window.scrollY;
       const maxScroll = Math.max(document.documentElement.scrollHeight - viewportHeight, 1);
@@ -641,10 +709,32 @@ export default function ScrollScenePlayer() {
         }}
       >
         <img
+          src={turnstileBackgroundFrame}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            userSelect: 'none',
+            pointerEvents: 'none',
+            opacity: phase === 'projects' ? 0.25 : 0,
+            transition: 'opacity 320ms ease',
+            zIndex: 0,
+          }}
+        />
+        <img
           src={frameToRender}
           alt="Hand-drawn animated scene"
           draggable={false}
           style={{
+            position: 'absolute',
+            inset: 0,
             display: 'block',
             width: '100%',
             height: '100%',
@@ -652,6 +742,7 @@ export default function ScrollScenePlayer() {
             objectPosition: 'center',
             userSelect: 'none',
             mixBlendMode: useTrainBlendMode ? 'multiply' : 'normal',
+            zIndex: 1,
           }}
         />
         <div
@@ -771,13 +862,14 @@ export default function ScrollScenePlayer() {
           style={{
             position: 'absolute',
             top: 0,
-            right: 0,
+            right: 'clamp(1.5rem, 3vw, 3.25rem)',
             width: '45%',
             height: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
             padding: '7vh 3vw 7vh 2vw',
+            transform: 'translateY(5vh)',
             opacity: phase === 'projects' ? 1 : 0,
             transition: 'opacity 220ms ease',
             pointerEvents: 'none',
@@ -797,7 +889,7 @@ export default function ScrollScenePlayer() {
               ref={projectBlocksRef}
               style={{
                 height: '100%',
-                overflowY: 'auto',
+                overflowY: 'hidden',
                 scrollSnapType: 'y mandatory',
                 scrollSnapStop: 'always',
                 scrollbarWidth: 'none',
@@ -808,6 +900,11 @@ export default function ScrollScenePlayer() {
                 const distance = Math.abs(index - projectBlockIndex);
                 const opacity = clamp(1 - distance * 0.95, 0, 1);
                 const scale = clamp(1 - distance * 0.05, 0.9, 1);
+                const isLinked = Boolean(project.linkHref);
+                const showUnderline = hoveredProjectLink === project.key;
+                const carouselImages = project.carouselImages ?? [];
+                const carouselLength = carouselImages.length;
+                const activeCarouselIndex = projectCarouselIndex[project.key] ?? 0;
 
                 return (
                   <article
@@ -828,17 +925,74 @@ export default function ScrollScenePlayer() {
                       paddingBottom: '2rem',
                     }}
                   >
-                    <h2
+                    <div
                       style={{
-                        margin: 0,
-                        fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
-                        fontWeight: 600,
-                        lineHeight: 1,
-                        textTransform: 'lowercase',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        pointerEvents: isLinked ? 'auto' : 'none',
                       }}
                     >
-                      {project.title}
-                    </h2>
+                      {isLinked ? (
+                        <a
+                          href={project.linkHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onMouseEnter={() => setHoveredProjectLink(project.key)}
+                          onMouseLeave={() => setHoveredProjectLink(null)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            color: '#1f1812',
+                            textDecoration: showUnderline ? 'underline' : 'none',
+                            textDecorationThickness: '2px',
+                            textUnderlineOffset: '0.2em',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <h2
+                            style={{
+                              margin: 0,
+                              fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                              fontWeight: 600,
+                              lineHeight: 1,
+                              textTransform: 'lowercase',
+                            }}
+                          >
+                            {project.title}
+                          </h2>
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            aria-hidden="true"
+                            style={{ flexShrink: 0 }}
+                          >
+                            <path
+                              d="M8 8h8v8M16 8L8 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </a>
+                      ) : (
+                        <h2
+                          style={{
+                            margin: 0,
+                            fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                            fontWeight: 600,
+                            lineHeight: 1,
+                            textTransform: 'lowercase',
+                          }}
+                        >
+                          {project.title}
+                        </h2>
+                      )}
+                    </div>
                     <div
                       style={{
                         display: 'flex',
@@ -855,28 +1009,204 @@ export default function ScrollScenePlayer() {
                         </p>
                       ))}
                     </div>
-                    <figure
-                      style={{
-                        margin: 0,
-                        marginTop: '0.4rem',
-                        border: '1.5px solid #1f1812',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        background: '#f0eadf',
-                      }}
-                    >
-                      <img
-                        src={project.mediaSrc}
-                        alt={project.mediaAlt}
-                        draggable={false}
+                    {project.imageSrc ? (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <figure
+                          style={{
+                            margin: 0,
+                            border: '1.5px solid #1f1812',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            background: '#f0eadf',
+                          }}
+                        >
+                          <img
+                            src={project.imageSrc}
+                            alt={project.imageAlt ?? `${project.title} media`}
+                            draggable={false}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              height: 'auto',
+                              userSelect: 'none',
+                            }}
+                          />
+                        </figure>
+                        {project.imageCaption ? (
+                          <p
+                            style={{
+                              margin: '0.35rem 0 0',
+                              fontSize: '0.78rem',
+                              lineHeight: 1.25,
+                              color: '#4a3f33',
+                            }}
+                          >
+                            {project.imageCaption}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {carouselLength > 0 ? (
+                      <div
                         style={{
-                          display: 'block',
-                          width: '100%',
-                          height: 'auto',
-                          userSelect: 'none',
+                          marginTop: '0.4rem',
+                          pointerEvents: 'auto',
                         }}
-                      />
-                    </figure>
+                      >
+                        <figure
+                          style={{
+                            margin: 0,
+                            border: '1.5px solid #1f1812',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            background: '#f0eadf',
+                          }}
+                        >
+                          <img
+                            src={carouselImages[activeCarouselIndex].src}
+                            alt={carouselImages[activeCarouselIndex].alt}
+                            draggable={false}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              height: 'auto',
+                              userSelect: 'none',
+                            }}
+                          />
+                        </figure>
+                        <div
+                          style={{
+                            marginTop: '0.7rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: '0.9rem',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            aria-label={`Previous ${project.title} image`}
+                            onClick={() => stepProjectCarousel(project.key, -1, carouselLength)}
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              borderRadius: 0,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#1f1812',
+                              display: 'grid',
+                              placeItems: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                              <path
+                                d="M14.5 5.5L8 12l6.5 6.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                            }}
+                          >
+                            {carouselImages.map((_, dotIndex) => {
+                              const isActive = dotIndex === activeCarouselIndex;
+
+                              return (
+                                <button
+                                  key={`${project.key}-dot-${dotIndex}`}
+                                  type="button"
+                                  aria-label={`Show ${project.title} image ${dotIndex + 1}`}
+                                  onClick={() => jumpProjectCarousel(project.key, dotIndex)}
+                                  style={{
+                                    width: isActive ? '0.92rem' : '0.54rem',
+                                    height: '0.54rem',
+                                    borderRadius: '999px',
+                                    border: 'none',
+                                    background: isActive ? '#1f1812' : 'rgba(31, 24, 18, 0.32)',
+                                    cursor: 'pointer',
+                                    transition: 'width 180ms ease, background-color 180ms ease',
+                                    padding: 0,
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={`Next ${project.title} image`}
+                            onClick={() => stepProjectCarousel(project.key, 1, carouselLength)}
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              borderRadius: 0,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#1f1812',
+                              display: 'grid',
+                              placeItems: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                              <path
+                                d="M9.5 5.5L16 12l-6.5 6.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {project.videoEmbedSrc ? (
+                      <figure
+                        style={{
+                          margin: 0,
+                          marginTop: '0.4rem',
+                          border: '1.5px solid #1f1812',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          background: '#f0eadf',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '100%',
+                            aspectRatio: '16 / 9',
+                          }}
+                        >
+                          <iframe
+                            src={project.videoEmbedSrc}
+                            title={project.videoTitle ?? `${project.title} video`}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            allowFullScreen
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              border: 0,
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      </figure>
+                    ) : null}
                   </article>
                 );
               })}
