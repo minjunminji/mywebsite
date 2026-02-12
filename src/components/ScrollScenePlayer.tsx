@@ -55,6 +55,39 @@ const projectStills = {
   mango: '/Animation/mango.png',
 } as const;
 
+const PROJECT_CONTENT = [
+  {
+    key: 'thisWebsite',
+    title: 'this website',
+    body: [
+      'a hand-drawn portfolio with a custom frame-by-frame scroll timeline built in next.js + react.',
+      'i wanted the navigation itself to feel like an animation reel instead of a standard page scroll.',
+    ],
+    mediaSrc: '/Animation/thiswebsite.png',
+    mediaAlt: 'Project frame for this website',
+  },
+  {
+    key: 'rebase',
+    title: 'rebase',
+    body: [
+      'a project focused on reducing day-to-day friction in development workflows and making context switching cheaper.',
+      'the core idea is fast iteration loops with clear feedback so teams can ship with confidence.',
+    ],
+    mediaSrc: '/Animation/rebase.png',
+    mediaAlt: 'Project frame for rebase',
+  },
+  {
+    key: 'mango',
+    title: 'mango',
+    body: [
+      'a gesture-based control system that maps body movement to in-game input in real time.',
+      'built to make immersive control more accessible without extra hardware.',
+    ],
+    mediaSrc: '/Animation/mango.png',
+    mediaAlt: 'Project frame for mango',
+  },
+] as const;
+
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const TRANSITION_PLAYBACK_FPS = 12;
@@ -94,6 +127,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export default function ScrollScenePlayer() {
+  const projectBlocksRef = useRef<HTMLDivElement | null>(null);
   const targetTransitionFrameRef = useRef(0);
   const targetTransitionTwoFrameRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('introLanding');
@@ -112,6 +146,7 @@ export default function ScrollScenePlayer() {
   const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
   const [secondRotationTriggered, setSecondRotationTriggered] = useState(false);
   const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
+  const [projectBlockIndex, setProjectBlockIndex] = useState(0);
 
   useEffect(() => {
     const allFrames = [
@@ -357,6 +392,14 @@ export default function ScrollScenePlayer() {
       const secondTriggeredEffective = beforeSecondTrigger ? false : secondRotationTriggered;
       const secondCompletedEffective = beforeSecondTrigger ? false : secondRotationCompleted;
 
+      let nextProjectBlockIndex = 0;
+      if (secondTriggeredEffective || secondCompletedEffective) {
+        nextProjectBlockIndex = 2;
+      } else if (firstTriggeredEffective || firstCompletedEffective) {
+        nextProjectBlockIndex = 1;
+      }
+      setProjectBlockIndex(nextProjectBlockIndex);
+
       if (secondCompletedEffective) {
         setProjectFrame(projectStills.mango);
         return;
@@ -526,6 +569,20 @@ export default function ScrollScenePlayer() {
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [phase]);
+
+  useEffect(() => {
+    const container = projectBlocksRef.current;
+    if (!container) {
+      return;
+    }
+
+    const blockHeight = container.clientHeight;
+    const targetTop = projectBlockIndex * blockHeight;
+    container.scrollTo({
+      top: targetTop,
+      behavior: phase === 'projects' ? 'smooth' : 'auto',
+    });
+  }, [projectBlockIndex, phase]);
 
   const frameToRender = useMemo(() => {
     if (phase === 'introLanding') {
@@ -710,6 +767,122 @@ export default function ScrollScenePlayer() {
             })}
           </div>
         </section>
+        <aside
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: '45%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            padding: '7vh 3vw 7vh 2vw',
+            opacity: phase === 'projects' ? 1 : 0,
+            transition: 'opacity 220ms ease',
+            pointerEvents: 'none',
+            zIndex: 6,
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '35rem',
+              height: 'min(82vh, 780px)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              ref={projectBlocksRef}
+              style={{
+                height: '100%',
+                overflowY: 'auto',
+                scrollSnapType: 'y mandatory',
+                scrollSnapStop: 'always',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
+            >
+              {PROJECT_CONTENT.map((project, index) => {
+                const distance = Math.abs(index - projectBlockIndex);
+                const opacity = clamp(1 - distance * 0.95, 0, 1);
+                const scale = clamp(1 - distance * 0.05, 0.9, 1);
+
+                return (
+                  <article
+                    key={project.key}
+                    style={{
+                      height: '100%',
+                      scrollSnapAlign: 'start',
+                      scrollSnapStop: 'always',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.1rem',
+                      color: '#1f1812',
+                      fontFamily: "'Cascadia Mono', monospace",
+                      opacity,
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top center',
+                      willChange: 'transform, opacity',
+                      paddingBottom: '2rem',
+                    }}
+                  >
+                    <h2
+                      style={{
+                        margin: 0,
+                        fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                        fontWeight: 600,
+                        lineHeight: 1,
+                        textTransform: 'lowercase',
+                      }}
+                    >
+                      {project.title}
+                    </h2>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.8rem',
+                        fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
+                        lineHeight: 1.65,
+                        fontWeight: 300,
+                      }}
+                    >
+                      {project.body.map((paragraph) => (
+                        <p key={`${project.key}-${paragraph}`} style={{ margin: 0 }}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                    <figure
+                      style={{
+                        margin: 0,
+                        marginTop: '0.4rem',
+                        border: '1.5px solid #1f1812',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                        background: '#f0eadf',
+                      }}
+                    >
+                      <img
+                        src={project.mediaSrc}
+                        alt={project.mediaAlt}
+                        draggable={false}
+                        style={{
+                          display: 'block',
+                          width: '100%',
+                          height: 'auto',
+                          userSelect: 'none',
+                        }}
+                      />
+                    </figure>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
         <div
           style={{
             position: 'fixed',
