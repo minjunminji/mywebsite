@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 type Phase = 'introLanding' | 'introTrainSequence' | 'trainLoop' | 'transition' | 'about';
 
@@ -34,6 +34,7 @@ const aboutFrames = [
 
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
+const TRANSITION_PLAYBACK_FPS = 12;
 const SCROLL_HEIGHT_VH = 340;
 const TRANSITION_START_VH = 95;
 const TRANSITION_LENGTH_VH = 145;
@@ -54,6 +55,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 export default function ScrollScenePlayer() {
+  const targetTransitionFrameRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
@@ -155,6 +157,7 @@ export default function ScrollScenePlayer() {
       if (scrollY < transitionStart) {
         setPhase('trainLoop');
         setTransitionFrame(0);
+        targetTransitionFrameRef.current = 0;
         return;
       }
 
@@ -162,6 +165,7 @@ export default function ScrollScenePlayer() {
       if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
         setPhase('about');
         setTransitionFrame(transitionFrames.length - 1);
+        targetTransitionFrameRef.current = transitionFrames.length - 1;
         return;
       }
 
@@ -171,8 +175,8 @@ export default function ScrollScenePlayer() {
         transitionFrames.length - 1,
       );
 
+      targetTransitionFrameRef.current = frameIndex;
       setPhase('transition');
-      setTransitionFrame(frameIndex);
     };
 
     handleScroll();
@@ -187,6 +191,44 @@ export default function ScrollScenePlayer() {
     if (phase === 'about') {
       setAboutAnimationSeed((previous) => previous + 1);
     }
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'transition') {
+      return;
+    }
+
+    let animationFrameId = 0;
+    let previousTimestamp = 0;
+    const frameDurationMs = 1000 / TRANSITION_PLAYBACK_FPS;
+
+    const tick = (timestamp: number) => {
+      if (previousTimestamp === 0) {
+        previousTimestamp = timestamp;
+      }
+
+      if (timestamp - previousTimestamp >= frameDurationMs) {
+        previousTimestamp = timestamp;
+        setTransitionFrame((previous) => {
+          const target = targetTransitionFrameRef.current;
+          if (previous === target) {
+            return previous;
+          }
+
+          const distance = Math.abs(target - previous);
+          const step = distance > 10 ? 3 : distance > 4 ? 2 : 1;
+          return previous + Math.sign(target - previous) * step;
+        });
+      }
+
+      animationFrameId = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
   }, [phase]);
 
   useEffect(() => {
