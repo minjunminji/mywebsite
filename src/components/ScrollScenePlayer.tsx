@@ -266,6 +266,29 @@ export default function ScrollScenePlayer() {
           style={{
             position: 'fixed',
             top: '1.5rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontFamily: "'Cascadia Mono', monospace",
+            fontWeight: 300,
+            fontSize: 'clamp(0.75rem, 1vw, 0.95rem)',
+            lineHeight: 1,
+            letterSpacing: '0.02em',
+            color: '#1f1812',
+            opacity: 0.78,
+            pointerEvents: 'none',
+            userSelect: 'none',
+            textTransform: 'lowercase',
+            zIndex: 20,
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          this website is a work in progress
+        </div>
+        <div
+          style={{
+            position: 'fixed',
+            top: '1.5rem',
             left: '1.5rem',
             fontFamily: "'Cascadia Mono', monospace",
             fontWeight: 600,
