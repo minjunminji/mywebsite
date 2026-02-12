@@ -161,6 +161,7 @@ const ABOUT_LINES = [
   'in my spare time, i like to produce music, cook, and play soccer.',
 ];
 const LANDING_LOOP_REPEATS = 4;
+const GLOBAL_WHEEL_DELTA_MAX_PX = 65;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -233,6 +234,39 @@ export default function ScrollScenePlayer() {
       const image = new Image();
       image.src = src;
     });
+  }, []);
+
+  useEffect(() => {
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        return;
+      }
+
+      const deltaScale =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? window.innerHeight
+            : 1;
+      const rawDelta = event.deltaY * deltaScale;
+      const clampedDelta = clamp(rawDelta, -GLOBAL_WHEEL_DELTA_MAX_PX, GLOBAL_WHEEL_DELTA_MAX_PX);
+
+      if (clampedDelta === rawDelta) {
+        return;
+      }
+
+      event.preventDefault();
+      window.scrollTo({
+        top: window.scrollY + clampedDelta,
+        behavior: 'auto',
+      });
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
   }, []);
 
   useEffect(() => {
