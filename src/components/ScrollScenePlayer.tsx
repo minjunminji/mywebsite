@@ -714,9 +714,9 @@ export default function ScrollScenePlayer() {
           style={{
             position: 'fixed',
             top: 0,
-            right: 0,
-            width: '7px',
-            height: '100vh',
+            left: 0,
+            width: '100%',
+            height: '7px',
             overflow: 'hidden',
             zIndex: 30,
             pointerEvents: 'none',
@@ -724,10 +724,10 @@ export default function ScrollScenePlayer() {
         >
           <div
             style={{
-              width: '100%',
-              height: `${scrollProgress * 100}%`,
+              width: `${scrollProgress * 100}%`,
+              height: '100%',
               background: '#000000',
-              transition: 'height 90ms linear',
+              transition: 'width 90ms linear',
             }}
           />
         </div>
