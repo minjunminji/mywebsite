@@ -2,13 +2,22 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
-type Phase = 'landing' | 'transition' | 'about';
+type Phase = 'introLanding' | 'introTrainSequence' | 'trainLoop' | 'transition' | 'about';
 
 const landingFrames = [
   '/Animation/landingloop1.png',
   '/Animation/landingloop2.png',
   '/Animation/landingloop3.png',
   '/Animation/landingloop4.png',
+];
+
+const trainSequenceFrames = Array.from({ length: 20 }, (_, index) => `/Animation/train${index + 1}.png`);
+
+const trainLoopFrames = [
+  '/Animation/trainloop1.png',
+  '/Animation/trainloop2.png',
+  '/Animation/trainloop3.png',
+  '/Animation/trainloop4.png',
 ];
 
 const transitionFrames = Array.from(
@@ -24,9 +33,11 @@ const aboutFrames = [
 ];
 
 const LOOP_INTERVAL_MS = 180;
+const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const SCROLL_HEIGHT_VH = 340;
 const TRANSITION_START_VH = 95;
 const TRANSITION_LENGTH_VH = 145;
+const TRANSITION_COMPLETE_EPSILON = 0.995;
 const CORNER_TITLE_FADE_IN_VH = 24;
 const ABOUT_INITIAL_DELAY_MS = 260;
 const ABOUT_CHAR_STAGGER_MS = 24;
@@ -36,23 +47,26 @@ const ABOUT_LINES = [
   "i'm a sophomore computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
   'in my spare time, i like to produce music, cook, and play soccer.',
 ];
+const LANDING_LOOP_REPEATS = 4;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
 
 export default function ScrollScenePlayer() {
-  const [phase, setPhase] = useState<Phase>('landing');
+  const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
+  const [, setLandingLoopsCompleted] = useState(0);
+  const [trainSequenceFrame, setTrainSequenceFrame] = useState(0);
+  const [trainLoopFrame, setTrainLoopFrame] = useState(0);
   const [aboutFrame, setAboutFrame] = useState(0);
   const [transitionFrame, setTransitionFrame] = useState(0);
-  const [landingTitleOpacity, setLandingTitleOpacity] = useState(1);
   const [cornerTitleOpacity, setCornerTitleOpacity] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
 
   useEffect(() => {
-    const allFrames = [...landingFrames, ...transitionFrames, ...aboutFrames];
+    const allFrames = [...landingFrames, ...trainSequenceFrames, ...trainLoopFrames, ...transitionFrames, ...aboutFrames];
     allFrames.forEach((src) => {
       const image = new Image();
       image.src = src;
@@ -60,15 +74,56 @@ export default function ScrollScenePlayer() {
   }, []);
 
   useEffect(() => {
-    const loopFrames = phase === 'landing' ? landingFrames : phase === 'about' ? aboutFrames : null;
+    if (phase === 'introLanding') {
+      const tick = window.setInterval(() => {
+        setLandingFrame((previous) => {
+          const next = (previous + 1) % landingFrames.length;
+
+          if (next === 0) {
+            setLandingLoopsCompleted((completed) => {
+              const updated = completed + 1;
+              if (updated >= LANDING_LOOP_REPEATS) {
+                setPhase('introTrainSequence');
+              }
+              return updated;
+            });
+          }
+
+          return next;
+        });
+      }, LOOP_INTERVAL_MS);
+
+      return () => {
+        window.clearInterval(tick);
+      };
+    }
+
+    if (phase === 'introTrainSequence') {
+      const tick = window.setInterval(() => {
+        setTrainSequenceFrame((previous) => {
+          if (previous >= trainSequenceFrames.length - 1) {
+            setPhase('trainLoop');
+            return previous;
+          }
+
+          return previous + 1;
+        });
+      }, TRAIN_SEQUENCE_INTERVAL_MS);
+
+      return () => {
+        window.clearInterval(tick);
+      };
+    }
+
+    const loopFrames = phase === 'trainLoop' ? trainLoopFrames : phase === 'about' ? aboutFrames : null;
 
     if (!loopFrames) {
       return;
     }
 
     const tick = window.setInterval(() => {
-      if (phase === 'landing') {
-        setLandingFrame((previous) => (previous + 1) % landingFrames.length);
+      if (phase === 'trainLoop') {
+        setTrainLoopFrame((previous) => (previous + 1) % trainLoopFrames.length);
       } else {
         setAboutFrame((previous) => (previous + 1) % aboutFrames.length);
       }
@@ -88,26 +143,28 @@ export default function ScrollScenePlayer() {
       const scrollY = window.scrollY;
       const maxScroll = Math.max(document.documentElement.scrollHeight - viewportHeight, 1);
       const pageProgress = clamp(scrollY / maxScroll, 0, 1);
-      const titleOpacity = clamp(1 - scrollY / transitionStart, 0, 1);
       const cornerOpacity = clamp((scrollY - transitionStart) / cornerTitleFadeLength, 0, 1);
 
       setScrollProgress(pageProgress);
-      setLandingTitleOpacity(titleOpacity);
       setCornerTitleOpacity(cornerOpacity);
 
+      if (phase === 'introLanding' || phase === 'introTrainSequence') {
+        return;
+      }
+
       if (scrollY < transitionStart) {
-        setPhase('landing');
+        setPhase('trainLoop');
         setTransitionFrame(0);
         return;
       }
 
-      if (scrollY >= transitionStart + transitionLength) {
+      const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
+      if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
         setPhase('about');
         setTransitionFrame(transitionFrames.length - 1);
         return;
       }
 
-      const transitionProgress = (scrollY - transitionStart) / transitionLength;
       const frameIndex = clamp(
         Math.round(transitionProgress * (transitionFrames.length - 1)),
         0,
@@ -124,7 +181,7 @@ export default function ScrollScenePlayer() {
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, []);
+  }, [phase]);
 
   useEffect(() => {
     if (phase === 'about') {
@@ -133,8 +190,16 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   const frameToRender = useMemo(() => {
-    if (phase === 'landing') {
+    if (phase === 'introLanding') {
       return landingFrames[landingFrame];
+    }
+
+    if (phase === 'introTrainSequence') {
+      return trainSequenceFrames[trainSequenceFrame];
+    }
+
+    if (phase === 'trainLoop') {
+      return trainLoopFrames[trainLoopFrame];
     }
 
     if (phase === 'about') {
@@ -142,7 +207,9 @@ export default function ScrollScenePlayer() {
     }
 
     return transitionFrames[transitionFrame];
-  }, [phase, landingFrame, transitionFrame, aboutFrame]);
+  }, [phase, landingFrame, trainSequenceFrame, trainLoopFrame, transitionFrame, aboutFrame]);
+
+  const useTrainBlendMode = phase === 'introTrainSequence' || phase === 'trainLoop';
 
   return (
     <div
@@ -172,29 +239,9 @@ export default function ScrollScenePlayer() {
             objectFit: 'cover',
             objectPosition: 'center',
             userSelect: 'none',
+            mixBlendMode: useTrainBlendMode ? 'multiply' : 'normal',
           }}
         />
-        <div
-          style={{
-            position: 'absolute',
-            top: '50%',
-            left: '79%',
-            transform: 'translate(-50%, -50%)',
-            fontFamily: "'Cascadia Mono', monospace",
-            fontWeight: 600,
-            fontSize: 'clamp(1.6rem, 3.6vw, 3rem)',
-            lineHeight: 1,
-            letterSpacing: '0.04em',
-            color: '#1f1812',
-            opacity: landingTitleOpacity,
-            transition: 'opacity 120ms linear',
-            pointerEvents: 'none',
-            userSelect: 'none',
-            textTransform: 'lowercase',
-          }}
-        >
-          ryan kim
-        </div>
         <div
           style={{
             position: 'fixed',
@@ -219,7 +266,7 @@ export default function ScrollScenePlayer() {
         <section
           style={{
             position: 'absolute',
-            left: 0,
+            left: '3vw',
             top: 0,
             width: '33.334%',
             height: '100%',
