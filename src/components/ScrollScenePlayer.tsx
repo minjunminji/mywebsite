@@ -227,9 +227,11 @@ const SCROLL_HEIGHT_VH =
   PROJECT_FINAL_HOLD_VH;
 const TRANSITION_COMPLETE_EPSILON = 0.995;
 const CORNER_TITLE_FADE_IN_VH = 24;
-const ABOUT_INITIAL_DELAY_MS = 260;
-const ABOUT_CHAR_STAGGER_MS = 24;
-const ABOUT_LINE_GAP_MS = 208;
+const ABOUT_INITIAL_DELAY_MS = 208;
+const ABOUT_CHAR_STAGGER_MS = 19;
+const ABOUT_LINE_GAP_MS = 166;
+const ABOUT_CHAR_FADE_DURATION_MS = 416;
+const ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS = 320;
 const ABOUT_LINES = [
   "hi, i'm ryan!",
   "i'm a sophomore computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
@@ -1318,7 +1320,7 @@ export default function ScrollScenePlayer() {
                         style={{
                           opacity: 0,
                           animationName: 'aboutCharFadeIn',
-                          animationDuration: '520ms',
+                          animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
                           animationTimingFunction: 'ease',
                           animationFillMode: 'forwards',
                           animationDelay: `${delay}ms`,
@@ -1339,14 +1341,14 @@ export default function ScrollScenePlayer() {
                 fontWeight: 300,
                 opacity: 0,
                 animationName: 'aboutCharFadeIn',
-                animationDuration: '520ms',
+                animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
                 animationTimingFunction: 'ease',
                 animationFillMode: 'forwards',
                 animationDelay: `${
                   ABOUT_INITIAL_DELAY_MS +
                   ABOUT_LINES.join('').length * ABOUT_CHAR_STAGGER_MS +
                   ABOUT_LINES.length * ABOUT_LINE_GAP_MS +
-                  400
+                  ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS
                 }ms`,
               }}
             >
