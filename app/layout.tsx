@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import StickyAudioPlayer from '@/components/StickyAudioPlayer';
 
 export const metadata: Metadata = {
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <StickyAudioPlayer />
         {children}
+        <Analytics />
       </body>
     </html>
   );
