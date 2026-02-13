@@ -276,6 +276,10 @@ const TRAIN_LOOP_SCROLL_HINT_DELAY_MS = 3000;
 const MOBILE_TOUCH_MEDIA_QUERY = '(hover: none) and (pointer: coarse)';
 const MOBILE_PORTRAIT_MEDIA_QUERY = `${MOBILE_TOUCH_MEDIA_QUERY} and (orientation: portrait)`;
 const MOBILE_VIEW_MEDIA_QUERY = '(max-width: 900px), (hover: none) and (pointer: coarse)';
+const SCROLL_STOPPER_MIN_DELTA_PX = 110;
+const SCROLL_STOPPER_MIN_VELOCITY_PX_PER_MS = 1.4;
+const SCROLL_STOPPER_SETTLE_MS = 420;
+const SCROLL_STOPPER_WHEEL_TRIGGER_PX = 26;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -292,6 +296,10 @@ export default function ScrollScenePlayer() {
   const progressFillRef = useRef<HTMLDivElement | null>(null);
   const cornerTitleOpacityRef = useRef(-1);
   const scrollProgressRef = useRef(-1);
+  const previousScrollYRef = useRef(0);
+  const previousScrollTimeRef = useRef(0);
+  const activeScrollStopperTargetRef = useRef<number | null>(null);
+  const wheelStopperUntilRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('loading');
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
   const [landingFrame, setLandingFrame] = useState(0);
@@ -525,6 +533,12 @@ export default function ScrollScenePlayer() {
         return;
       }
 
+      const now = performance.now();
+      if (now < wheelStopperUntilRef.current) {
+        event.preventDefault();
+        return;
+      }
+
       const deltaScale =
         event.deltaMode === WheelEvent.DOM_DELTA_LINE
           ? 16
@@ -533,6 +547,55 @@ export default function ScrollScenePlayer() {
             : 1;
       const rawDelta = event.deltaY * deltaScale;
       const clampedDelta = clamp(rawDelta, -GLOBAL_WHEEL_DELTA_MAX_PX, GLOBAL_WHEEL_DELTA_MAX_PX);
+      const viewportHeight = window.innerHeight;
+      const transitionStart = (TRANSITION_START_VH / 100) * viewportHeight;
+      const transitionLength = (TRANSITION_LENGTH_VH / 100) * viewportHeight;
+      const transitionOneEnd = transitionStart + transitionLength;
+      const aboutLength = (ABOUT_SECTION_VH / 100) * viewportHeight;
+      const aboutEnd = transitionOneEnd + aboutLength;
+      const transitionTwoLength = (TRANSITION_TWO_LENGTH_VH / 100) * viewportHeight;
+      const transitionTwoEnd = aboutEnd + transitionTwoLength;
+      const thisWebsiteHoldEnd =
+        transitionTwoEnd + (PROJECT_THIS_WEBSITE_HOLD_VH / 100) * viewportHeight;
+      const firstRotationTrigger =
+        thisWebsiteHoldEnd + (PROJECT_FIRST_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+      const rebaseHoldEnd = firstRotationTrigger + (PROJECT_REBASE_HOLD_VH / 100) * viewportHeight;
+      const secondRotationTrigger =
+        rebaseHoldEnd + (PROJECT_SECOND_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+      const scrollY = window.scrollY;
+      const nextScrollY = scrollY + rawDelta;
+      const stopperAnchors = [
+        transitionOneEnd,
+        transitionTwoEnd,
+        firstRotationTrigger,
+        secondRotationTrigger,
+      ];
+
+      const shouldRunWheelStopper =
+        !showRotateDeviceOverlay &&
+        phase !== 'loading' &&
+        phase !== 'introLanding' &&
+        phase !== 'introTrainSequence' &&
+        Math.abs(rawDelta) >= SCROLL_STOPPER_WHEEL_TRIGGER_PX;
+
+      if (shouldRunWheelStopper) {
+        const crossedAnchor = stopperAnchors.find((anchor) =>
+          rawDelta > 0
+            ? scrollY < anchor && nextScrollY >= anchor
+            : scrollY > anchor && nextScrollY <= anchor,
+        );
+
+        if (crossedAnchor !== undefined) {
+          event.preventDefault();
+          activeScrollStopperTargetRef.current = crossedAnchor;
+          wheelStopperUntilRef.current = now + SCROLL_STOPPER_SETTLE_MS;
+          window.scrollTo({
+            top: crossedAnchor,
+            behavior: 'smooth',
+          });
+          return;
+        }
+      }
 
       if (clampedDelta === rawDelta) {
         return;
@@ -550,7 +613,7 @@ export default function ScrollScenePlayer() {
     return () => {
       window.removeEventListener('wheel', handleWheel);
     };
-  }, []);
+  }, [phase, showRotateDeviceOverlay]);
 
   useEffect(() => {
     if (phase === 'introLanding') {
@@ -707,6 +770,7 @@ export default function ScrollScenePlayer() {
         rebaseHoldEnd + (PROJECT_SECOND_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
       const cornerTitleFadeLength = (CORNER_TITLE_FADE_IN_VH / 100) * viewportHeight;
       const scrollY = window.scrollY;
+      const now = performance.now();
       const maxScroll = Math.max(document.documentElement.scrollHeight - viewportHeight, 1);
       const pageProgress = clamp(scrollY / maxScroll, 0, 1);
       const cornerOpacity = clamp((scrollY - transitionStart) / cornerTitleFadeLength, 0, 1);
@@ -725,6 +789,63 @@ export default function ScrollScenePlayer() {
           cornerTitleRef.current.style.pointerEvents = cornerOpacity > 0.02 ? 'auto' : 'none';
         }
       }
+
+      const previousScrollY = previousScrollYRef.current;
+      const previousScrollTime = previousScrollTimeRef.current;
+      const scrollDelta = scrollY - previousScrollY;
+      const deltaTime = previousScrollTime > 0 ? Math.max(now - previousScrollTime, 1) : 1;
+      const velocity = Math.abs(scrollDelta) / deltaTime;
+
+      const stopperAnchors = [
+        transitionOneEnd,
+        transitionTwoEnd,
+        firstRotationTrigger,
+        secondRotationTrigger,
+      ];
+
+      if (
+        !showRotateDeviceOverlay &&
+        phase !== 'loading' &&
+        phase !== 'introLanding' &&
+        phase !== 'introTrainSequence' &&
+        Math.abs(scrollDelta) >= SCROLL_STOPPER_MIN_DELTA_PX &&
+        velocity >= SCROLL_STOPPER_MIN_VELOCITY_PX_PER_MS
+      ) {
+        const crossedAnchor = stopperAnchors.find((anchor) =>
+          scrollDelta > 0
+            ? previousScrollY < anchor && scrollY >= anchor
+            : previousScrollY > anchor && scrollY <= anchor,
+        );
+
+        if (
+          crossedAnchor !== undefined &&
+          activeScrollStopperTargetRef.current !== crossedAnchor
+        ) {
+          activeScrollStopperTargetRef.current = crossedAnchor;
+          window.scrollTo({
+            top: crossedAnchor,
+            behavior: 'smooth',
+          });
+          window.setTimeout(() => {
+            if (activeScrollStopperTargetRef.current === crossedAnchor) {
+              activeScrollStopperTargetRef.current = null;
+            }
+          }, SCROLL_STOPPER_SETTLE_MS);
+          previousScrollYRef.current = crossedAnchor;
+          previousScrollTimeRef.current = now;
+          return;
+        }
+      }
+
+      if (
+        activeScrollStopperTargetRef.current !== null &&
+        Math.abs(scrollY - activeScrollStopperTargetRef.current) <= 2
+      ) {
+        activeScrollStopperTargetRef.current = null;
+      }
+
+      previousScrollYRef.current = scrollY;
+      previousScrollTimeRef.current = now;
 
       if (
         showRotateDeviceOverlay ||
