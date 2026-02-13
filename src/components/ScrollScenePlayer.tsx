@@ -285,6 +285,30 @@ function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
 
+function addMediaQueryChangeListener(
+  mediaQueryList: MediaQueryList,
+  listener: (event: MediaQueryListEvent) => void,
+) {
+  if (typeof mediaQueryList.addEventListener === 'function') {
+    mediaQueryList.addEventListener('change', listener);
+    return;
+  }
+
+  mediaQueryList.addListener(listener);
+}
+
+function removeMediaQueryChangeListener(
+  mediaQueryList: MediaQueryList,
+  listener: (event: MediaQueryListEvent) => void,
+) {
+  if (typeof mediaQueryList.removeEventListener === 'function') {
+    mediaQueryList.removeEventListener('change', listener);
+    return;
+  }
+
+  mediaQueryList.removeListener(listener);
+}
+
 export default function ScrollScenePlayer() {
   const projectBlocksRef = useRef<HTMLDivElement | null>(null);
   const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
@@ -300,6 +324,7 @@ export default function ScrollScenePlayer() {
   const previousScrollTimeRef = useRef(0);
   const activeScrollStopperTargetRef = useRef<number | null>(null);
   const wheelStopperUntilRef = useRef(0);
+  const startupPreloadRanRef = useRef(false);
   const [phase, setPhase] = useState<Phase>('loading');
   const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
   const [landingFrame, setLandingFrame] = useState(0);
@@ -312,8 +337,12 @@ export default function ScrollScenePlayer() {
   const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
   const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
   const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
-  const [showRotateDeviceOverlay, setShowRotateDeviceOverlay] = useState(false);
-  const [isMobileView, setIsMobileView] = useState(false);
+  const [showRotateDeviceOverlay, setShowRotateDeviceOverlay] = useState(() =>
+    typeof window === 'undefined' ? false : window.matchMedia(MOBILE_PORTRAIT_MEDIA_QUERY).matches,
+  );
+  const [isMobileView, setIsMobileView] = useState(() =>
+    typeof window === 'undefined' ? false : window.matchMedia(MOBILE_VIEW_MEDIA_QUERY).matches,
+  );
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
   const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
   const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
@@ -355,16 +384,16 @@ export default function ScrollScenePlayer() {
     };
 
     syncRotateOverlay();
-    touchDeviceQuery.addEventListener('change', syncRotateOverlay);
-    portraitTouchQuery.addEventListener('change', syncRotateOverlay);
-    mobileViewQuery.addEventListener('change', syncRotateOverlay);
+    addMediaQueryChangeListener(touchDeviceQuery, syncRotateOverlay);
+    addMediaQueryChangeListener(portraitTouchQuery, syncRotateOverlay);
+    addMediaQueryChangeListener(mobileViewQuery, syncRotateOverlay);
     window.addEventListener('resize', syncRotateOverlay);
     window.addEventListener('orientationchange', syncRotateOverlay);
 
     return () => {
-      touchDeviceQuery.removeEventListener('change', syncRotateOverlay);
-      portraitTouchQuery.removeEventListener('change', syncRotateOverlay);
-      mobileViewQuery.removeEventListener('change', syncRotateOverlay);
+      removeMediaQueryChangeListener(touchDeviceQuery, syncRotateOverlay);
+      removeMediaQueryChangeListener(portraitTouchQuery, syncRotateOverlay);
+      removeMediaQueryChangeListener(mobileViewQuery, syncRotateOverlay);
       window.removeEventListener('resize', syncRotateOverlay);
       window.removeEventListener('orientationchange', syncRotateOverlay);
     };
@@ -410,6 +439,11 @@ export default function ScrollScenePlayer() {
   };
 
   useEffect(() => {
+    if (startupPreloadRanRef.current || phase !== 'loading' || showRotateDeviceOverlay) {
+      return;
+    }
+
+    startupPreloadRanRef.current = true;
     let cancelled = false;
     const startupSources = Array.from(
       new Set([
@@ -426,7 +460,7 @@ export default function ScrollScenePlayer() {
         projectStills.rebase,
         projectStills.mango,
         ABOUT_REFERENCE_IMAGE,
-        ...PROJECT_MEDIA_SOURCES,
+        ...(isMobileView ? [] : PROJECT_MEDIA_SOURCES),
       ]),
     );
 
@@ -453,7 +487,7 @@ export default function ScrollScenePlayer() {
         loadingOverlayTimeoutRef.current = null;
       }
     };
-  }, []);
+  }, [phase, showRotateDeviceOverlay, isMobileView]);
 
   useEffect(() => {
     const sources = new Set<string>();
@@ -487,7 +521,9 @@ export default function ScrollScenePlayer() {
         turnstileBackgroundFrame,
         turnstileBackgroundFrameTwo,
       ]);
-      add(PROJECT_MEDIA_SOURCES);
+      if (!isMobileView) {
+        add(PROJECT_MEDIA_SOURCES);
+      }
     } else if (phase === 'projects') {
       add([
         turnstileBackgroundFrame,
@@ -496,7 +532,9 @@ export default function ScrollScenePlayer() {
         projectStills.rebase,
         projectStills.mango,
       ]);
-      add(PROJECT_MEDIA_SOURCES);
+      if (!isMobileView) {
+        add(PROJECT_MEDIA_SOURCES);
+      }
 
       if (!firstRotationCompleted || !secondRotationCompleted) {
         add(turnstileFrames);
@@ -514,6 +552,7 @@ export default function ScrollScenePlayer() {
     transitionTwoFrame,
     firstRotationCompleted,
     secondRotationCompleted,
+    isMobileView,
   ]);
 
   useEffect(() => {
