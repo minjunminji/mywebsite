@@ -11,6 +11,7 @@ export default function StickyAudioPlayer() {
   const [isSceneLoading, setIsSceneLoading] = useState(() =>
     typeof document === 'undefined' ? false : document.body.dataset.sceneLoading === 'true',
   );
+  const [isWaveReady, setIsWaveReady] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [showVolume, setShowVolume] = useState(false);
@@ -34,7 +35,7 @@ export default function StickyAudioPlayer() {
   }, []);
 
   useEffect(() => {
-    if (isSceneLoading || !waveformRef.current) {
+    if (!waveformRef.current || waveSurferRef.current) {
       return;
     }
 
@@ -56,6 +57,7 @@ export default function StickyAudioPlayer() {
     waveSurferRef.current = waveSurfer;
 
     const onReady = async () => {
+      setIsWaveReady(true);
       try {
         await waveSurfer.play();
         setIsPlaying(true);
@@ -84,8 +86,9 @@ export default function StickyAudioPlayer() {
       waveSurfer.un('finish', onPause);
       waveSurfer.destroy();
       waveSurferRef.current = null;
+      setIsWaveReady(false);
     };
-  }, [isSceneLoading]);
+  }, []);
 
   const togglePlayback = async () => {
     if (!waveSurferRef.current) {
@@ -104,9 +107,7 @@ export default function StickyAudioPlayer() {
     waveSurferRef.current?.setVolume(newVolume);
   };
 
-  if (isSceneLoading) {
-    return null;
-  }
+  const shouldShowPlayer = !isSceneLoading && isWaveReady;
 
   return (
     <div
@@ -122,6 +123,9 @@ export default function StickyAudioPlayer() {
         borderRadius: '10px',
         backdropFilter: 'blur(4px)',
         zIndex: 21,
+        opacity: shouldShowPlayer ? 1 : 0,
+        pointerEvents: shouldShowPlayer ? 'auto' : 'none',
+        transition: 'opacity 180ms ease',
       }}
     >
       <button
