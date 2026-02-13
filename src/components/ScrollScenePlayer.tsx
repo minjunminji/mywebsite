@@ -207,6 +207,10 @@ export default function ScrollScenePlayer() {
   const targetTransitionFrameRef = useRef(0);
   const targetTransitionTwoFrameRef = useRef(0);
   const hasTriggeredAboutAnimationRef = useRef(false);
+  const cornerTitleRef = useRef<HTMLDivElement | null>(null);
+  const progressFillRef = useRef<HTMLDivElement | null>(null);
+  const cornerTitleOpacityRef = useRef(-1);
+  const scrollProgressRef = useRef(-1);
   const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
@@ -216,8 +220,6 @@ export default function ScrollScenePlayer() {
   const [transitionFrame, setTransitionFrame] = useState(0);
   const [transitionTwoFrame, setTransitionTwoFrame] = useState(0);
   const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
-  const [cornerTitleOpacity, setCornerTitleOpacity] = useState(0);
-  const [scrollProgress, setScrollProgress] = useState(0);
   const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
   const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
@@ -225,6 +227,7 @@ export default function ScrollScenePlayer() {
   const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
   const [secondRotationTriggered, setSecondRotationTriggered] = useState(false);
   const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
+  const [hasVisitedProjects, setHasVisitedProjects] = useState(false);
   const [projectBlockIndex, setProjectBlockIndex] = useState(0);
   const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
   const [isCornerMenuOpen, setIsCornerMenuOpen] = useState(false);
@@ -277,10 +280,17 @@ export default function ScrollScenePlayer() {
   };
 
   useEffect(() => {
-    const allFrames = [
-      ...landingFrames,
-      ...trainSequenceFrames,
-      ...trainLoopFrames,
+    const preloadFrames = (sources: readonly string[]) => {
+      sources.forEach((src) => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.src = src;
+      });
+    };
+
+    const criticalFrames = [...landingFrames, ...trainSequenceFrames.slice(0, 8), ...trainLoopFrames];
+    const deferredFrames = [
+      ...trainSequenceFrames.slice(8),
       ...transitionFrames,
       ...aboutFrames,
       ...transitionTwoFrames,
@@ -290,10 +300,36 @@ export default function ScrollScenePlayer() {
       projectStills.rebase,
       projectStills.mango,
     ];
-    allFrames.forEach((src) => {
-      const image = new Image();
-      image.src = src;
-    });
+
+    preloadFrames(criticalFrames);
+
+    type IdleWindow = Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    const idleWindow = window as IdleWindow;
+    let idleId: number | null = null;
+    let timeoutId: number | null = null;
+
+    const preloadDeferred = () => {
+      preloadFrames(deferredFrames);
+    };
+
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      idleId = idleWindow.requestIdleCallback(() => preloadDeferred(), { timeout: 1500 });
+    } else {
+      timeoutId = window.setTimeout(preloadDeferred, 250);
+    }
+
+    return () => {
+      if (idleId !== null && typeof idleWindow.cancelIdleCallback === 'function') {
+        idleWindow.cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -468,6 +504,12 @@ export default function ScrollScenePlayer() {
   }, [secondRotationTriggered, secondRotationCompleted]);
 
   useEffect(() => {
+    if (phase === 'projects' && !hasVisitedProjects) {
+      setHasVisitedProjects(true);
+    }
+  }, [phase, hasVisitedProjects]);
+
+  useEffect(() => {
     const handleScroll = () => {
       const viewportHeight = window.innerHeight;
       const transitionStart = (TRANSITION_START_VH / 100) * viewportHeight;
@@ -490,8 +532,20 @@ export default function ScrollScenePlayer() {
       const pageProgress = clamp(scrollY / maxScroll, 0, 1);
       const cornerOpacity = clamp((scrollY - transitionStart) / cornerTitleFadeLength, 0, 1);
 
-      setScrollProgress(pageProgress);
-      setCornerTitleOpacity(cornerOpacity);
+      if (Math.abs(pageProgress - scrollProgressRef.current) > 0.001) {
+        scrollProgressRef.current = pageProgress;
+        if (progressFillRef.current) {
+          progressFillRef.current.style.width = `${pageProgress * 100}%`;
+        }
+      }
+
+      if (Math.abs(cornerOpacity - cornerTitleOpacityRef.current) > 0.001) {
+        cornerTitleOpacityRef.current = cornerOpacity;
+        if (cornerTitleRef.current) {
+          cornerTitleRef.current.style.opacity = `${cornerOpacity}`;
+          cornerTitleRef.current.style.pointerEvents = cornerOpacity > 0.02 ? 'auto' : 'none';
+        }
+      }
 
       if (phase === 'introLanding' || phase === 'introTrainSequence') {
         return;
@@ -655,11 +709,28 @@ export default function ScrollScenePlayer() {
       }
     };
 
+    let animationFrameId = 0;
+    const scheduleScrollWork = () => {
+      if (animationFrameId !== 0) {
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = 0;
+        handleScroll();
+      });
+    };
+
     handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('scroll', scheduleScrollWork, { passive: true });
+    window.addEventListener('resize', scheduleScrollWork);
 
     return () => {
-      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('scroll', scheduleScrollWork);
+      window.removeEventListener('resize', scheduleScrollWork);
+      if (animationFrameId !== 0) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
     };
   }, [
     phase,
@@ -919,6 +990,7 @@ export default function ScrollScenePlayer() {
           this website is a work in progress
         </div>
         <div
+          ref={cornerTitleRef}
           onMouseEnter={openCornerMenu}
           onMouseLeave={closeCornerMenuWithDelay}
           style={{
@@ -934,9 +1006,9 @@ export default function ScrollScenePlayer() {
             lineHeight: 1,
             letterSpacing: '0.03em',
             color: '#1f1812',
-            opacity: cornerTitleOpacity,
+            opacity: 0,
             transition: 'opacity 140ms linear',
-            pointerEvents: cornerTitleOpacity > 0.02 ? 'auto' : 'none',
+            pointerEvents: 'none',
             userSelect: 'none',
             textTransform: 'lowercase',
             zIndex: 20,
@@ -1035,7 +1107,8 @@ export default function ScrollScenePlayer() {
             })}
           </div>
         </div>
-        <section
+        {phase === 'about' ? (
+          <section
           style={{
             position: 'absolute',
             left: '3vw',
@@ -1046,9 +1119,7 @@ export default function ScrollScenePlayer() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: '8vh 4vw',
-            opacity: phase === 'about' ? 1 : 0,
             pointerEvents: 'none',
-            transition: 'opacity 220ms ease',
             zIndex: 3,
           }}
         >
@@ -1125,6 +1196,7 @@ export default function ScrollScenePlayer() {
             </p>
           </div>
         </section>
+        ) : null}
         <div
           style={{
             position: 'fixed',
@@ -1170,7 +1242,8 @@ export default function ScrollScenePlayer() {
             </svg>
           </span>
         </div>
-        <aside
+        {hasVisitedProjects ? (
+          <aside
           style={{
             position: 'absolute',
             top: 0,
@@ -1525,6 +1598,7 @@ export default function ScrollScenePlayer() {
             </div>
           </div>
         </aside>
+        ) : null}
         <div
           style={{
             position: 'fixed',
@@ -1538,8 +1612,9 @@ export default function ScrollScenePlayer() {
           }}
         >
           <div
+            ref={progressFillRef}
             style={{
-              width: `${scrollProgress * 100}%`,
+              width: '0%',
               height: '100%',
               background: '#000000',
               transition: 'width 90ms linear',
