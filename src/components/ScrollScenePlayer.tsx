@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import RevealFluid from './RevealFluid';
 
 type Phase =
+  | 'loading'
   | 'introLanding'
   | 'introTrainSequence'
   | 'trainLoop'
@@ -128,20 +129,66 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
   },
 ];
 
+const ABOUT_REFERENCE_IMAGE = '/about_ref.webp';
 const PROJECT_MEDIA_SOURCES = ['/oldwebsite.webp', '/rebase1.webp', '/rebase2.webp', '/rebase3.webp', '/rebase4.webp'] as const;
-const preloadedImageCache = new Set<string>();
+const requestedImageSources = new Set<string>();
+const loadedImageSources = new Set<string>();
+const imagePreloadPromises = new Map<string, Promise<void>>();
+
+function queueImagePreload(src: string): Promise<void> {
+  if (loadedImageSources.has(src)) {
+    return Promise.resolve();
+  }
+
+  const existing = imagePreloadPromises.get(src);
+  if (existing) {
+    return existing;
+  }
+
+  const preloadPromise = new Promise<void>((resolve) => {
+    const image = new Image();
+    image.decoding = 'async';
+
+    const finish = () => {
+      loadedImageSources.add(src);
+      imagePreloadPromises.delete(src);
+      resolve();
+    };
+
+    image.onload = () => {
+      if (typeof image.decode === 'function') {
+        image.decode().catch(() => undefined).finally(finish);
+        return;
+      }
+
+      finish();
+    };
+    image.onerror = finish;
+    image.src = src;
+  });
+
+  imagePreloadPromises.set(src, preloadPromise);
+  return preloadPromise;
+}
 
 function preloadImageSources(sources: readonly string[]) {
   sources.forEach((src) => {
-    if (!src || preloadedImageCache.has(src)) {
+    if (!src || requestedImageSources.has(src)) {
       return;
     }
 
-    preloadedImageCache.add(src);
-    const image = new Image();
-    image.decoding = 'async';
-    image.src = src;
+    requestedImageSources.add(src);
+    void queueImagePreload(src);
   });
+}
+
+function preloadImageSourceBlocking(src: string): Promise<void> {
+  if (!src) {
+    return Promise.resolve();
+  }
+
+  requestedImageSources.add(src);
+  return queueImagePreload(src);
 }
 
 function frameWindowSources(frames: readonly string[], centerIndex: number, radius: number): string[] {
@@ -231,6 +278,7 @@ function clamp(value: number, min: number, max: number): number {
 export default function ScrollScenePlayer() {
   const projectBlocksRef = useRef<HTMLDivElement | null>(null);
   const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
+  const loadingOverlayTimeoutRef = useRef<number | null>(null);
   const targetTransitionFrameRef = useRef(0);
   const targetTransitionTwoFrameRef = useRef(0);
   const hasTriggeredAboutAnimationRef = useRef(false);
@@ -238,7 +286,8 @@ export default function ScrollScenePlayer() {
   const progressFillRef = useRef<HTMLDivElement | null>(null);
   const cornerTitleOpacityRef = useRef(-1);
   const scrollProgressRef = useRef(-1);
-  const [phase, setPhase] = useState<Phase>('introLanding');
+  const [phase, setPhase] = useState<Phase>('loading');
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
   const [trainSequenceFrame, setTrainSequenceFrame] = useState(0);
@@ -307,19 +356,48 @@ export default function ScrollScenePlayer() {
   };
 
   useEffect(() => {
-    preloadImageSources([
-      landingFrames[0],
-      landingFrames[1],
-      trainSequenceFrames[0],
-      trainSequenceFrames[1],
-      trainLoopFrames[0],
-      transitionFrames[0],
-      aboutFrames[0],
-      transitionTwoFrames[0],
-      turnstileFrames[0],
-      turnstileBackgroundFrame,
-      projectStills.thisWebsite,
-    ]);
+    let cancelled = false;
+    const startupSources = Array.from(
+      new Set([
+        ...landingFrames,
+        ...trainSequenceFrames,
+        ...trainLoopFrames,
+        ...transitionFrames,
+        ...aboutFrames,
+        ...transitionTwoFrames,
+        ...turnstileFrames,
+        turnstileBackgroundFrame,
+        projectStills.thisWebsite,
+        projectStills.rebase,
+        projectStills.mango,
+        ABOUT_REFERENCE_IMAGE,
+        ...PROJECT_MEDIA_SOURCES,
+      ]),
+    );
+
+    const run = async () => {
+      await Promise.all(startupSources.map((src) => preloadImageSourceBlocking(src)));
+
+      if (cancelled) {
+        return;
+      }
+
+      setPhase('introLanding');
+      loadingOverlayTimeoutRef.current = window.setTimeout(() => {
+        setShowLoadingOverlay(false);
+        loadingOverlayTimeoutRef.current = null;
+      }, 460);
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      if (loadingOverlayTimeoutRef.current !== null) {
+        window.clearTimeout(loadingOverlayTimeoutRef.current);
+        loadingOverlayTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -344,7 +422,7 @@ export default function ScrollScenePlayer() {
       add(aboutFrames);
     } else if (phase === 'about') {
       add(frameWindowSources(aboutFrames, aboutFrame, 2));
-      add(['/about_ref.webp']);
+      add([ABOUT_REFERENCE_IMAGE]);
       add(transitionTwoFrames.slice(0, 8));
     } else if (phase === 'transitionTwo') {
       add(frameWindowSources(transitionTwoFrames, transitionTwoFrame, 5));
@@ -376,6 +454,9 @@ export default function ScrollScenePlayer() {
     return () => {
       if (cornerMenuCloseTimeoutRef.current !== null) {
         window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+      }
+      if (loadingOverlayTimeoutRef.current !== null) {
+        window.clearTimeout(loadingOverlayTimeoutRef.current);
       }
     };
   }, []);
@@ -587,7 +668,7 @@ export default function ScrollScenePlayer() {
         }
       }
 
-      if (phase === 'introLanding' || phase === 'introTrainSequence') {
+      if (phase === 'loading' || phase === 'introLanding' || phase === 'introTrainSequence') {
         return;
       }
 
@@ -860,7 +941,8 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
-    const shouldLockScroll = phase === 'introLanding' || phase === 'introTrainSequence';
+    const shouldLockScroll =
+      phase === 'loading' || phase === 'introLanding' || phase === 'introTrainSequence';
     if (!shouldLockScroll) return;
 
     window.scrollTo(0, 0);
@@ -913,7 +995,7 @@ export default function ScrollScenePlayer() {
   }, [projectBlockIndex, phase]);
 
   const frameToRender = useMemo(() => {
-    if (phase === 'introLanding') {
+    if (phase === 'loading' || phase === 'introLanding') {
       return landingFrames[landingFrame];
     }
 
@@ -1005,7 +1087,31 @@ export default function ScrollScenePlayer() {
             zIndex: 1,
           }}
         />
-        {phase === 'about' && <RevealFluid referenceImage="/about_ref.webp" />}
+        {phase === 'about' && <RevealFluid referenceImage={ABOUT_REFERENCE_IMAGE} />}
+        {showLoadingOverlay ? (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              background: '#f6f2ea',
+              color: '#1f1812',
+              fontFamily: "'Cascadia Mono', monospace",
+              fontWeight: 400,
+              fontSize: 'clamp(1rem, 1.3vw, 1.2rem)',
+              letterSpacing: '0.03em',
+              textTransform: 'lowercase',
+              opacity: phase === 'loading' ? 1 : 0,
+              transition: 'opacity 460ms ease',
+              pointerEvents: phase === 'loading' ? 'auto' : 'none',
+              userSelect: 'none',
+              zIndex: 40,
+            }}
+          >
+            loading...
+          </div>
+        ) : null}
         <div
           style={{
             position: 'fixed',
