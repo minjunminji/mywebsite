@@ -164,16 +164,38 @@ export default function RevealFluid({
       uniform float u_refLoaded;
 
       void main() {
-        float mask = texture(u_mask, vUv).r;
-        mask = smoothstep(0.01, 0.04, mask);
+        float rawMask = texture(u_mask, vUv).r;
+        vec2 texel = 1.0 / vec2(textureSize(u_mask, 0));
+
+        // Expand the occlusion mask by ~1px so the drawing below cannot peek
+        // through at antialiased/resampled blob edges.
+        float occlusionMask = rawMask;
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, 0.0)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(texel.x, 0.0)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(0.0, texel.y)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(0.0, texel.y)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, texel.y)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, -texel.y)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(-texel.x, texel.y)).r);
+        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(texel.x, texel.y)).r);
+        float reveal = smoothstep(0.01, 0.04, occlusionMask);
 
         // Flip Y for image (WebGL UV origin is bottom-left, image is top-left)
         vec2 refUv = vec2(vUv.x, 1.0 - vUv.y);
         vec4 ref = texture(u_refImage, refUv);
 
-        // Reveal the reference image through the mask, respecting the image's own alpha
-        float alpha = mask * ref.a * u_refLoaded;
-        fragColor = vec4(ref.rgb, alpha);
+        // Composite ref image over page background so transparent ref pixels
+        // still occlude the drawing underneath this canvas.
+        // Ref texture is uploaded premultiplied to avoid white fringes on
+        // transparent gradients.
+        vec3 bg = vec3(0.965, 0.949, 0.918); // #f6f2ea
+        vec3 refOverBg = ref.rgb + bg * (1.0 - ref.a);
+        vec3 color = mix(bg, refOverBg, reveal);
+
+        // Use binary alpha for occlusion. This avoids semi-transparent blob
+        // edges that allow the underlying drawing layer to bleed through.
+        float a = step(0.01, occlusionMask) * u_refLoaded;
+        fragColor = vec4(color * a, a);
       }
     `;
 
@@ -238,7 +260,9 @@ export default function RevealFluid({
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
+      gl!.pixelStorei(gl!.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 1);
       gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA, gl!.RGBA, gl!.UNSIGNED_BYTE, refImg);
+      gl!.pixelStorei(gl!.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
       refImageLoaded = true;
     };
     refImg.src = referenceImage;
@@ -346,9 +370,6 @@ export default function RevealFluid({
       gl!.clearColor(0, 0, 0, 0);
       gl!.clear(gl!.COLOR_BUFFER_BIT);
 
-      gl!.enable(gl!.BLEND);
-      gl!.blendFunc(gl!.SRC_ALPHA, gl!.ONE_MINUS_SRC_ALPHA);
-
       gl!.useProgram(displayProgram!);
 
       gl!.activeTexture(gl!.TEXTURE0);
@@ -362,8 +383,6 @@ export default function RevealFluid({
       gl!.uniform1f(displayUniforms.u_refLoaded, refImageLoaded ? 1.0 : 0.0);
 
       drawQuad(displayProgram!);
-
-      gl!.disable(gl!.BLEND);
 
       animFrameId = requestAnimationFrame(frame);
     }
