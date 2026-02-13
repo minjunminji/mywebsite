@@ -171,7 +171,7 @@ export default function RevealFluid({
         vec2 refUv = vec2(vUv.x, 1.0 - vUv.y);
         vec4 ref = texture(u_refImage, refUv);
 
-        // Only reveal where the reference image is opaque
+        // Reveal the reference image through the mask, respecting the image's own alpha
         float alpha = mask * ref.a * u_refLoaded;
         fragColor = vec4(ref.rgb, alpha);
       }
