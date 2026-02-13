@@ -273,9 +273,8 @@ const CORNER_LINKS: readonly CornerLink[] = [
 const LANDING_LOOP_REPEATS = 4;
 const GLOBAL_WHEEL_DELTA_MAX_PX = 65;
 const TRAIN_LOOP_SCROLL_HINT_DELAY_MS = 3000;
-const MOBILE_TOUCH_MEDIA_QUERY = '(hover: none) and (pointer: coarse)';
-const MOBILE_PORTRAIT_MEDIA_QUERY = `${MOBILE_TOUCH_MEDIA_QUERY} and (orientation: portrait)`;
-const MOBILE_VIEW_MEDIA_QUERY = '(max-width: 900px), (hover: none) and (pointer: coarse)';
+const MOBILE_PORTRAIT_MEDIA_QUERY = '(orientation: portrait)';
+const MOBILE_VIEW_MEDIA_QUERY = '(max-width: 900px)';
 const SCROLL_STOPPER_MIN_DELTA_PX = 110;
 const SCROLL_STOPPER_MIN_VELOCITY_PX_PER_MS = 1.4;
 const SCROLL_STOPPER_SETTLE_MS = 420;
@@ -284,6 +283,26 @@ const STARTUP_PRELOAD_TIMEOUT_MS = 2600;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
+}
+
+function isLikelyHandheldDevice(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const navigatorWithUaData = navigator as Navigator & {
+    userAgentData?: {
+      mobile?: boolean;
+    };
+  };
+  const uaDataMobile = navigatorWithUaData.userAgentData?.mobile === true;
+  const uaMobile = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
+  const touchNarrowViewport =
+    typeof window !== 'undefined' &&
+    navigator.maxTouchPoints > 1 &&
+    Math.min(window.innerWidth, window.innerHeight) <= 1024;
+
+  return uaDataMobile || uaMobile || touchNarrowViewport;
 }
 
 function addMediaQueryChangeListener(
@@ -339,10 +358,16 @@ export default function ScrollScenePlayer() {
   const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
   const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
   const [showRotateDeviceOverlay, setShowRotateDeviceOverlay] = useState(() =>
-    typeof window === 'undefined' ? false : window.matchMedia(MOBILE_PORTRAIT_MEDIA_QUERY).matches,
+    typeof window === 'undefined'
+      ? false
+      : isLikelyHandheldDevice() &&
+        (window.matchMedia(MOBILE_PORTRAIT_MEDIA_QUERY).matches ||
+          window.innerHeight > window.innerWidth),
   );
   const [isMobileView, setIsMobileView] = useState(() =>
-    typeof window === 'undefined' ? false : window.matchMedia(MOBILE_VIEW_MEDIA_QUERY).matches,
+    typeof window === 'undefined'
+      ? false
+      : isLikelyHandheldDevice() || window.matchMedia(MOBILE_VIEW_MEDIA_QUERY).matches,
   );
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
   const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
@@ -375,28 +400,32 @@ export default function ScrollScenePlayer() {
   }, [showLoadingOverlay]);
 
   useEffect(() => {
-    const touchDeviceQuery = window.matchMedia(MOBILE_TOUCH_MEDIA_QUERY);
     const portraitTouchQuery = window.matchMedia(MOBILE_PORTRAIT_MEDIA_QUERY);
     const mobileViewQuery = window.matchMedia(MOBILE_VIEW_MEDIA_QUERY);
 
     const syncRotateOverlay = () => {
-      setShowRotateDeviceOverlay(touchDeviceQuery.matches && portraitTouchQuery.matches);
-      setIsMobileView(mobileViewQuery.matches);
+      const isPortrait =
+        portraitTouchQuery.matches || window.matchMedia('(orientation: portrait)').matches || window.innerHeight > window.innerWidth;
+      const isHandheld = isLikelyHandheldDevice();
+      const isNarrowViewport = window.innerWidth <= 900 || mobileViewQuery.matches;
+
+      setShowRotateDeviceOverlay(isHandheld && isPortrait);
+      setIsMobileView(isHandheld || isNarrowViewport);
     };
 
     syncRotateOverlay();
-    addMediaQueryChangeListener(touchDeviceQuery, syncRotateOverlay);
     addMediaQueryChangeListener(portraitTouchQuery, syncRotateOverlay);
     addMediaQueryChangeListener(mobileViewQuery, syncRotateOverlay);
     window.addEventListener('resize', syncRotateOverlay);
     window.addEventListener('orientationchange', syncRotateOverlay);
+    window.addEventListener('pageshow', syncRotateOverlay);
 
     return () => {
-      removeMediaQueryChangeListener(touchDeviceQuery, syncRotateOverlay);
       removeMediaQueryChangeListener(portraitTouchQuery, syncRotateOverlay);
       removeMediaQueryChangeListener(mobileViewQuery, syncRotateOverlay);
       window.removeEventListener('resize', syncRotateOverlay);
       window.removeEventListener('orientationchange', syncRotateOverlay);
+      window.removeEventListener('pageshow', syncRotateOverlay);
     };
   }, []);
 
@@ -1272,6 +1301,7 @@ export default function ScrollScenePlayer() {
 
   return (
     <div
+      className="scene-root"
       style={{
         height: `${SCROLL_HEIGHT_VH}vh`,
         position: 'relative',
@@ -1370,6 +1400,7 @@ export default function ScrollScenePlayer() {
           </div>
         ) : null}
         <div
+          className="mobile-rotate-overlay"
           style={{
             position: 'absolute',
             inset: 0,
@@ -1385,9 +1416,6 @@ export default function ScrollScenePlayer() {
             letterSpacing: '0.02em',
             textTransform: 'lowercase',
             textAlign: 'center',
-            opacity: showRotateDeviceOverlay ? 1 : 0,
-            transition: 'opacity 260ms ease',
-            pointerEvents: showRotateDeviceOverlay ? 'auto' : 'none',
             userSelect: 'none',
             zIndex: 55,
           }}

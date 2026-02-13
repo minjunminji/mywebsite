@@ -1,8 +1,8 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import type { Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Analytics } from '@vercel/analytics/react';
-import StickyAudioPlayer from '@/components/StickyAudioPlayer';
 
 export const metadata: Metadata = {
   title: 'ryan kim',
@@ -10,6 +10,12 @@ export const metadata: Metadata = {
   icons: {
     icon: '/favicon.png',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 type RootLayoutProps = {
@@ -20,7 +26,6 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
       <body>
-        <StickyAudioPlayer />
         {children}
         <Analytics />
       </body>
