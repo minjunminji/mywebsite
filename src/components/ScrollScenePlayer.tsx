@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import RevealFluid from './RevealFluid';
 
 type Phase =
   | 'introLanding'
@@ -868,6 +869,7 @@ export default function ScrollScenePlayer() {
             zIndex: 1,
           }}
         />
+        {phase === 'about' && <RevealFluid referenceImage="/about_ref.png" />}
         <div
           style={{
             position: 'fixed',
@@ -1022,7 +1024,7 @@ export default function ScrollScenePlayer() {
             opacity: phase === 'about' ? 1 : 0,
             pointerEvents: 'none',
             transition: 'opacity 220ms ease',
-            zIndex: 2,
+            zIndex: 3,
           }}
         >
           <div
