@@ -765,12 +765,12 @@ export default function ScrollScenePlayer() {
       const beforeFirstTrigger = scrollY < firstRotationTrigger;
       const beforeSecondTrigger = scrollY < secondRotationTrigger;
 
-      if (beforeFirstTrigger && (firstRotationTriggered || firstRotationCompleted)) {
+      if (beforeFirstTrigger && firstRotationCompleted) {
         setFirstRotationTriggered(false);
         setFirstRotationCompleted(false);
       }
 
-      if (beforeSecondTrigger && (secondRotationTriggered || secondRotationCompleted)) {
+      if (beforeSecondTrigger && secondRotationCompleted) {
         setSecondRotationTriggered(false);
         setSecondRotationCompleted(false);
       }
