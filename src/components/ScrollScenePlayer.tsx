@@ -316,6 +316,18 @@ export default function ScrollScenePlayer() {
     mango: 0,
   });
 
+  useEffect(() => {
+    if (showLoadingOverlay) {
+      document.body.dataset.sceneLoading = 'true';
+    } else {
+      delete document.body.dataset.sceneLoading;
+    }
+
+    return () => {
+      delete document.body.dataset.sceneLoading;
+    };
+  }, [showLoadingOverlay]);
+
   const stepProjectCarousel = (key: ProjectContent['key'], direction: -1 | 1, total: number) => {
     setProjectCarouselIndex((previous) => {
       const current = previous[key] ?? 0;

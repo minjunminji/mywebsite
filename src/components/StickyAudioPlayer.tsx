@@ -8,12 +8,33 @@ const DEFAULT_VOLUME = 0.3;
 export default function StickyAudioPlayer() {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
+  const [isSceneLoading, setIsSceneLoading] = useState(() =>
+    typeof document === 'undefined' ? false : document.body.dataset.sceneLoading === 'true',
+  );
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [showVolume, setShowVolume] = useState(false);
 
   useEffect(() => {
-    if (!waveformRef.current) {
+    const syncLoadingState = () => {
+      setIsSceneLoading(document.body.dataset.sceneLoading === 'true');
+    };
+
+    syncLoadingState();
+
+    const observer = new MutationObserver(syncLoadingState);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['data-scene-loading'],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isSceneLoading || !waveformRef.current) {
       return;
     }
 
@@ -64,7 +85,7 @@ export default function StickyAudioPlayer() {
       waveSurfer.destroy();
       waveSurferRef.current = null;
     };
-  }, []);
+  }, [isSceneLoading]);
 
   const togglePlayback = async () => {
     if (!waveSurferRef.current) {
@@ -82,6 +103,10 @@ export default function StickyAudioPlayer() {
     setVolume(newVolume);
     waveSurferRef.current?.setVolume(newVolume);
   };
+
+  if (isSceneLoading) {
+    return null;
+  }
 
   return (
     <div
