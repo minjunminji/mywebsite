@@ -1543,12 +1543,12 @@ export default function ScrollScenePlayer() {
             position: 'absolute',
             left: isMobileView ? '0.5vw' : '3vw',
             top: 0,
-            width: isMobileView ? '46%' : '33.334%',
+            width: isMobileView ? '42%' : '33.334%',
             height: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: isMobileView ? '0.75vh 1vw' : '8vh 4vw',
+            padding: isMobileView ? '0.2vh 1vw' : '8vh 4vw',
             pointerEvents: 'none',
             zIndex: 3,
           }}
@@ -1556,7 +1556,7 @@ export default function ScrollScenePlayer() {
           <div
             style={{
               width: '100%',
-              maxWidth: isMobileView ? '18rem' : '28rem',
+              maxWidth: isMobileView ? '16.5rem' : '28rem',
               color: '#1f1812',
               fontFamily: "'Cascadia Mono', monospace",
               fontWeight: 600,
