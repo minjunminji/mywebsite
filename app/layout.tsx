@@ -4,8 +4,11 @@ import type { ReactNode } from 'react';
 import StickyAudioPlayer from '@/components/StickyAudioPlayer';
 
 export const metadata: Metadata = {
-  title: 'Personal Website',
+  title: 'ryan kim',
   description: 'Hand-drawn animation website',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 type RootLayoutProps = {
