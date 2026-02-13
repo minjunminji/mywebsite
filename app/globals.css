@@ -44,3 +44,15 @@ main {
     transform: translateY(0);
   }
 }
+
+@keyframes scrollHintBob {
+  0% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+  100% {
+    transform: translateY(-3px);
+  }
+}

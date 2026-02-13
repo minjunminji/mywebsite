@@ -160,8 +160,41 @@ const ABOUT_LINES = [
   "i'm a sophomore computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
   'in my spare time, i like to produce music, cook, and play soccer.',
 ];
+type CornerLink = {
+  key: 'github' | 'linkedin' | 'resume';
+  label: string;
+  href: string;
+  icon: 'external' | 'download';
+  openInNewTab?: boolean;
+  download?: boolean;
+};
+
+const CORNER_LINKS: readonly CornerLink[] = [
+  {
+    key: 'github',
+    label: 'github',
+    href: 'https://github.com/minjunminji/',
+    icon: 'external',
+    openInNewTab: true,
+  },
+  {
+    key: 'linkedin',
+    label: 'linkedin',
+    href: 'https://www.linkedin.com/in/ryankim373/',
+    icon: 'external',
+    openInNewTab: true,
+  },
+  {
+    key: 'resume',
+    label: 'resume',
+    href: '/ryan_kim_resume.pdf',
+    icon: 'download',
+    download: true,
+  },
+] as const;
 const LANDING_LOOP_REPEATS = 4;
 const GLOBAL_WHEEL_DELTA_MAX_PX = 65;
+const TRAIN_LOOP_SCROLL_HINT_DELAY_MS = 3000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -169,6 +202,7 @@ function clamp(value: number, min: number, max: number): number {
 
 export default function ScrollScenePlayer() {
   const projectBlocksRef = useRef<HTMLDivElement | null>(null);
+  const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
   const targetTransitionFrameRef = useRef(0);
   const targetTransitionTwoFrameRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('introLanding');
@@ -182,6 +216,8 @@ export default function ScrollScenePlayer() {
   const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
   const [cornerTitleOpacity, setCornerTitleOpacity] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
+  const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
   const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
   const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
@@ -189,6 +225,8 @@ export default function ScrollScenePlayer() {
   const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
   const [projectBlockIndex, setProjectBlockIndex] = useState(0);
   const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
+  const [isCornerMenuOpen, setIsCornerMenuOpen] = useState(false);
+  const [hoveredCornerLink, setHoveredCornerLink] = useState<CornerLink['key'] | null>(null);
   const [projectCarouselIndex, setProjectCarouselIndex] = useState<
     Record<ProjectContent['key'], number>
   >({
@@ -216,6 +254,26 @@ export default function ScrollScenePlayer() {
     }));
   };
 
+  const openCornerMenu = () => {
+    if (cornerMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+      cornerMenuCloseTimeoutRef.current = null;
+    }
+
+    setIsCornerMenuOpen(true);
+  };
+
+  const closeCornerMenuWithDelay = () => {
+    if (cornerMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+    }
+
+    cornerMenuCloseTimeoutRef.current = window.setTimeout(() => {
+      setIsCornerMenuOpen(false);
+      cornerMenuCloseTimeoutRef.current = null;
+    }, 170);
+  };
+
   useEffect(() => {
     const allFrames = [
       ...landingFrames,
@@ -234,6 +292,14 @@ export default function ScrollScenePlayer() {
       const image = new Image();
       image.src = src;
     });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cornerMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -331,6 +397,23 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
+    if (phase !== 'trainLoop' || hasUserScrolledAfterTrain) {
+      setShowTrainLoopScrollHint(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (!hasUserScrolledAfterTrain && window.scrollY <= 2) {
+        setShowTrainLoopScrollHint(true);
+      }
+    }, TRAIN_LOOP_SCROLL_HINT_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [phase, hasUserScrolledAfterTrain]);
+
+  useEffect(() => {
     if (!firstRotationTriggered || firstRotationCompleted) {
       return;
     }
@@ -407,6 +490,11 @@ export default function ScrollScenePlayer() {
 
       setScrollProgress(pageProgress);
       setCornerTitleOpacity(cornerOpacity);
+
+      if (!hasUserScrolledAfterTrain && scrollY > 2) {
+        setHasUserScrolledAfterTrain(true);
+        setShowTrainLoopScrollHint(false);
+      }
 
       if (phase === 'introLanding' || phase === 'introTrainSequence') {
         return;
@@ -564,6 +652,7 @@ export default function ScrollScenePlayer() {
     };
   }, [
     phase,
+    hasUserScrolledAfterTrain,
     firstRotationTriggered,
     firstRotationCompleted,
     secondRotationTriggered,
@@ -803,10 +892,15 @@ export default function ScrollScenePlayer() {
           this website is a work in progress
         </div>
         <div
+          onMouseEnter={openCornerMenu}
+          onMouseLeave={closeCornerMenuWithDelay}
           style={{
             position: 'fixed',
             top: '1.5rem',
             left: '1.5rem',
+            display: 'inline-flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
             fontFamily: "'Cascadia Mono', monospace",
             fontWeight: 600,
             fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
@@ -815,13 +909,104 @@ export default function ScrollScenePlayer() {
             color: '#1f1812',
             opacity: cornerTitleOpacity,
             transition: 'opacity 140ms linear',
-            pointerEvents: 'none',
+            pointerEvents: cornerTitleOpacity > 0.02 ? 'auto' : 'none',
             userSelect: 'none',
             textTransform: 'lowercase',
             zIndex: 20,
           }}
         >
-          ryan kim
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              cursor: 'default',
+            }}
+          >
+            <span>ryan kim</span>
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+              <path
+                d={isCornerMenuOpen ? 'M6 14l6-6 6 6' : 'M6 10l6 6 6-6'}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div
+            style={{
+              paddingTop: '0.55rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.45rem',
+              opacity: isCornerMenuOpen ? 1 : 0,
+              transform: isCornerMenuOpen ? 'translateY(0)' : 'translateY(-8px)',
+              maxHeight: isCornerMenuOpen ? '8rem' : '0',
+              overflow: 'hidden',
+              transition: 'opacity 180ms ease, transform 240ms ease, max-height 240ms ease',
+              pointerEvents: isCornerMenuOpen ? 'auto' : 'none',
+            }}
+          >
+            {CORNER_LINKS.map((link) => {
+              const isHovered = hoveredCornerLink === link.key;
+
+              return (
+                <a
+                  key={link.key}
+                  href={link.href}
+                  target={link.openInNewTab ? '_blank' : undefined}
+                  rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
+                  download={link.download ? '' : undefined}
+                  onMouseEnter={() => setHoveredCornerLink(link.key)}
+                  onMouseLeave={() => setHoveredCornerLink(null)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    width: 'fit-content',
+                    color: '#1f1812',
+                    textDecoration: 'none',
+                    backgroundImage: 'linear-gradient(currentColor, currentColor)',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: '0 100%',
+                    backgroundSize: isHovered ? '100% 1px' : '0% 1px',
+                    paddingBottom: '0.08rem',
+                    fontWeight: 400,
+                    fontSize: 'clamp(0.82rem, 0.95vw, 0.92rem)',
+                    letterSpacing: '0.02em',
+                    transition: 'background-size 220ms ease',
+                  }}
+                >
+                  <span>{link.label}</span>
+                  {link.icon === 'download' ? (
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M12 4v10M8.5 10.5L12 14l3.5-3.5M5 18.5h14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M8 8h8v8M16 8L8 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </a>
+              );
+            })}
+          </div>
         </div>
         <section
           style={{
@@ -892,6 +1077,51 @@ export default function ScrollScenePlayer() {
             })}
           </div>
         </section>
+        <div
+          style={{
+            position: 'fixed',
+            top: '33.333%',
+            left: '75%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            color: '#1f1812',
+            fontFamily: "'Cascadia Mono', monospace",
+            fontWeight: 600,
+            fontSize: 'clamp(0.85rem, 1.15vw, 1.1rem)',
+            letterSpacing: '0.02em',
+            textTransform: 'lowercase',
+            opacity: showTrainLoopScrollHint ? 1 : 0,
+            transition: 'opacity 220ms ease',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            zIndex: 19,
+          }}
+        >
+          <span>scroll!</span>
+          <span
+            style={{
+              display: 'inline-flex',
+              lineHeight: 0,
+              animationName: 'scrollHintBob',
+              animationDuration: '1150ms',
+              animationTimingFunction: 'ease-in-out',
+              animationIterationCount: 'infinite',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                d="M12 5v12M7.5 12.5L12 17l4.5-4.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </div>
         <aside
           style={{
             position: 'absolute',
