@@ -280,6 +280,7 @@ const SCROLL_STOPPER_MIN_DELTA_PX = 110;
 const SCROLL_STOPPER_MIN_VELOCITY_PX_PER_MS = 1.4;
 const SCROLL_STOPPER_SETTLE_MS = 420;
 const SCROLL_STOPPER_WHEEL_TRIGGER_PX = 26;
+const STARTUP_PRELOAD_TIMEOUT_MS = 2600;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -439,7 +440,7 @@ export default function ScrollScenePlayer() {
   };
 
   useEffect(() => {
-    if (startupPreloadRanRef.current || phase !== 'loading' || showRotateDeviceOverlay) {
+    if (startupPreloadRanRef.current || phase !== 'loading') {
       return;
     }
 
@@ -448,24 +449,28 @@ export default function ScrollScenePlayer() {
     const startupSources = Array.from(
       new Set([
         ...landingFrames,
-        ...trainSequenceFrames,
+        ...trainSequenceFrames.slice(0, 8),
         ...trainLoopFrames,
-        ...transitionFrames,
-        ...aboutFrames,
-        ...transitionTwoFrames,
-        ...turnstileFrames,
+        transitionFrames[0],
+        aboutFrames[0],
+        transitionTwoFrames[0],
+        turnstileFrames[0],
         turnstileBackgroundFrame,
         turnstileBackgroundFrameTwo,
         projectStills.thisWebsite,
-        projectStills.rebase,
-        projectStills.mango,
         ABOUT_REFERENCE_IMAGE,
-        ...(isMobileView ? [] : PROJECT_MEDIA_SOURCES),
+        ...(isMobileView ? [] : [projectStills.rebase, projectStills.mango, ...PROJECT_MEDIA_SOURCES]),
       ]),
     );
 
     const run = async () => {
-      await Promise.all(startupSources.map((src) => preloadImageSourceBlocking(src)));
+      const preloadPromise = Promise.all(startupSources.map((src) => preloadImageSourceBlocking(src)));
+      await Promise.race([
+        preloadPromise,
+        new Promise<void>((resolve) => {
+          window.setTimeout(resolve, STARTUP_PRELOAD_TIMEOUT_MS);
+        }),
+      ]);
 
       if (cancelled) {
         return;
@@ -487,7 +492,7 @@ export default function ScrollScenePlayer() {
         loadingOverlayTimeoutRef.current = null;
       }
     };
-  }, [phase, showRotateDeviceOverlay, isMobileView]);
+  }, [phase, isMobileView]);
 
   useEffect(() => {
     const sources = new Set<string>();
