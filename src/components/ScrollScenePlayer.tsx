@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-type Phase = 'introLanding' | 'introTrainSequence' | 'trainLoop' | 'transition' | 'about';
+type Phase =
+  | 'introLanding'
+  | 'introTrainSequence'
+  | 'trainLoop'
+  | 'transition'
+  | 'about'
+  | 'transitionTwo'
+  | 'projects';
 
 const landingFrames = [
   '/Animation/landingloop1.png',
@@ -32,12 +39,117 @@ const aboutFrames = [
   '/Animation/aboutloop4.png',
 ];
 
+const transitionTwoFrames = Array.from(
+  { length: 22 },
+  (_, index) => `/Animation/2trans${index + 1}.png`,
+);
+
+const turnstileFrames = Array.from(
+  { length: 6 },
+  (_, index) => `/Animation/turnstile${index + 1}.png`,
+);
+const turnstileBackgroundFrame = '/turnstile_background.png';
+
+const projectStills = {
+  thisWebsite: '/Animation/thiswebsite.png',
+  rebase: '/Animation/rebase.png',
+  mango: '/Animation/mango.png',
+} as const;
+
+type ProjectContent = {
+  key: 'thisWebsite' | 'rebase' | 'mango';
+  title: string;
+  body: readonly string[];
+  linkHref?: string;
+  imageSrc?: string;
+  imageAlt?: string;
+  imageCaption?: string;
+  carouselImages?: readonly {
+    src: string;
+    alt: string;
+  }[];
+  videoEmbedSrc?: string;
+  videoTitle?: string;
+};
+
+const PROJECT_CONTENT: readonly ProjectContent[] = [
+  {
+    key: 'thisWebsite',
+    title: 'this website',
+    body: [
+      'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a scroll-driven story so the site feels like a film you move through.',
+      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
+      'this project is where my love for illustration, design, and frontend engineering all meet.',
+    ],
+    imageSrc: '/oldwebsite.png',
+    imageAlt: 'Old portfolio website screenshot',
+    imageCaption: 'my old website',
+  },
+  {
+    key: 'rebase',
+    title: 'rebase',
+    linkHref: 'http://tryrebase.io/',
+    body: [
+      'an ai-native resume builder that stores your experience as reusable building blocks instead of rewriting one static document every time.',
+      'you paste a job description, and it pulls the most relevant experience, rewrites bullets for role fit, and exports an ats-friendly pdf with typst.',
+      'it also helps you capture wins as they happen and asks targeted follow-up questions to turn vague points into specific, credible impact.',
+    ],
+    carouselImages: [
+      {
+        src: '/rebase1.png',
+        alt: 'Rebase screenshot 1',
+      },
+      {
+        src: '/rebase2.png',
+        alt: 'Rebase screenshot 2',
+      },
+      {
+        src: '/rebase3.png',
+        alt: 'Rebase screenshot 3',
+      },
+      {
+        src: '/rebase4.png',
+        alt: 'Rebase screenshot 4',
+      },
+    ],
+  },
+  {
+    key: 'mango',
+    title: 'mango',
+    linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
+    body: [
+      'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
+      'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.',
+      'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
+    ],
+    videoEmbedSrc: 'https://www.youtube.com/embed/pdja2_o8bpY',
+    videoTitle: 'Mango full-body gesture control demo',
+  },
+];
+
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const TRANSITION_PLAYBACK_FPS = 12;
-const SCROLL_HEIGHT_VH = 340;
+const TURNSTILE_FRAME_INTERVAL_MS = Math.round(1000 / 15);
 const TRANSITION_START_VH = 95;
 const TRANSITION_LENGTH_VH = 145;
+const ABOUT_SECTION_VH = 100;
+const TRANSITION_TWO_LENGTH_VH = 145;
+const PROJECT_THIS_WEBSITE_HOLD_VH = 39.2;
+const PROJECT_FIRST_TURNSTILE_ENTRY_VH = 23.8;
+const PROJECT_SECOND_TURNSTILE_ENTRY_VH = 34;
+const PROJECT_REBASE_HOLD_VH = 80;
+const PROJECT_FINAL_HOLD_VH = 120;
+const SCROLL_HEIGHT_VH =
+  TRANSITION_START_VH +
+  TRANSITION_LENGTH_VH +
+  ABOUT_SECTION_VH +
+  TRANSITION_TWO_LENGTH_VH +
+  PROJECT_THIS_WEBSITE_HOLD_VH +
+  PROJECT_FIRST_TURNSTILE_ENTRY_VH +
+  PROJECT_REBASE_HOLD_VH +
+  PROJECT_SECOND_TURNSTILE_ENTRY_VH +
+  PROJECT_FINAL_HOLD_VH;
 const TRANSITION_COMPLETE_EPSILON = 0.995;
 const CORNER_TITLE_FADE_IN_VH = 24;
 const ABOUT_INITIAL_DELAY_MS = 260;
@@ -48,14 +160,51 @@ const ABOUT_LINES = [
   "i'm a sophomore computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
   'in my spare time, i like to produce music, cook, and play soccer.',
 ];
+type CornerLink = {
+  key: 'github' | 'linkedin' | 'resume';
+  label: string;
+  href: string;
+  icon: 'external' | 'download';
+  openInNewTab?: boolean;
+  download?: boolean;
+};
+
+const CORNER_LINKS: readonly CornerLink[] = [
+  {
+    key: 'github',
+    label: 'github',
+    href: 'https://github.com/minjunminji/',
+    icon: 'external',
+    openInNewTab: true,
+  },
+  {
+    key: 'linkedin',
+    label: 'linkedin',
+    href: 'https://www.linkedin.com/in/ryankim373/',
+    icon: 'external',
+    openInNewTab: true,
+  },
+  {
+    key: 'resume',
+    label: 'resume',
+    href: '/ryan_kim_resume.pdf',
+    icon: 'download',
+    download: true,
+  },
+] as const;
 const LANDING_LOOP_REPEATS = 4;
+const GLOBAL_WHEEL_DELTA_MAX_PX = 65;
+const TRAIN_LOOP_SCROLL_HINT_DELAY_MS = 3000;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
 
 export default function ScrollScenePlayer() {
+  const projectBlocksRef = useRef<HTMLDivElement | null>(null);
+  const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
   const targetTransitionFrameRef = useRef(0);
+  const targetTransitionTwoFrameRef = useRef(0);
   const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
@@ -63,16 +212,127 @@ export default function ScrollScenePlayer() {
   const [trainLoopFrame, setTrainLoopFrame] = useState(0);
   const [aboutFrame, setAboutFrame] = useState(0);
   const [transitionFrame, setTransitionFrame] = useState(0);
+  const [transitionTwoFrame, setTransitionTwoFrame] = useState(0);
+  const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
   const [cornerTitleOpacity, setCornerTitleOpacity] = useState(0);
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
+  const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
+  const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
+  const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
+  const [secondRotationTriggered, setSecondRotationTriggered] = useState(false);
+  const [secondRotationCompleted, setSecondRotationCompleted] = useState(false);
+  const [projectBlockIndex, setProjectBlockIndex] = useState(0);
+  const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
+  const [isCornerMenuOpen, setIsCornerMenuOpen] = useState(false);
+  const [hoveredCornerLink, setHoveredCornerLink] = useState<CornerLink['key'] | null>(null);
+  const [projectCarouselIndex, setProjectCarouselIndex] = useState<
+    Record<ProjectContent['key'], number>
+  >({
+    thisWebsite: 0,
+    rebase: 0,
+    mango: 0,
+  });
+
+  const stepProjectCarousel = (key: ProjectContent['key'], direction: -1 | 1, total: number) => {
+    setProjectCarouselIndex((previous) => {
+      const current = previous[key] ?? 0;
+      const next = (current + direction + total) % total;
+
+      return {
+        ...previous,
+        [key]: next,
+      };
+    });
+  };
+
+  const jumpProjectCarousel = (key: ProjectContent['key'], index: number) => {
+    setProjectCarouselIndex((previous) => ({
+      ...previous,
+      [key]: index,
+    }));
+  };
+
+  const openCornerMenu = () => {
+    if (cornerMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+      cornerMenuCloseTimeoutRef.current = null;
+    }
+
+    setIsCornerMenuOpen(true);
+  };
+
+  const closeCornerMenuWithDelay = () => {
+    if (cornerMenuCloseTimeoutRef.current !== null) {
+      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+    }
+
+    cornerMenuCloseTimeoutRef.current = window.setTimeout(() => {
+      setIsCornerMenuOpen(false);
+      cornerMenuCloseTimeoutRef.current = null;
+    }, 170);
+  };
 
   useEffect(() => {
-    const allFrames = [...landingFrames, ...trainSequenceFrames, ...trainLoopFrames, ...transitionFrames, ...aboutFrames];
+    const allFrames = [
+      ...landingFrames,
+      ...trainSequenceFrames,
+      ...trainLoopFrames,
+      ...transitionFrames,
+      ...aboutFrames,
+      ...transitionTwoFrames,
+      ...turnstileFrames,
+      turnstileBackgroundFrame,
+      projectStills.thisWebsite,
+      projectStills.rebase,
+      projectStills.mango,
+    ];
     allFrames.forEach((src) => {
       const image = new Image();
       image.src = src;
     });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cornerMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(cornerMenuCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) {
+        return;
+      }
+
+      const deltaScale =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? window.innerHeight
+            : 1;
+      const rawDelta = event.deltaY * deltaScale;
+      const clampedDelta = clamp(rawDelta, -GLOBAL_WHEEL_DELTA_MAX_PX, GLOBAL_WHEEL_DELTA_MAX_PX);
+
+      if (clampedDelta === rawDelta) {
+        return;
+      }
+
+      event.preventDefault();
+      window.scrollTo({
+        top: window.scrollY + clampedDelta,
+        behavior: 'auto',
+      });
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener('wheel', handleWheel);
+    };
   }, []);
 
   useEffect(() => {
@@ -137,10 +397,91 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
+    if (phase !== 'trainLoop' || hasUserScrolledAfterTrain) {
+      setShowTrainLoopScrollHint(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      if (!hasUserScrolledAfterTrain && window.scrollY <= 2) {
+        setShowTrainLoopScrollHint(true);
+      }
+    }, TRAIN_LOOP_SCROLL_HINT_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [phase, hasUserScrolledAfterTrain]);
+
+  useEffect(() => {
+    if (!firstRotationTriggered || firstRotationCompleted) {
+      return;
+    }
+
+    let frameIndex = 1;
+    setProjectFrame(turnstileFrames[frameIndex]);
+
+    const tick = window.setInterval(() => {
+      frameIndex += 1;
+
+      if (frameIndex >= turnstileFrames.length) {
+        window.clearInterval(tick);
+        setProjectFrame(projectStills.rebase);
+        setFirstRotationCompleted(true);
+        return;
+      }
+
+      setProjectFrame(turnstileFrames[frameIndex]);
+    }, TURNSTILE_FRAME_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+  }, [firstRotationTriggered, firstRotationCompleted]);
+
+  useEffect(() => {
+    if (!secondRotationTriggered || secondRotationCompleted) {
+      return;
+    }
+
+    let frameIndex = 1;
+    setProjectFrame(turnstileFrames[frameIndex]);
+
+    const tick = window.setInterval(() => {
+      frameIndex += 1;
+
+      if (frameIndex >= turnstileFrames.length) {
+        window.clearInterval(tick);
+        setProjectFrame(projectStills.mango);
+        setSecondRotationCompleted(true);
+        return;
+      }
+
+      setProjectFrame(turnstileFrames[frameIndex]);
+    }, TURNSTILE_FRAME_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(tick);
+    };
+  }, [secondRotationTriggered, secondRotationCompleted]);
+
+  useEffect(() => {
     const handleScroll = () => {
       const viewportHeight = window.innerHeight;
       const transitionStart = (TRANSITION_START_VH / 100) * viewportHeight;
       const transitionLength = (TRANSITION_LENGTH_VH / 100) * viewportHeight;
+      const transitionOneEnd = transitionStart + transitionLength;
+      const aboutLength = (ABOUT_SECTION_VH / 100) * viewportHeight;
+      const aboutEnd = transitionOneEnd + aboutLength;
+      const transitionTwoLength = (TRANSITION_TWO_LENGTH_VH / 100) * viewportHeight;
+      const transitionTwoEnd = aboutEnd + transitionTwoLength;
+      const thisWebsiteHoldEnd =
+        transitionTwoEnd + (PROJECT_THIS_WEBSITE_HOLD_VH / 100) * viewportHeight;
+      const firstRotationTrigger =
+        thisWebsiteHoldEnd + (PROJECT_FIRST_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
+      const rebaseHoldEnd = firstRotationTrigger + (PROJECT_REBASE_HOLD_VH / 100) * viewportHeight;
+      const secondRotationTrigger =
+        rebaseHoldEnd + (PROJECT_SECOND_TURNSTILE_ENTRY_VH / 100) * viewportHeight;
       const cornerTitleFadeLength = (CORNER_TITLE_FADE_IN_VH / 100) * viewportHeight;
       const scrollY = window.scrollY;
       const maxScroll = Math.max(document.documentElement.scrollHeight - viewportHeight, 1);
@@ -150,6 +491,11 @@ export default function ScrollScenePlayer() {
       setScrollProgress(pageProgress);
       setCornerTitleOpacity(cornerOpacity);
 
+      if (!hasUserScrolledAfterTrain && scrollY > 2) {
+        setHasUserScrolledAfterTrain(true);
+        setShowTrainLoopScrollHint(false);
+      }
+
       if (phase === 'introLanding' || phase === 'introTrainSequence') {
         return;
       }
@@ -157,26 +503,145 @@ export default function ScrollScenePlayer() {
       if (scrollY < transitionStart) {
         setPhase('trainLoop');
         setTransitionFrame(0);
+        setTransitionTwoFrame(0);
         targetTransitionFrameRef.current = 0;
+        targetTransitionTwoFrameRef.current = 0;
         return;
       }
 
-      const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
-      if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+      if (scrollY < transitionOneEnd) {
+        const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
+        if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+          setPhase('about');
+          setTransitionFrame(transitionFrames.length - 1);
+          targetTransitionFrameRef.current = transitionFrames.length - 1;
+          return;
+        }
+
+        const frameIndex = clamp(
+          Math.round(transitionProgress * (transitionFrames.length - 1)),
+          0,
+          transitionFrames.length - 1,
+        );
+
+        targetTransitionFrameRef.current = frameIndex;
+        setPhase('transition');
+        return;
+      }
+
+      if (scrollY < aboutEnd) {
         setPhase('about');
         setTransitionFrame(transitionFrames.length - 1);
         targetTransitionFrameRef.current = transitionFrames.length - 1;
+        setTransitionTwoFrame(0);
+        targetTransitionTwoFrameRef.current = 0;
         return;
       }
 
-      const frameIndex = clamp(
-        Math.round(transitionProgress * (transitionFrames.length - 1)),
-        0,
-        transitionFrames.length - 1,
-      );
+      if (scrollY < transitionTwoEnd) {
+        const transitionProgress = clamp((scrollY - aboutEnd) / transitionTwoLength, 0, 1);
+        if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+          setPhase('projects');
+          setTransitionTwoFrame(transitionTwoFrames.length - 1);
+          targetTransitionTwoFrameRef.current = transitionTwoFrames.length - 1;
+          return;
+        }
 
-      targetTransitionFrameRef.current = frameIndex;
-      setPhase('transition');
+        const frameIndex = clamp(
+          Math.round(transitionProgress * (transitionTwoFrames.length - 1)),
+          0,
+          transitionTwoFrames.length - 1,
+        );
+
+        targetTransitionTwoFrameRef.current = frameIndex;
+        setPhase('transitionTwo');
+        return;
+      }
+
+      setPhase('projects');
+      setTransitionFrame(transitionFrames.length - 1);
+      targetTransitionFrameRef.current = transitionFrames.length - 1;
+      setTransitionTwoFrame(transitionTwoFrames.length - 1);
+      targetTransitionTwoFrameRef.current = transitionTwoFrames.length - 1;
+
+      const beforeFirstTrigger = scrollY < firstRotationTrigger;
+      const beforeSecondTrigger = scrollY < secondRotationTrigger;
+
+      if (beforeFirstTrigger && (firstRotationTriggered || firstRotationCompleted)) {
+        setFirstRotationTriggered(false);
+        setFirstRotationCompleted(false);
+      }
+
+      if (beforeSecondTrigger && (secondRotationTriggered || secondRotationCompleted)) {
+        setSecondRotationTriggered(false);
+        setSecondRotationCompleted(false);
+      }
+
+      const firstTriggeredEffective = beforeFirstTrigger ? false : firstRotationTriggered;
+      const firstCompletedEffective = beforeFirstTrigger ? false : firstRotationCompleted;
+      const secondTriggeredEffective = beforeSecondTrigger ? false : secondRotationTriggered;
+      const secondCompletedEffective = beforeSecondTrigger ? false : secondRotationCompleted;
+
+      let nextProjectBlockIndex = 0;
+      if (secondTriggeredEffective || secondCompletedEffective) {
+        nextProjectBlockIndex = 2;
+      } else if (firstTriggeredEffective || firstCompletedEffective) {
+        nextProjectBlockIndex = 1;
+      }
+      setProjectBlockIndex(nextProjectBlockIndex);
+
+      if (secondCompletedEffective) {
+        setProjectFrame(projectStills.mango);
+        return;
+      }
+
+      if (!firstCompletedEffective) {
+        if (scrollY < thisWebsiteHoldEnd) {
+          setProjectFrame(projectStills.thisWebsite);
+          return;
+        }
+
+        if (!firstTriggeredEffective && scrollY < firstRotationTrigger) {
+          const entryProgress = clamp(
+            (scrollY - thisWebsiteHoldEnd) / (firstRotationTrigger - thisWebsiteHoldEnd),
+            0,
+            1,
+          );
+
+          setProjectFrame(entryProgress < 0.5 ? projectStills.thisWebsite : turnstileFrames[0]);
+          return;
+        }
+
+        if (!firstTriggeredEffective && scrollY >= firstRotationTrigger) {
+          setFirstRotationTriggered(true);
+          setProjectFrame(turnstileFrames[0]);
+        }
+
+        return;
+      }
+
+      if (!secondCompletedEffective) {
+        if (scrollY < rebaseHoldEnd) {
+          setProjectFrame(projectStills.rebase);
+          return;
+        }
+
+        if (!secondTriggeredEffective && scrollY < secondRotationTrigger) {
+          const entryProgress = clamp(
+            (scrollY - rebaseHoldEnd) / (secondRotationTrigger - rebaseHoldEnd),
+            0,
+            1,
+          );
+
+          setProjectFrame(entryProgress < 0.5 ? projectStills.rebase : turnstileFrames[0]);
+          return;
+        }
+
+        if (!secondTriggeredEffective && scrollY >= secondRotationTrigger) {
+          setSecondRotationTriggered(true);
+          setProjectFrame(turnstileFrames[0]);
+        }
+      }
     };
 
     handleScroll();
@@ -185,7 +650,14 @@ export default function ScrollScenePlayer() {
     return () => {
       window.removeEventListener('scroll', handleScroll);
     };
-  }, [phase]);
+  }, [
+    phase,
+    hasUserScrolledAfterTrain,
+    firstRotationTriggered,
+    firstRotationCompleted,
+    secondRotationTriggered,
+    secondRotationCompleted,
+  ]);
 
   useEffect(() => {
     if (phase === 'about') {
@@ -232,6 +704,44 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
+    if (phase !== 'transitionTwo') {
+      return;
+    }
+
+    let animationFrameId = 0;
+    let previousTimestamp = 0;
+    const frameDurationMs = 1000 / TRANSITION_PLAYBACK_FPS;
+
+    const tick = (timestamp: number) => {
+      if (previousTimestamp === 0) {
+        previousTimestamp = timestamp;
+      }
+
+      if (timestamp - previousTimestamp >= frameDurationMs) {
+        previousTimestamp = timestamp;
+        setTransitionTwoFrame((previous) => {
+          const target = targetTransitionTwoFrameRef.current;
+          if (previous === target) {
+            return previous;
+          }
+
+          const distance = Math.abs(target - previous);
+          const step = distance > 10 ? 3 : distance > 4 ? 2 : 1;
+          return previous + Math.sign(target - previous) * step;
+        });
+      }
+
+      animationFrameId = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [phase]);
+
+  useEffect(() => {
     const shouldLockScroll = phase === 'introLanding' || phase === 'introTrainSequence';
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
@@ -251,6 +761,20 @@ export default function ScrollScenePlayer() {
     };
   }, [phase]);
 
+  useEffect(() => {
+    const container = projectBlocksRef.current;
+    if (!container) {
+      return;
+    }
+
+    const blockHeight = container.clientHeight;
+    const targetTop = projectBlockIndex * blockHeight;
+    container.scrollTo({
+      top: targetTop,
+      behavior: phase === 'projects' ? 'smooth' : 'auto',
+    });
+  }, [projectBlockIndex, phase]);
+
   const frameToRender = useMemo(() => {
     if (phase === 'introLanding') {
       return landingFrames[landingFrame];
@@ -268,8 +792,25 @@ export default function ScrollScenePlayer() {
       return aboutFrames[aboutFrame];
     }
 
+    if (phase === 'transitionTwo') {
+      return transitionTwoFrames[transitionTwoFrame];
+    }
+
+    if (phase === 'projects') {
+      return projectFrame;
+    }
+
     return transitionFrames[transitionFrame];
-  }, [phase, landingFrame, trainSequenceFrame, trainLoopFrame, transitionFrame, aboutFrame]);
+  }, [
+    phase,
+    landingFrame,
+    trainSequenceFrame,
+    trainLoopFrame,
+    transitionFrame,
+    aboutFrame,
+    transitionTwoFrame,
+    projectFrame,
+  ]);
 
   const useTrainBlendMode = phase === 'introTrainSequence' || phase === 'trainLoop';
 
@@ -291,10 +832,32 @@ export default function ScrollScenePlayer() {
         }}
       >
         <img
+          src={turnstileBackgroundFrame}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            userSelect: 'none',
+            pointerEvents: 'none',
+            opacity: phase === 'projects' ? 0.25 : 0,
+            transition: 'opacity 320ms ease',
+            zIndex: 0,
+          }}
+        />
+        <img
           src={frameToRender}
           alt="Hand-drawn animated scene"
           draggable={false}
           style={{
+            position: 'absolute',
+            inset: 0,
             display: 'block',
             width: '100%',
             height: '100%',
@@ -302,6 +865,7 @@ export default function ScrollScenePlayer() {
             objectPosition: 'center',
             userSelect: 'none',
             mixBlendMode: useTrainBlendMode ? 'multiply' : 'normal',
+            zIndex: 1,
           }}
         />
         <div
@@ -328,10 +892,15 @@ export default function ScrollScenePlayer() {
           this website is a work in progress
         </div>
         <div
+          onMouseEnter={openCornerMenu}
+          onMouseLeave={closeCornerMenuWithDelay}
           style={{
             position: 'fixed',
             top: '1.5rem',
             left: '1.5rem',
+            display: 'inline-flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
             fontFamily: "'Cascadia Mono', monospace",
             fontWeight: 600,
             fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
@@ -340,13 +909,104 @@ export default function ScrollScenePlayer() {
             color: '#1f1812',
             opacity: cornerTitleOpacity,
             transition: 'opacity 140ms linear',
-            pointerEvents: 'none',
+            pointerEvents: cornerTitleOpacity > 0.02 ? 'auto' : 'none',
             userSelect: 'none',
             textTransform: 'lowercase',
             zIndex: 20,
           }}
         >
-          ryan kim
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              cursor: 'default',
+            }}
+          >
+            <span>ryan kim</span>
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+              <path
+                d={isCornerMenuOpen ? 'M6 14l6-6 6 6' : 'M6 10l6 6 6-6'}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <div
+            style={{
+              paddingTop: '0.55rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.45rem',
+              opacity: isCornerMenuOpen ? 1 : 0,
+              transform: isCornerMenuOpen ? 'translateY(0)' : 'translateY(-8px)',
+              maxHeight: isCornerMenuOpen ? '8rem' : '0',
+              overflow: 'hidden',
+              transition: 'opacity 180ms ease, transform 240ms ease, max-height 240ms ease',
+              pointerEvents: isCornerMenuOpen ? 'auto' : 'none',
+            }}
+          >
+            {CORNER_LINKS.map((link) => {
+              const isHovered = hoveredCornerLink === link.key;
+
+              return (
+                <a
+                  key={link.key}
+                  href={link.href}
+                  target={link.openInNewTab ? '_blank' : undefined}
+                  rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
+                  download={link.download ? '' : undefined}
+                  onMouseEnter={() => setHoveredCornerLink(link.key)}
+                  onMouseLeave={() => setHoveredCornerLink(null)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    width: 'fit-content',
+                    color: '#1f1812',
+                    textDecoration: 'none',
+                    backgroundImage: 'linear-gradient(currentColor, currentColor)',
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: '0 100%',
+                    backgroundSize: isHovered ? '100% 1px' : '0% 1px',
+                    paddingBottom: '0.08rem',
+                    fontWeight: 400,
+                    fontSize: 'clamp(0.82rem, 0.95vw, 0.92rem)',
+                    letterSpacing: '0.02em',
+                    transition: 'background-size 220ms ease',
+                  }}
+                >
+                  <span>{link.label}</span>
+                  {link.icon === 'download' ? (
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M12 4v10M8.5 10.5L12 14l3.5-3.5M5 18.5h14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                      <path
+                        d="M8 8h8v8M16 8L8 16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </a>
+              );
+            })}
+          </div>
         </div>
         <section
           style={{
@@ -420,10 +1080,410 @@ export default function ScrollScenePlayer() {
         <div
           style={{
             position: 'fixed',
+            top: '33.333%',
+            left: '75%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            color: '#1f1812',
+            fontFamily: "'Cascadia Mono', monospace",
+            fontWeight: 600,
+            fontSize: 'clamp(0.85rem, 1.15vw, 1.1rem)',
+            letterSpacing: '0.02em',
+            textTransform: 'lowercase',
+            opacity: showTrainLoopScrollHint ? 1 : 0,
+            transition: 'opacity 220ms ease',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            zIndex: 19,
+          }}
+        >
+          <span>scroll!</span>
+          <span
+            style={{
+              display: 'inline-flex',
+              lineHeight: 0,
+              animationName: 'scrollHintBob',
+              animationDuration: '1150ms',
+              animationTimingFunction: 'ease-in-out',
+              animationIterationCount: 'infinite',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path
+                d="M12 5v12M7.5 12.5L12 17l4.5-4.5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
+        </div>
+        <aside
+          style={{
+            position: 'absolute',
             top: 0,
-            right: 0,
-            width: '7px',
-            height: '100vh',
+            right: 'clamp(1.5rem, 3vw, 3.25rem)',
+            width: '45%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            padding: '7vh 3vw 7vh 2vw',
+            transform: 'translateY(5vh)',
+            opacity: phase === 'projects' ? 1 : 0,
+            transition: 'opacity 220ms ease',
+            pointerEvents: 'none',
+            zIndex: 6,
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '35rem',
+              height: 'min(82vh, 780px)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              ref={projectBlocksRef}
+              style={{
+                height: '100%',
+                overflowY: 'hidden',
+                scrollSnapType: 'y mandatory',
+                scrollSnapStop: 'always',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+              }}
+            >
+              {PROJECT_CONTENT.map((project, index) => {
+                const distance = Math.abs(index - projectBlockIndex);
+                const opacity = clamp(1 - distance * 0.95, 0, 1);
+                const scale = clamp(1 - distance * 0.05, 0.9, 1);
+                const isLinked = Boolean(project.linkHref);
+                const showUnderline = hoveredProjectLink === project.key;
+                const carouselImages = project.carouselImages ?? [];
+                const carouselLength = carouselImages.length;
+                const activeCarouselIndex = projectCarouselIndex[project.key] ?? 0;
+
+                return (
+                  <article
+                    key={project.key}
+                    style={{
+                      height: '100%',
+                      scrollSnapAlign: 'start',
+                      scrollSnapStop: 'always',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1.1rem',
+                      color: '#1f1812',
+                      fontFamily: "'Cascadia Mono', monospace",
+                      opacity,
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top center',
+                      willChange: 'transform, opacity',
+                      paddingBottom: '2rem',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        pointerEvents: isLinked ? 'auto' : 'none',
+                      }}
+                    >
+                      {isLinked ? (
+                        <a
+                          href={project.linkHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onMouseEnter={() => setHoveredProjectLink(project.key)}
+                          onMouseLeave={() => setHoveredProjectLink(null)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            color: '#1f1812',
+                            textDecoration: showUnderline ? 'underline' : 'none',
+                            textDecorationThickness: '2px',
+                            textUnderlineOffset: '0.2em',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <h2
+                            style={{
+                              margin: 0,
+                              fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                              fontWeight: 600,
+                              lineHeight: 1,
+                              textTransform: 'lowercase',
+                            }}
+                          >
+                            {project.title}
+                          </h2>
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="18"
+                            height="18"
+                            aria-hidden="true"
+                            style={{ flexShrink: 0 }}
+                          >
+                            <path
+                              d="M8 8h8v8M16 8L8 16"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </a>
+                      ) : (
+                        <h2
+                          style={{
+                            margin: 0,
+                            fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                            fontWeight: 600,
+                            lineHeight: 1,
+                            textTransform: 'lowercase',
+                          }}
+                        >
+                          {project.title}
+                        </h2>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.8rem',
+                        fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
+                        lineHeight: 1.65,
+                        fontWeight: 300,
+                      }}
+                    >
+                      {project.body.map((paragraph) => (
+                        <p key={`${project.key}-${paragraph}`} style={{ margin: 0 }}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                    {project.imageSrc ? (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <figure
+                          style={{
+                            margin: 0,
+                            border: '1.5px solid #1f1812',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            background: '#f0eadf',
+                          }}
+                        >
+                          <img
+                            src={project.imageSrc}
+                            alt={project.imageAlt ?? `${project.title} media`}
+                            draggable={false}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              height: 'auto',
+                              userSelect: 'none',
+                            }}
+                          />
+                        </figure>
+                        {project.imageCaption ? (
+                          <p
+                            style={{
+                              margin: '0.35rem 0 0',
+                              fontSize: '0.78rem',
+                              lineHeight: 1.25,
+                              color: '#4a3f33',
+                            }}
+                          >
+                            {project.imageCaption}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {carouselLength > 0 ? (
+                      <div
+                        style={{
+                          marginTop: '0.4rem',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        <figure
+                          style={{
+                            margin: 0,
+                            border: '1.5px solid #1f1812',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            background: '#f0eadf',
+                          }}
+                        >
+                          <img
+                            src={carouselImages[activeCarouselIndex].src}
+                            alt={carouselImages[activeCarouselIndex].alt}
+                            draggable={false}
+                            style={{
+                              display: 'block',
+                              width: '100%',
+                              height: 'auto',
+                              userSelect: 'none',
+                            }}
+                          />
+                        </figure>
+                        <div
+                          style={{
+                            marginTop: '0.7rem',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            gap: '0.9rem',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            aria-label={`Previous ${project.title} image`}
+                            onClick={() => stepProjectCarousel(project.key, -1, carouselLength)}
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              borderRadius: 0,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#1f1812',
+                              display: 'grid',
+                              placeItems: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                              <path
+                                d="M14.5 5.5L8 12l6.5 6.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'center',
+                              alignItems: 'center',
+                              gap: '0.45rem',
+                            }}
+                          >
+                            {carouselImages.map((_, dotIndex) => {
+                              const isActive = dotIndex === activeCarouselIndex;
+
+                              return (
+                                <button
+                                  key={`${project.key}-dot-${dotIndex}`}
+                                  type="button"
+                                  aria-label={`Show ${project.title} image ${dotIndex + 1}`}
+                                  onClick={() => jumpProjectCarousel(project.key, dotIndex)}
+                                  style={{
+                                    width: isActive ? '0.92rem' : '0.54rem',
+                                    height: '0.54rem',
+                                    borderRadius: '999px',
+                                    border: 'none',
+                                    background: isActive ? '#1f1812' : 'rgba(31, 24, 18, 0.32)',
+                                    cursor: 'pointer',
+                                    transition: 'width 180ms ease, background-color 180ms ease',
+                                    padding: 0,
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <button
+                            type="button"
+                            aria-label={`Next ${project.title} image`}
+                            onClick={() => stepProjectCarousel(project.key, 1, carouselLength)}
+                            style={{
+                              width: '2rem',
+                              height: '2rem',
+                              borderRadius: 0,
+                              border: 'none',
+                              background: 'transparent',
+                              color: '#1f1812',
+                              display: 'grid',
+                              placeItems: 'center',
+                              cursor: 'pointer',
+                              padding: 0,
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+                              <path
+                                d="M9.5 5.5L16 12l-6.5 6.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {project.videoEmbedSrc ? (
+                      <figure
+                        style={{
+                          margin: 0,
+                          marginTop: '0.4rem',
+                          border: '1.5px solid #1f1812',
+                          borderRadius: '12px',
+                          overflow: 'hidden',
+                          background: '#f0eadf',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '100%',
+                            aspectRatio: '16 / 9',
+                          }}
+                        >
+                          <iframe
+                            src={project.videoEmbedSrc}
+                            title={project.videoTitle ?? `${project.title} video`}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            allowFullScreen
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              border: 0,
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      </figure>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '7px',
             overflow: 'hidden',
             zIndex: 30,
             pointerEvents: 'none',
@@ -431,10 +1491,10 @@ export default function ScrollScenePlayer() {
         >
           <div
             style={{
-              width: '100%',
-              height: `${scrollProgress * 100}%`,
+              width: `${scrollProgress * 100}%`,
+              height: '100%',
               background: '#000000',
-              transition: 'height 90ms linear',
+              transition: 'width 90ms linear',
             }}
           />
         </div>
