@@ -1102,6 +1102,27 @@ export default function ScrollScenePlayer() {
                 </p>
               );
             })}
+            <p
+              style={{
+                margin: 0,
+                marginTop: '4em',
+                fontSize: '0.85em',
+                fontWeight: 300,
+                opacity: 0,
+                animationName: 'aboutCharFadeIn',
+                animationDuration: '520ms',
+                animationTimingFunction: 'ease',
+                animationFillMode: 'forwards',
+                animationDelay: `${
+                  ABOUT_INITIAL_DELAY_MS +
+                  ABOUT_LINES.join('').length * ABOUT_CHAR_STAGGER_MS +
+                  ABOUT_LINES.length * ABOUT_LINE_GAP_MS +
+                  400
+                }ms`,
+              }}
+            >
+              move your cursor over the drawing to reveal the reference
+            </p>
           </div>
         </section>
         <div
