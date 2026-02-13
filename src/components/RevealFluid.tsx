@@ -108,6 +108,7 @@ export default function RevealFluid({
 
       uniform sampler2D u_prev;
       uniform vec2 u_pointer;
+      uniform vec2 u_prevPointer;
       uniform float u_pointerDown;
       uniform float u_radius;
       uniform float u_strength;
@@ -122,11 +123,18 @@ export default function RevealFluid({
         prev -= clamp(u_dTime / u_duration, 0.0, 0.1);
         prev = clamp(prev, 0.0, 1.0);
 
-        // Add blob at pointer
+        // Add a stroke from previous pointer location to current location.
+        // This avoids dotted gaps when the cursor moves a long distance
+        // between animation frames.
         if (u_pointerDown > 0.5) {
           vec2 uv = (vUv - 0.5) * 2.0 * vec2(u_aspect, 1.0);
-          vec2 mouse = u_pointer * vec2(u_aspect, 1.0);
-          float d = distance(uv, mouse);
+          vec2 pointerNow = u_pointer * vec2(u_aspect, 1.0);
+          vec2 pointerPrev = u_prevPointer * vec2(u_aspect, 1.0);
+          vec2 segment = pointerNow - pointerPrev;
+          float segmentLenSq = max(dot(segment, segment), 1e-5);
+          float t = clamp(dot(uv - pointerPrev, segment) / segmentLenSq, 0.0, 1.0);
+          vec2 closest = pointerPrev + segment * t;
+          float d = distance(uv, closest);
           float f = 1.0 - smoothstep(u_radius * 0.1, u_radius, d);
           prev += f * u_strength;
           prev = clamp(prev, 0.0, 1.0);
@@ -142,6 +150,7 @@ export default function RevealFluid({
     const blobUniforms = {
       u_prev: gl.getUniformLocation(blobProgram, 'u_prev'),
       u_pointer: gl.getUniformLocation(blobProgram, 'u_pointer'),
+      u_prevPointer: gl.getUniformLocation(blobProgram, 'u_prevPointer'),
       u_pointerDown: gl.getUniformLocation(blobProgram, 'u_pointerDown'),
       u_radius: gl.getUniformLocation(blobProgram, 'u_radius'),
       u_strength: gl.getUniformLocation(blobProgram, 'u_strength'),
@@ -297,6 +306,9 @@ export default function RevealFluid({
     let pointerX = 10;
     let pointerY = 10;
     let pointerActive = false;
+    let lastPaintPointerX = 10;
+    let lastPaintPointerY = 10;
+    let hasLastPaintPointer = false;
 
     function getCanvasUV(clientX: number, clientY: number) {
       const rect = canvas!.getBoundingClientRect();
@@ -316,6 +328,7 @@ export default function RevealFluid({
       pointerX = 10;
       pointerY = 10;
       pointerActive = false;
+      hasLastPaintPointer = false;
     }
 
     function onTouchMove(e: TouchEvent) {
@@ -329,6 +342,7 @@ export default function RevealFluid({
 
     function onTouchEnd() {
       pointerActive = false;
+      hasLastPaintPointer = false;
     }
 
     window.addEventListener('pointermove', onPointerMove);
@@ -372,7 +386,10 @@ export default function RevealFluid({
       gl!.bindTexture(gl!.TEXTURE_2D, fbA.tex);
       gl!.uniform1i(blobUniforms.u_prev, 0);
 
+      const prevPointerX = hasLastPaintPointer ? lastPaintPointerX : pointerX;
+      const prevPointerY = hasLastPaintPointer ? lastPaintPointerY : pointerY;
       gl!.uniform2f(blobUniforms.u_pointer, pointerX, pointerY);
+      gl!.uniform2f(blobUniforms.u_prevPointer, prevPointerX, prevPointerY);
       gl!.uniform1f(blobUniforms.u_pointerDown, pointerActive ? 1.0 : 0.0);
       gl!.uniform1f(blobUniforms.u_radius, pointerRadius);
       gl!.uniform1f(blobUniforms.u_strength, blobStrength);
@@ -381,6 +398,14 @@ export default function RevealFluid({
       gl!.uniform1f(blobUniforms.u_aspect, aspect);
 
       drawQuad(blobProgram!);
+
+      if (pointerActive) {
+        lastPaintPointerX = pointerX;
+        lastPaintPointerY = pointerY;
+        hasLastPaintPointer = true;
+      } else {
+        hasLastPaintPointer = false;
+      }
 
       // Swap
       const tmp = fbA;
