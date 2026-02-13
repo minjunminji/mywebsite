@@ -493,13 +493,13 @@ export default function ScrollScenePlayer() {
       setScrollProgress(pageProgress);
       setCornerTitleOpacity(cornerOpacity);
 
+      if (phase === 'introLanding' || phase === 'introTrainSequence') {
+        return;
+      }
+
       if (!hasUserScrolledAfterTrain && scrollY > 2) {
         setHasUserScrolledAfterTrain(true);
         setShowTrainLoopScrollHint(false);
-      }
-
-      if (phase === 'introLanding' || phase === 'introTrainSequence') {
-        return;
       }
 
       if (scrollY < transitionStart) {
@@ -750,21 +750,40 @@ export default function ScrollScenePlayer() {
 
   useEffect(() => {
     const shouldLockScroll = phase === 'introLanding' || phase === 'introTrainSequence';
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
+    if (!shouldLockScroll) return;
 
-    if (shouldLockScroll) {
+    window.scrollTo(0, 0);
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    const preventScroll = (event: Event) => {
+      event.preventDefault();
+    };
+
+    const resetScrollPosition = () => {
       window.scrollTo(0, 0);
-      document.body.style.overflow = 'hidden';
-      document.documentElement.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      document.documentElement.style.overflow = '';
-    }
+    };
+
+    window.addEventListener('wheel', preventScroll, { passive: false });
+    window.addEventListener('touchmove', preventScroll, { passive: false });
+    window.addEventListener('scroll', resetScrollPosition);
+
+    // Also block keyboard scrolling (arrow keys, space, page up/down, home/end)
+    const preventKeyScroll = (event: KeyboardEvent) => {
+      const scrollKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ', 'PageUp', 'PageDown', 'Home', 'End'];
+      if (scrollKeys.includes(event.key)) {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', preventKeyScroll);
 
     return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      window.removeEventListener('wheel', preventScroll);
+      window.removeEventListener('touchmove', preventScroll);
+      window.removeEventListener('scroll', resetScrollPosition);
+      window.removeEventListener('keydown', preventKeyScroll);
     };
   }, [phase]);
 
