@@ -162,6 +162,8 @@ export default function RevealFluid({
       uniform sampler2D u_mask;
       uniform sampler2D u_refImage;
       uniform float u_refLoaded;
+      uniform float u_canvasAspect;
+      uniform float u_refAspect;
 
       void main() {
         float rawMask = texture(u_mask, vUv).r;
@@ -178,10 +180,27 @@ export default function RevealFluid({
         occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, -texel.y)).r);
         occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(-texel.x, texel.y)).r);
         occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(texel.x, texel.y)).r);
-        float reveal = smoothstep(0.01, 0.04, occlusionMask);
+        vec2 fitUv = vUv;
+        if (u_canvasAspect > u_refAspect) {
+          float fitWidth = u_refAspect / u_canvasAspect;
+          float marginX = (1.0 - fitWidth) * 0.5;
+          fitUv.x = (vUv.x - marginX) / fitWidth;
+        } else {
+          float fitHeight = u_canvasAspect / u_refAspect;
+          float marginY = (1.0 - fitHeight) * 0.5;
+          fitUv.y = (vUv.y - marginY) / fitHeight;
+        }
+
+        float inBounds =
+          step(0.0, fitUv.x) *
+          step(fitUv.x, 1.0) *
+          step(0.0, fitUv.y) *
+          step(fitUv.y, 1.0);
+
+        float reveal = smoothstep(0.01, 0.04, occlusionMask) * inBounds;
 
         // Flip Y for image (WebGL UV origin is bottom-left, image is top-left)
-        vec2 refUv = vec2(vUv.x, 1.0 - vUv.y);
+        vec2 refUv = vec2(clamp(fitUv.x, 0.0, 1.0), 1.0 - clamp(fitUv.y, 0.0, 1.0));
         vec4 ref = texture(u_refImage, refUv);
 
         // Composite ref image over page background so transparent ref pixels
@@ -194,7 +213,7 @@ export default function RevealFluid({
 
         // Use binary alpha for occlusion. This avoids semi-transparent blob
         // edges that allow the underlying drawing layer to bleed through.
-        float a = step(0.01, occlusionMask) * u_refLoaded;
+        float a = step(0.01, occlusionMask) * u_refLoaded * inBounds;
         fragColor = vec4(color * a, a);
       }
     `;
@@ -206,6 +225,8 @@ export default function RevealFluid({
       u_mask: gl.getUniformLocation(displayProgram, 'u_mask'),
       u_refImage: gl.getUniformLocation(displayProgram, 'u_refImage'),
       u_refLoaded: gl.getUniformLocation(displayProgram, 'u_refLoaded'),
+      u_canvasAspect: gl.getUniformLocation(displayProgram, 'u_canvasAspect'),
+      u_refAspect: gl.getUniformLocation(displayProgram, 'u_refAspect'),
     };
 
     /* ------------------------------------------------------------------ */
@@ -249,11 +270,13 @@ export default function RevealFluid({
 
     let refTexture: WebGLTexture | null = null;
     let refImageLoaded = false;
+    let refAspect = 1;
 
     const refImg = new Image();
     refImg.crossOrigin = 'anonymous';
     refImg.onload = () => {
       if (destroyed) return;
+      refAspect = refImg.height > 0 ? refImg.width / refImg.height : 1;
       refTexture = gl!.createTexture();
       gl!.bindTexture(gl!.TEXTURE_2D, refTexture);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MIN_FILTER, gl!.LINEAR);
@@ -381,6 +404,8 @@ export default function RevealFluid({
       gl!.uniform1i(displayUniforms.u_refImage, 1);
 
       gl!.uniform1f(displayUniforms.u_refLoaded, refImageLoaded ? 1.0 : 0.0);
+      gl!.uniform1f(displayUniforms.u_canvasAspect, aspect);
+      gl!.uniform1f(displayUniforms.u_refAspect, refAspect);
 
       drawQuad(displayProgram!);
 
