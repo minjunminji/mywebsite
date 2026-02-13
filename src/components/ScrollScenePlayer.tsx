@@ -1450,16 +1450,13 @@ export default function ScrollScenePlayer() {
                     gap: '0.35rem',
                     width: 'fit-content',
                     color: '#1f1812',
-                    textDecoration: 'none',
-                    backgroundImage: 'linear-gradient(currentColor, currentColor)',
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: '0 100%',
-                    backgroundSize: isHovered ? '100% 1px' : '0% 1px',
+                    textDecoration: isHovered ? 'underline' : 'none',
+                    textDecorationThickness: '1px',
+                    textUnderlineOffset: '0.12em',
                     paddingBottom: '0.08rem',
                     fontWeight: 400,
                     fontSize: 'clamp(0.82rem, 0.95vw, 0.92rem)',
                     letterSpacing: '0.02em',
-                    transition: 'background-size 220ms ease',
                   }}
                 >
                   <span>{link.label}</span>
@@ -1991,7 +1988,7 @@ export default function ScrollScenePlayer() {
             top: 0,
             left: 0,
             width: '100%',
-            height: '7px',
+            height: '4.2px',
             overflow: 'hidden',
             zIndex: 30,
             pointerEvents: 'none',
