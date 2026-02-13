@@ -206,6 +206,7 @@ export default function ScrollScenePlayer() {
   const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
   const targetTransitionFrameRef = useRef(0);
   const targetTransitionTwoFrameRef = useRef(0);
+  const hasTriggeredAboutAnimationRef = useRef(false);
   const [phase, setPhase] = useState<Phase>('introLanding');
   const [landingFrame, setLandingFrame] = useState(0);
   const [, setLandingLoopsCompleted] = useState(0);
@@ -507,12 +508,17 @@ export default function ScrollScenePlayer() {
         setTransitionTwoFrame(0);
         targetTransitionFrameRef.current = 0;
         targetTransitionTwoFrameRef.current = 0;
+        hasTriggeredAboutAnimationRef.current = false;
         return;
       }
 
       if (scrollY < transitionOneEnd) {
         const transitionProgress = clamp((scrollY - transitionStart) / transitionLength, 0, 1);
         if (transitionProgress >= TRANSITION_COMPLETE_EPSILON) {
+          if (!hasTriggeredAboutAnimationRef.current) {
+            setAboutAnimationSeed((previous) => previous + 1);
+            hasTriggeredAboutAnimationRef.current = true;
+          }
           setPhase('about');
           setTransitionFrame(transitionFrames.length - 1);
           targetTransitionFrameRef.current = transitionFrames.length - 1;
@@ -531,6 +537,10 @@ export default function ScrollScenePlayer() {
       }
 
       if (scrollY < aboutEnd) {
+        if (!hasTriggeredAboutAnimationRef.current) {
+          setAboutAnimationSeed((previous) => previous + 1);
+          hasTriggeredAboutAnimationRef.current = true;
+        }
         setPhase('about');
         setTransitionFrame(transitionFrames.length - 1);
         targetTransitionFrameRef.current = transitionFrames.length - 1;
@@ -660,11 +670,7 @@ export default function ScrollScenePlayer() {
     secondRotationCompleted,
   ]);
 
-  useEffect(() => {
-    if (phase === 'about') {
-      setAboutAnimationSeed((previous) => previous + 1);
-    }
-  }, [phase]);
+
 
   useEffect(() => {
     if (phase !== 'transition') {
