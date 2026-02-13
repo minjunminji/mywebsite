@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
 const DEFAULT_VOLUME = 0.3;
+const MOBILE_VIEW_MEDIA_QUERY = '(max-width: 900px), (hover: none) and (pointer: coarse)';
 
 export default function StickyAudioPlayer() {
   const waveformRef = useRef<HTMLDivElement | null>(null);
   const waveSurferRef = useRef<WaveSurfer | null>(null);
+  const [isMobileView, setIsMobileView] = useState(false);
   const [isSceneLoading, setIsSceneLoading] = useState(() =>
     typeof document === 'undefined' ? false : document.body.dataset.sceneLoading === 'true',
   );
@@ -15,6 +17,23 @@ export default function StickyAudioPlayer() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [showVolume, setShowVolume] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(MOBILE_VIEW_MEDIA_QUERY);
+
+    const syncMobileView = () => {
+      setIsMobileView(mediaQuery.matches);
+    };
+
+    syncMobileView();
+    mediaQuery.addEventListener('change', syncMobileView);
+    window.addEventListener('resize', syncMobileView);
+
+    return () => {
+      mediaQuery.removeEventListener('change', syncMobileView);
+      window.removeEventListener('resize', syncMobileView);
+    };
+  }, []);
 
   useEffect(() => {
     const syncLoadingState = () => {
@@ -35,7 +54,7 @@ export default function StickyAudioPlayer() {
   }, []);
 
   useEffect(() => {
-    if (!waveformRef.current || waveSurferRef.current) {
+    if (isMobileView || !waveformRef.current || waveSurferRef.current) {
       return;
     }
 
@@ -88,7 +107,7 @@ export default function StickyAudioPlayer() {
       waveSurferRef.current = null;
       setIsWaveReady(false);
     };
-  }, []);
+  }, [isMobileView]);
 
   const togglePlayback = async () => {
     if (!waveSurferRef.current) {
@@ -107,7 +126,11 @@ export default function StickyAudioPlayer() {
     waveSurferRef.current?.setVolume(newVolume);
   };
 
-  const shouldShowPlayer = !isSceneLoading && isWaveReady;
+  const shouldShowPlayer = !isMobileView && !isSceneLoading && isWaveReady;
+
+  if (isMobileView) {
+    return null;
+  }
 
   return (
     <div

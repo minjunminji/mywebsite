@@ -51,6 +51,7 @@ const turnstileFrames = Array.from(
   (_, index) => `/Animation/turnstile${index + 1}.webp`,
 );
 const turnstileBackgroundFrame = '/turnstile_background.webp';
+const turnstileBackgroundFrameTwo = '/turnstile_background_2.png';
 
 const projectStills = {
   thisWebsite: '/Animation/thiswebsite.webp',
@@ -272,6 +273,9 @@ const CORNER_LINKS: readonly CornerLink[] = [
 const LANDING_LOOP_REPEATS = 4;
 const GLOBAL_WHEEL_DELTA_MAX_PX = 65;
 const TRAIN_LOOP_SCROLL_HINT_DELAY_MS = 3000;
+const MOBILE_TOUCH_MEDIA_QUERY = '(hover: none) and (pointer: coarse)';
+const MOBILE_PORTRAIT_MEDIA_QUERY = `${MOBILE_TOUCH_MEDIA_QUERY} and (orientation: portrait)`;
+const MOBILE_VIEW_MEDIA_QUERY = '(max-width: 900px), (hover: none) and (pointer: coarse)';
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
@@ -300,6 +304,8 @@ export default function ScrollScenePlayer() {
   const [projectFrame, setProjectFrame] = useState<string>(projectStills.thisWebsite);
   const [hasUserScrolledAfterTrain, setHasUserScrolledAfterTrain] = useState(false);
   const [showTrainLoopScrollHint, setShowTrainLoopScrollHint] = useState(false);
+  const [showRotateDeviceOverlay, setShowRotateDeviceOverlay] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
   const [aboutAnimationSeed, setAboutAnimationSeed] = useState(0);
   const [firstRotationTriggered, setFirstRotationTriggered] = useState(false);
   const [firstRotationCompleted, setFirstRotationCompleted] = useState(false);
@@ -329,6 +335,32 @@ export default function ScrollScenePlayer() {
       delete document.body.dataset.sceneLoading;
     };
   }, [showLoadingOverlay]);
+
+  useEffect(() => {
+    const touchDeviceQuery = window.matchMedia(MOBILE_TOUCH_MEDIA_QUERY);
+    const portraitTouchQuery = window.matchMedia(MOBILE_PORTRAIT_MEDIA_QUERY);
+    const mobileViewQuery = window.matchMedia(MOBILE_VIEW_MEDIA_QUERY);
+
+    const syncRotateOverlay = () => {
+      setShowRotateDeviceOverlay(touchDeviceQuery.matches && portraitTouchQuery.matches);
+      setIsMobileView(mobileViewQuery.matches);
+    };
+
+    syncRotateOverlay();
+    touchDeviceQuery.addEventListener('change', syncRotateOverlay);
+    portraitTouchQuery.addEventListener('change', syncRotateOverlay);
+    mobileViewQuery.addEventListener('change', syncRotateOverlay);
+    window.addEventListener('resize', syncRotateOverlay);
+    window.addEventListener('orientationchange', syncRotateOverlay);
+
+    return () => {
+      touchDeviceQuery.removeEventListener('change', syncRotateOverlay);
+      portraitTouchQuery.removeEventListener('change', syncRotateOverlay);
+      mobileViewQuery.removeEventListener('change', syncRotateOverlay);
+      window.removeEventListener('resize', syncRotateOverlay);
+      window.removeEventListener('orientationchange', syncRotateOverlay);
+    };
+  }, []);
 
   const stepProjectCarousel = (key: ProjectContent['key'], direction: -1 | 1, total: number) => {
     setProjectCarouselIndex((previous) => {
@@ -381,6 +413,7 @@ export default function ScrollScenePlayer() {
         ...transitionTwoFrames,
         ...turnstileFrames,
         turnstileBackgroundFrame,
+        turnstileBackgroundFrameTwo,
         projectStills.thisWebsite,
         projectStills.rebase,
         projectStills.mango,
@@ -440,10 +473,21 @@ export default function ScrollScenePlayer() {
       add(transitionTwoFrames.slice(0, 8));
     } else if (phase === 'transitionTwo') {
       add(frameWindowSources(transitionTwoFrames, transitionTwoFrame, 5));
-      add([projectStills.thisWebsite, turnstileFrames[0], turnstileBackgroundFrame]);
+      add([
+        projectStills.thisWebsite,
+        turnstileFrames[0],
+        turnstileBackgroundFrame,
+        turnstileBackgroundFrameTwo,
+      ]);
       add(PROJECT_MEDIA_SOURCES);
     } else if (phase === 'projects') {
-      add([turnstileBackgroundFrame, projectStills.thisWebsite, projectStills.rebase, projectStills.mango]);
+      add([
+        turnstileBackgroundFrame,
+        turnstileBackgroundFrameTwo,
+        projectStills.thisWebsite,
+        projectStills.rebase,
+        projectStills.mango,
+      ]);
       add(PROJECT_MEDIA_SOURCES);
 
       if (!firstRotationCompleted || !secondRotationCompleted) {
@@ -682,7 +726,12 @@ export default function ScrollScenePlayer() {
         }
       }
 
-      if (phase === 'loading' || phase === 'introLanding' || phase === 'introTrainSequence') {
+      if (
+        showRotateDeviceOverlay ||
+        phase === 'loading' ||
+        phase === 'introLanding' ||
+        phase === 'introTrainSequence'
+      ) {
         return;
       }
 
@@ -869,6 +918,7 @@ export default function ScrollScenePlayer() {
     };
   }, [
     phase,
+    showRotateDeviceOverlay,
     hasUserScrolledAfterTrain,
     firstRotationTriggered,
     firstRotationCompleted,
@@ -955,25 +1005,31 @@ export default function ScrollScenePlayer() {
   }, [phase]);
 
   useEffect(() => {
-    const shouldLockScroll =
+    const shouldLockForIntro =
       phase === 'loading' || phase === 'introLanding' || phase === 'introTrainSequence';
-    if (!shouldLockScroll) return;
+    const shouldLockScroll = showRotateDeviceOverlay || shouldLockForIntro;
+    if (!shouldLockScroll) {
+      return;
+    }
 
-    window.scrollTo(0, 0);
+    if (shouldLockForIntro) {
+      window.scrollTo(0, 0);
+    }
     document.body.style.overflow = 'hidden';
     document.documentElement.style.overflow = 'hidden';
 
     const preventScroll = (event: Event) => {
       event.preventDefault();
     };
-
     const resetScrollPosition = () => {
       window.scrollTo(0, 0);
     };
 
     window.addEventListener('wheel', preventScroll, { passive: false });
     window.addEventListener('touchmove', preventScroll, { passive: false });
-    window.addEventListener('scroll', resetScrollPosition);
+    if (shouldLockForIntro) {
+      window.addEventListener('scroll', resetScrollPosition);
+    }
 
     // Also block keyboard scrolling (arrow keys, space, page up/down, home/end)
     const preventKeyScroll = (event: KeyboardEvent) => {
@@ -989,10 +1045,12 @@ export default function ScrollScenePlayer() {
       document.documentElement.style.overflow = '';
       window.removeEventListener('wheel', preventScroll);
       window.removeEventListener('touchmove', preventScroll);
-      window.removeEventListener('scroll', resetScrollPosition);
+      if (shouldLockForIntro) {
+        window.removeEventListener('scroll', resetScrollPosition);
+      }
       window.removeEventListener('keydown', preventKeyScroll);
     };
-  }, [phase]);
+  }, [phase, showRotateDeviceOverlay]);
 
   useEffect(() => {
     const container = projectBlocksRef.current;
@@ -1085,6 +1143,26 @@ export default function ScrollScenePlayer() {
           }}
         />
         <img
+          src={turnstileBackgroundFrameTwo}
+          alt=""
+          aria-hidden="true"
+          draggable={false}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'block',
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            objectPosition: 'center',
+            userSelect: 'none',
+            pointerEvents: 'none',
+            opacity: phase === 'projects' ? 0.2 : 0,
+            transition: 'opacity 320ms ease',
+            zIndex: 0,
+          }}
+        />
+        <img
           src={frameToRender}
           alt="Hand-drawn animated scene"
           draggable={false}
@@ -1126,6 +1204,31 @@ export default function ScrollScenePlayer() {
             loading...
           </div>
         ) : null}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'grid',
+            placeItems: 'center',
+            padding: 'clamp(1.5rem, 5vw, 3rem)',
+            background: '#f6f2ea',
+            color: '#1f1812',
+            fontFamily: "'Cascadia Mono', monospace",
+            fontWeight: 400,
+            fontSize: 'clamp(0.95rem, 3.8vw, 1.2rem)',
+            lineHeight: 1.45,
+            letterSpacing: '0.02em',
+            textTransform: 'lowercase',
+            textAlign: 'center',
+            opacity: showRotateDeviceOverlay ? 1 : 0,
+            transition: 'opacity 260ms ease',
+            pointerEvents: showRotateDeviceOverlay ? 'auto' : 'none',
+            userSelect: 'none',
+            zIndex: 55,
+          }}
+        >
+          Please rotate your device to landscape to view this website.
+        </div>
         <div
           style={{
             position: 'fixed',
@@ -1271,14 +1374,14 @@ export default function ScrollScenePlayer() {
           <section
           style={{
             position: 'absolute',
-            left: '3vw',
+            left: isMobileView ? '0.5vw' : '3vw',
             top: 0,
-            width: '33.334%',
+            width: isMobileView ? '46%' : '33.334%',
             height: '100%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '8vh 4vw',
+            padding: isMobileView ? '0.75vh 1vw' : '8vh 4vw',
             pointerEvents: 'none',
             zIndex: 3,
           }}
@@ -1286,12 +1389,12 @@ export default function ScrollScenePlayer() {
           <div
             style={{
               width: '100%',
-              maxWidth: '28rem',
+              maxWidth: isMobileView ? '18rem' : '28rem',
               color: '#1f1812',
               fontFamily: "'Cascadia Mono', monospace",
               fontWeight: 600,
-              fontSize: 'clamp(0.95rem, 1.25vw, 1.2rem)',
-              lineHeight: 1.7,
+              fontSize: isMobileView ? 'clamp(0.8rem, 1.65vw, 0.98rem)' : 'clamp(0.95rem, 1.25vw, 1.2rem)',
+              lineHeight: isMobileView ? 1.45 : 1.7,
             }}
           >
             {ABOUT_LINES.map((line, index) => {
@@ -1305,7 +1408,7 @@ export default function ScrollScenePlayer() {
                   key={`${line}-${aboutAnimationSeed}`}
                   style={{
                     margin: 0,
-                    marginBottom: index < ABOUT_LINES.length - 1 ? '1.15em' : 0,
+                    marginBottom: index < ABOUT_LINES.length - 1 ? (isMobileView ? '0.75em' : '1.15em') : 0,
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'break-word',
                     fontWeight: index === 0 ? 600 : 300,
@@ -1333,27 +1436,29 @@ export default function ScrollScenePlayer() {
                 </p>
               );
             })}
-            <p
-              style={{
-                margin: 0,
-                marginTop: '4em',
-                fontSize: '0.85em',
-                fontWeight: 300,
-                opacity: 0,
-                animationName: 'aboutCharFadeIn',
-                animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
-                animationTimingFunction: 'ease',
-                animationFillMode: 'forwards',
-                animationDelay: `${
-                  ABOUT_INITIAL_DELAY_MS +
-                  ABOUT_LINES.join('').length * ABOUT_CHAR_STAGGER_MS +
-                  ABOUT_LINES.length * ABOUT_LINE_GAP_MS +
-                  ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS
-                }ms`,
-              }}
-            >
-              move your cursor over the drawing to reveal the reference
-            </p>
+            {!isMobileView ? (
+              <p
+                style={{
+                  margin: 0,
+                  marginTop: '4em',
+                  fontSize: '0.85em',
+                  fontWeight: 300,
+                  opacity: 0,
+                  animationName: 'aboutCharFadeIn',
+                  animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
+                  animationTimingFunction: 'ease',
+                  animationFillMode: 'forwards',
+                  animationDelay: `${
+                    ABOUT_INITIAL_DELAY_MS +
+                    ABOUT_LINES.join('').length * ABOUT_CHAR_STAGGER_MS +
+                    ABOUT_LINES.length * ABOUT_LINE_GAP_MS +
+                    ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS
+                  }ms`,
+                }}
+              >
+                move your cursor over the drawing to reveal the reference
+              </p>
+            ) : null}
           </div>
         </section>
         ) : null}
@@ -1554,7 +1659,7 @@ export default function ScrollScenePlayer() {
                         </p>
                       ))}
                     </div>
-                    {project.imageSrc ? (
+                    {!isMobileView && project.imageSrc ? (
                       <div style={{ marginTop: '0.4rem' }}>
                         <figure
                           style={{
@@ -1591,7 +1696,7 @@ export default function ScrollScenePlayer() {
                         ) : null}
                       </div>
                     ) : null}
-                    {carouselLength > 0 ? (
+                    {!isMobileView && carouselLength > 0 ? (
                       <div
                         style={{
                           marginTop: '0.4rem',
@@ -1718,7 +1823,7 @@ export default function ScrollScenePlayer() {
                         </div>
                       </div>
                     ) : null}
-                    {project.videoEmbedSrc ? (
+                    {!isMobileView && project.videoEmbedSrc ? (
                       <figure
                         style={{
                           margin: 0,
