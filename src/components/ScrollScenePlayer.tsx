@@ -13,48 +13,48 @@ type Phase =
   | 'projects';
 
 const landingFrames = [
-  '/Animation/landingloop1.png',
-  '/Animation/landingloop2.png',
-  '/Animation/landingloop3.png',
-  '/Animation/landingloop4.png',
+  '/Animation/landingloop1.webp',
+  '/Animation/landingloop2.webp',
+  '/Animation/landingloop3.webp',
+  '/Animation/landingloop4.webp',
 ];
 
-const trainSequenceFrames = Array.from({ length: 20 }, (_, index) => `/Animation/train${index + 1}.png`);
+const trainSequenceFrames = Array.from({ length: 20 }, (_, index) => `/Animation/train${index + 1}.webp`);
 
 const trainLoopFrames = [
-  '/Animation/trainloop1.png',
-  '/Animation/trainloop2.png',
-  '/Animation/trainloop3.png',
-  '/Animation/trainloop4.png',
+  '/Animation/trainloop1.webp',
+  '/Animation/trainloop2.webp',
+  '/Animation/trainloop3.webp',
+  '/Animation/trainloop4.webp',
 ];
 
 const transitionFrames = Array.from(
   { length: 25 },
-  (_, index) => `/Animation/1trans${index + 1}.png`,
+  (_, index) => `/Animation/1trans${index + 1}.webp`,
 );
 
 const aboutFrames = [
-  '/Animation/aboutloop1.png',
-  '/Animation/aboutloop2.png',
-  '/Animation/aboutloop3.png',
-  '/Animation/aboutloop4.png',
+  '/Animation/aboutloop1.webp',
+  '/Animation/aboutloop2.webp',
+  '/Animation/aboutloop3.webp',
+  '/Animation/aboutloop4.webp',
 ];
 
 const transitionTwoFrames = Array.from(
   { length: 22 },
-  (_, index) => `/Animation/2trans${index + 1}.png`,
+  (_, index) => `/Animation/2trans${index + 1}.webp`,
 );
 
 const turnstileFrames = Array.from(
   { length: 6 },
-  (_, index) => `/Animation/turnstile${index + 1}.png`,
+  (_, index) => `/Animation/turnstile${index + 1}.webp`,
 );
-const turnstileBackgroundFrame = '/turnstile_background.png';
+const turnstileBackgroundFrame = '/turnstile_background.webp';
 
 const projectStills = {
-  thisWebsite: '/Animation/thiswebsite.png',
-  rebase: '/Animation/rebase.png',
-  mango: '/Animation/mango.png',
+  thisWebsite: '/Animation/thiswebsite.webp',
+  rebase: '/Animation/rebase.webp',
+  mango: '/Animation/mango.webp',
 } as const;
 
 type ProjectContent = {
@@ -82,7 +82,7 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
       'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
       'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
-    imageSrc: '/oldwebsite.png',
+    imageSrc: '/oldwebsite.webp',
     imageAlt: 'Old portfolio website screenshot',
     imageCaption: 'my old website',
   },
@@ -97,19 +97,19 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
     ],
     carouselImages: [
       {
-        src: '/rebase1.png',
+        src: '/rebase1.webp',
         alt: 'Rebase screenshot 1',
       },
       {
-        src: '/rebase2.png',
+        src: '/rebase2.webp',
         alt: 'Rebase screenshot 2',
       },
       {
-        src: '/rebase3.png',
+        src: '/rebase3.webp',
         alt: 'Rebase screenshot 3',
       },
       {
-        src: '/rebase4.png',
+        src: '/rebase4.webp',
         alt: 'Rebase screenshot 4',
       },
     ],
@@ -127,6 +127,33 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
     videoTitle: 'Mango full-body gesture control demo',
   },
 ];
+
+const PROJECT_MEDIA_SOURCES = ['/oldwebsite.webp', '/rebase1.webp', '/rebase2.webp', '/rebase3.webp', '/rebase4.webp'] as const;
+const preloadedImageCache = new Set<string>();
+
+function preloadImageSources(sources: readonly string[]) {
+  sources.forEach((src) => {
+    if (!src || preloadedImageCache.has(src)) {
+      return;
+    }
+
+    preloadedImageCache.add(src);
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = src;
+  });
+}
+
+function frameWindowSources(frames: readonly string[], centerIndex: number, radius: number): string[] {
+  if (frames.length === 0) {
+    return [];
+  }
+
+  const start = clamp(centerIndex - radius, 0, frames.length - 1);
+  const end = clamp(centerIndex + radius, 0, frames.length - 1);
+
+  return frames.slice(start, end + 1);
+}
 
 const LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -280,57 +307,70 @@ export default function ScrollScenePlayer() {
   };
 
   useEffect(() => {
-    const preloadFrames = (sources: readonly string[]) => {
-      sources.forEach((src) => {
-        const image = new Image();
-        image.decoding = 'async';
-        image.src = src;
+    preloadImageSources([
+      landingFrames[0],
+      landingFrames[1],
+      trainSequenceFrames[0],
+      trainSequenceFrames[1],
+      trainLoopFrames[0],
+      transitionFrames[0],
+      aboutFrames[0],
+      transitionTwoFrames[0],
+      turnstileFrames[0],
+      turnstileBackgroundFrame,
+      projectStills.thisWebsite,
+    ]);
+  }, []);
+
+  useEffect(() => {
+    const sources = new Set<string>();
+    const add = (items: readonly string[]) => {
+      items.forEach((src) => {
+        sources.add(src);
       });
     };
 
-    const criticalFrames = [...landingFrames, ...trainSequenceFrames.slice(0, 8), ...trainLoopFrames];
-    const deferredFrames = [
-      ...trainSequenceFrames.slice(8),
-      ...transitionFrames,
-      ...aboutFrames,
-      ...transitionTwoFrames,
-      ...turnstileFrames,
-      turnstileBackgroundFrame,
-      projectStills.thisWebsite,
-      projectStills.rebase,
-      projectStills.mango,
-    ];
+    if (phase === 'introLanding') {
+      add(frameWindowSources(landingFrames, landingFrame, 2));
+      add(trainSequenceFrames.slice(0, 6));
+    } else if (phase === 'introTrainSequence') {
+      add(frameWindowSources(trainSequenceFrames, trainSequenceFrame, 4));
+      add(trainLoopFrames);
+    } else if (phase === 'trainLoop') {
+      add(frameWindowSources(trainLoopFrames, trainLoopFrame, 2));
+      add(transitionFrames.slice(0, 8));
+    } else if (phase === 'transition') {
+      add(frameWindowSources(transitionFrames, transitionFrame, 5));
+      add(aboutFrames);
+    } else if (phase === 'about') {
+      add(frameWindowSources(aboutFrames, aboutFrame, 2));
+      add(['/about_ref.webp']);
+      add(transitionTwoFrames.slice(0, 8));
+    } else if (phase === 'transitionTwo') {
+      add(frameWindowSources(transitionTwoFrames, transitionTwoFrame, 5));
+      add([projectStills.thisWebsite, turnstileFrames[0], turnstileBackgroundFrame]);
+      add(PROJECT_MEDIA_SOURCES);
+    } else if (phase === 'projects') {
+      add([turnstileBackgroundFrame, projectStills.thisWebsite, projectStills.rebase, projectStills.mango]);
+      add(PROJECT_MEDIA_SOURCES);
 
-    preloadFrames(criticalFrames);
-
-    type IdleWindow = Window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-
-    const idleWindow = window as IdleWindow;
-    let idleId: number | null = null;
-    let timeoutId: number | null = null;
-
-    const preloadDeferred = () => {
-      preloadFrames(deferredFrames);
-    };
-
-    if (typeof idleWindow.requestIdleCallback === 'function') {
-      idleId = idleWindow.requestIdleCallback(() => preloadDeferred(), { timeout: 1500 });
-    } else {
-      timeoutId = window.setTimeout(preloadDeferred, 250);
+      if (!firstRotationCompleted || !secondRotationCompleted) {
+        add(turnstileFrames);
+      }
     }
 
-    return () => {
-      if (idleId !== null && typeof idleWindow.cancelIdleCallback === 'function') {
-        idleWindow.cancelIdleCallback(idleId);
-      }
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, []);
+    preloadImageSources(Array.from(sources));
+  }, [
+    phase,
+    landingFrame,
+    trainSequenceFrame,
+    trainLoopFrame,
+    transitionFrame,
+    aboutFrame,
+    transitionTwoFrame,
+    firstRotationCompleted,
+    secondRotationCompleted,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -965,7 +1005,7 @@ export default function ScrollScenePlayer() {
             zIndex: 1,
           }}
         />
-        {phase === 'about' && <RevealFluid referenceImage="/about_ref.png" />}
+        {phase === 'about' && <RevealFluid referenceImage="/about_ref.webp" />}
         <div
           style={{
             position: 'fixed',
