@@ -72,7 +72,7 @@ type ProjectContent = {
     src: string;
     alt: string;
   }[];
-  videoEmbedSrc?: string;
+  videoSrc?: string;
   videoTitle?: string;
 };
 
@@ -129,7 +129,7 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
       'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.',
       'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
     ],
-    videoEmbedSrc: 'https://www.youtube.com/embed/pdja2_o8bpY',
+    videoSrc: '/mango.mp4',
     videoTitle: 'Mango full-body gesture control demo',
   },
 ];
@@ -1864,7 +1864,7 @@ export default function ScrollScenePlayer() {
                         </div>
                       </div>
                     ) : null}
-                    {!isMobileView && project.videoEmbedSrc ? (
+                    {!isMobileView && project.videoSrc ? (
                       <figure
                         style={{
                           margin: 0,
@@ -1882,17 +1882,21 @@ export default function ScrollScenePlayer() {
                             aspectRatio: '16 / 9',
                           }}
                         >
-                          <iframe
-                            src={project.videoEmbedSrc}
+                          <video
+                            src={project.videoSrc}
                             title={project.videoTitle ?? `${project.title} video`}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            allowFullScreen
+                            preload="metadata"
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
                             style={{
                               width: '100%',
                               height: '100%',
                               border: 0,
                               display: 'block',
+                              objectFit: 'cover',
+                              objectPosition: 'center',
                             }}
                           />
                         </div>
