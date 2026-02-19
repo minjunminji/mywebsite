@@ -62,6 +62,7 @@ const projectStills = {
 type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
   title: string;
+  techStack: readonly string[];
   body: readonly string[];
   linkHref?: string;
   imageSrc?: string;
@@ -79,6 +80,7 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'thisWebsite',
     title: 'this website',
+    techStack: ['Next.js', 'React', 'TypeScript', 'WaveSurfer.js', 'WebGL2'],
     body: [
       'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a scroll-driven story so the site feels like a film you move through.',
       'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
@@ -91,6 +93,7 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'rebase',
     title: 'rebase',
+    techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
     linkHref: 'http://tryrebase.io/',
     body: [
       'an ai-native resume builder that stores your experience as reusable building blocks instead of rewriting one static document every time.',
@@ -119,6 +122,7 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'mango',
     title: 'mango',
+    techStack: ['Python', 'PyAutoGUI', 'OpenCV', 'MediaPipe'],
     linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
     body: [
       'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
@@ -1590,29 +1594,68 @@ export default function ScrollScenePlayer() {
                     <div
                       style={{
                         display: 'flex',
-                        alignItems: 'center',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
                         gap: '0.4rem',
-                        pointerEvents: isLinked ? 'auto' : 'none',
+                        width: '100%',
                       }}
                     >
-                      {isLinked ? (
-                        <a
-                          href={project.linkHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onMouseEnter={() => setHoveredProjectLink(project.key)}
-                          onMouseLeave={() => setHoveredProjectLink(null)}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            color: '#1f1812',
-                            textDecoration: showUnderline ? 'underline' : 'none',
-                            textDecorationThickness: '2px',
-                            textUnderlineOffset: '0.2em',
-                            cursor: 'pointer',
-                          }}
-                        >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.4rem',
+                          pointerEvents: isLinked ? 'auto' : 'none',
+                          minWidth: 0,
+                        }}
+                      >
+                        {isLinked ? (
+                          <a
+                            href={project.linkHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onMouseEnter={() => setHoveredProjectLink(project.key)}
+                            onMouseLeave={() => setHoveredProjectLink(null)}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              color: '#1f1812',
+                              textDecoration: showUnderline ? 'underline' : 'none',
+                              textDecorationThickness: '2px',
+                              textUnderlineOffset: '0.2em',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <h2
+                              style={{
+                                margin: 0,
+                                fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
+                                fontWeight: 600,
+                                lineHeight: 1,
+                                textTransform: 'lowercase',
+                              }}
+                            >
+                              {project.title}
+                            </h2>
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="18"
+                              height="18"
+                              aria-hidden="true"
+                              style={{ flexShrink: 0 }}
+                            >
+                              <path
+                                d="M8 8h8v8M16 8L8 16"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </a>
+                        ) : (
                           <h2
                             style={{
                               margin: 0,
@@ -1624,36 +1667,22 @@ export default function ScrollScenePlayer() {
                           >
                             {project.title}
                           </h2>
-                          <svg
-                            viewBox="0 0 24 24"
-                            width="18"
-                            height="18"
-                            aria-hidden="true"
-                            style={{ flexShrink: 0 }}
-                          >
-                            <path
-                              d="M8 8h8v8M16 8L8 16"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </a>
-                      ) : (
-                        <h2
-                          style={{
-                            margin: 0,
-                            fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
-                            fontWeight: 600,
-                            lineHeight: 1,
-                            textTransform: 'lowercase',
-                          }}
-                        >
-                          {project.title}
-                        </h2>
-                      )}
+                        )}
+                      </div>
+                      <p
+                        title={project.techStack.join(', ')}
+                        style={{
+                          margin: 0,
+                          fontSize: 'clamp(0.72rem, 0.9vw, 0.86rem)',
+                          lineHeight: 1.25,
+                          fontWeight: 500,
+                          letterSpacing: '0.03em',
+                          color: '#4a3f33',
+                          pointerEvents: 'none',
+                        }}
+                      >
+                        {project.techStack.join(', ')}
+                      </p>
                     </div>
                     <div
                       style={{
