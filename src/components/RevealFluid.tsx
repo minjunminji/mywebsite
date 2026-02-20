@@ -216,7 +216,7 @@ export default function RevealFluid({
         // still occlude the drawing underneath this canvas.
         // Ref texture is uploaded premultiplied to avoid white fringes on
         // transparent gradients.
-        vec3 bg = vec3(0.965, 0.949, 0.918); // #f6f2ea
+        vec3 bg = vec3(0.969, 0.969, 0.961); // #f7f7f5
         vec3 refOverBg = ref.rgb + bg * (1.0 - ref.a);
         vec3 color = mix(bg, refOverBg, reveal);
 

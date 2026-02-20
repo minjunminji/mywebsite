@@ -68,10 +68,21 @@ type ProjectContent = {
   imageSrc?: string;
   imageAlt?: string;
   imageCaption?: string;
-  carouselImages?: readonly {
-    src: string;
-    alt: string;
-  }[];
+  carouselImages?: readonly (
+    | {
+        kind: 'image';
+        src: string;
+        alt: string;
+        caption?: string;
+      }
+    | {
+        kind: 'video';
+        src: string;
+        title?: string;
+        posterSrc?: string;
+        caption?: string;
+      }
+  )[];
   videoSrc?: string;
   videoTitle?: string;
 };
@@ -86,9 +97,21 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
       'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
       'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
-    imageSrc: '/oldwebsite.webp',
-    imageAlt: 'Old portfolio website screenshot',
-    imageCaption: 'my old website',
+    carouselImages: [
+      {
+        kind: 'video',
+        src: '/animationtimelapse.mp4',
+        title: 'Timelapse of drawing',
+        posterSrc: '/oldwebsite.webp',
+        caption: 'timelapse of drawing',
+      },
+      {
+        kind: 'image',
+        src: '/oldwebsite.webp',
+        alt: 'Old portfolio website screenshot',
+        caption: 'my old website',
+      },
+    ],
   },
   {
     key: 'rebase',
@@ -102,18 +125,22 @@ const PROJECT_CONTENT: readonly ProjectContent[] = [
     ],
     carouselImages: [
       {
+        kind: 'image',
         src: '/rebase1.webp',
         alt: 'Rebase screenshot 1',
       },
       {
+        kind: 'image',
         src: '/rebase2.webp',
         alt: 'Rebase screenshot 2',
       },
       {
+        kind: 'image',
         src: '/rebase3.webp',
         alt: 'Rebase screenshot 3',
       },
       {
+        kind: 'image',
         src: '/rebase4.webp',
         alt: 'Rebase screenshot 4',
       },
@@ -1163,7 +1190,7 @@ export default function ScrollScenePlayer() {
           height: '100vh',
           width: '100%',
           overflow: 'hidden',
-          background: '#f6f2ea',
+          background: '#f7f7f5',
         }}
       >
         <img
@@ -1231,7 +1258,7 @@ export default function ScrollScenePlayer() {
               inset: 0,
               display: 'grid',
               placeItems: 'center',
-              background: '#f6f2ea',
+              background: '#f7f7f5',
               color: '#1f1812',
               fontFamily: "'Cascadia Mono', monospace",
               fontWeight: 400,
@@ -1256,7 +1283,7 @@ export default function ScrollScenePlayer() {
             display: 'grid',
             placeItems: 'center',
             padding: 'clamp(1.5rem, 5vw, 3rem)',
-            background: '#f6f2ea',
+            background: '#f7f7f5',
             color: '#1f1812',
             fontFamily: "'Cascadia Mono', monospace",
             fontWeight: 400,
@@ -1571,6 +1598,7 @@ export default function ScrollScenePlayer() {
                 const carouselImages = project.carouselImages ?? [];
                 const carouselLength = carouselImages.length;
                 const activeCarouselIndex = projectCarouselIndex[project.key] ?? 0;
+                const activeCarouselItem = carouselImages[activeCarouselIndex];
 
                 return (
                   <article
@@ -1753,18 +1781,81 @@ export default function ScrollScenePlayer() {
                             background: '#f0eadf',
                           }}
                         >
-                          <img
-                            src={carouselImages[activeCarouselIndex].src}
-                            alt={carouselImages[activeCarouselIndex].alt}
-                            draggable={false}
+                          <div
                             style={{
-                              display: 'block',
+                              position: 'relative',
                               width: '100%',
-                              height: 'auto',
-                              userSelect: 'none',
+                              aspectRatio: '16 / 9',
                             }}
-                          />
+                          >
+                            {carouselImages.map((item, mediaIndex) => {
+                              const isActiveMedia = mediaIndex === activeCarouselIndex;
+
+                              if (item.kind === 'video') {
+                                return (
+                                  <video
+                                    key={`${project.key}-media-video-${item.src}`}
+                                    src={item.src}
+                                    title={item.title ?? `${project.title} media`}
+                                    poster={item.posterSrc}
+                                    preload="auto"
+                                    muted
+                                    loop
+                                    autoPlay
+                                    playsInline
+                                    style={{
+                                      position: 'absolute',
+                                      inset: 0,
+                                      display: 'block',
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                      objectPosition: 'center',
+                                      userSelect: 'none',
+                                      opacity: isActiveMedia ? 1 : 0,
+                                      zIndex: isActiveMedia ? 2 : 1,
+                                      pointerEvents: 'none',
+                                    }}
+                                  />
+                                );
+                              }
+
+                              return (
+                                <img
+                                  key={`${project.key}-media-image-${item.src}`}
+                                  src={item.src}
+                                  alt={item.alt}
+                                  draggable={false}
+                                  style={{
+                                    position: 'absolute',
+                                    inset: 0,
+                                    display: 'block',
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    objectPosition: 'center',
+                                    userSelect: 'none',
+                                    opacity: isActiveMedia ? 1 : 0,
+                                    zIndex: isActiveMedia ? 2 : 1,
+                                    pointerEvents: 'none',
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
                         </figure>
+                        {activeCarouselItem?.caption ? (
+                          <p
+                            style={{
+                              margin: '0.35rem 0 0',
+                              fontSize: '0.78rem',
+                              lineHeight: 1.25,
+                              color: '#4a3f33',
+                            }}
+                          >
+                            {activeCarouselItem.caption}
+                          </p>
+                        ) : null}
                         <div
                           style={{
                             marginTop: '0.7rem',
@@ -1776,7 +1867,7 @@ export default function ScrollScenePlayer() {
                         >
                           <button
                             type="button"
-                            aria-label={`Previous ${project.title} image`}
+                            aria-label={`Previous ${project.title} media`}
                             onClick={() => stepProjectCarousel(project.key, -1, carouselLength)}
                             style={{
                               width: '2rem',
@@ -1817,7 +1908,7 @@ export default function ScrollScenePlayer() {
                                 <button
                                   key={`${project.key}-dot-${dotIndex}`}
                                   type="button"
-                                  aria-label={`Show ${project.title} image ${dotIndex + 1}`}
+                                  aria-label={`Show ${project.title} media ${dotIndex + 1}`}
                                   onClick={() => jumpProjectCarousel(project.key, dotIndex)}
                                   style={{
                                     width: isActive ? '0.92rem' : '0.54rem',
@@ -1835,7 +1926,7 @@ export default function ScrollScenePlayer() {
                           </div>
                           <button
                             type="button"
-                            aria-label={`Next ${project.title} image`}
+                            aria-label={`Next ${project.title} media`}
                             onClick={() => stepProjectCarousel(project.key, 1, carouselLength)}
                             style={{
                               width: '2rem',
