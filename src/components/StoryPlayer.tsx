@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ABOUT_CHAR_FADE_DURATION_MS,
   ABOUT_CHAR_STAGGER_MS,
@@ -71,6 +71,10 @@ export default function StoryPlayer() {
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
     : null;
+  // Directional project transition: content enters from the side it's heading
+  // (forward → in from the right, out to the left) and reverses going back.
+  const enterX = player.navDir >= 0 ? '48px' : '-48px';
+  const exitX = player.navDir >= 0 ? '-48px' : '48px';
 
   const [aboutSeed, setAboutSeed] = useState(0);
   useEffect(() => {
@@ -451,9 +455,11 @@ export default function StoryPlayer() {
             alignItems: 'center',
             justifyContent: 'flex-end',
             padding: '7vh 3vw 7vh 2vw',
-            transform: 'translateY(5vh)',
+            transform: `translateY(5vh) translateX(${onProject ? '0px' : exitX})`,
             opacity: onProject ? 1 : 0,
-            transition: 'opacity 220ms ease',
+            // Slide+fade out while leaving; snap back instantly on arrival so the
+            // article's own slide-in animation owns the entrance.
+            transition: onProject ? 'opacity 300ms ease' : 'opacity 220ms ease, transform 300ms cubic-bezier(0.4, 0, 1, 1)',
             pointerEvents: onProject ? 'auto' : 'none',
             zIndex: 6,
           }}
@@ -487,6 +493,8 @@ export default function StoryPlayer() {
                     color: '#1f1812',
                     fontFamily: "var(--font-geist-sans), sans-serif",
                     paddingBottom: '2rem',
+                    animation: 'projectSlideIn 460ms cubic-bezier(0.16, 1, 0.3, 1) both',
+                    ...({ '--enter-x': enterX } as CSSProperties),
                   }}
                 >
                   <div

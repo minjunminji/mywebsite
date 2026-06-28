@@ -28,6 +28,8 @@ export type FramePlayer = {
   expandPosition: number;
   /** Continuous playhead in stop-space; drives the left-to-right black fill. */
   fillProgress: number;
+  /** Direction of the most recent navigation: 1 forward, -1 backward. */
+  navDir: number;
   isTransitioning: boolean;
   displayFrame: string;
   navigateTo: (target: number) => void;
@@ -43,6 +45,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayFrame, setDisplayFrame] = useState(restFrame(0));
   const [fillProgress, setFillProgress] = useState(0);
+  const [navDir, setNavDir] = useState(1);
 
   const queueRef = useRef<string[]>([]);
   const queueIndexRef = useRef(0);
@@ -141,6 +144,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
       targetRef.current = next;
       fillFromRef.current = currentStop;
       setTarget(next);
+      setNavDir(next > currentStop ? 1 : -1);
 
       if (queue.length === 0) {
         setCurrentStop(next);
@@ -178,6 +182,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
     position: dockPosition,
     expandPosition,
     fillProgress,
+    navDir,
     isTransitioning,
     displayFrame,
     navigateTo,

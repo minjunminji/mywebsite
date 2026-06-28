@@ -43,6 +43,15 @@ main {
   }
 }
 
+@keyframes projectSlideIn {
+  from {
+    transform: translateX(var(--enter-x, 48px));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 @keyframes storyChildIn {
   from {
     opacity: 0;
