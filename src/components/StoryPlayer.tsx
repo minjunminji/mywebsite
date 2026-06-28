@@ -70,22 +70,9 @@ export default function StoryPlayer() {
   const onAbout = introDone && !player.isTransitioning && player.currentStop === aboutIndex;
   const onProject = introDone && !player.isTransitioning && isProjectStop(player.currentStop);
   const experienceIndex = stopIndexById('experience');
-  const mangoIndex = stopIndexById('mango');
   const onExperience = introDone && !player.isTransitioning && isExperienceStop(player.currentStop);
   const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
 
-  // The experience entrance morph is born from mango's rendered "2025". Capture
-  // its viewport position the moment we leave mango for experience, so the morph
-  // starts exactly where that text sits.
-  const seed2025Ref = useRef<HTMLSpanElement | null>(null);
-  const [seedOrigin, setSeedOrigin] = useState<{ x: number; y: number } | null>(null);
-  const handleNavigate = (stopIndex: number) => {
-    if (player.currentStop === mangoIndex && stopIndex === experienceIndex && seed2025Ref.current) {
-      const rect = seed2025Ref.current.getBoundingClientRect();
-      setSeedOrigin({ x: rect.left, y: rect.top });
-    }
-    player.navigateTo(stopIndex);
-  };
   const cornerVisible = introDone && player.position !== 0;
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
@@ -619,25 +606,11 @@ export default function StoryPlayer() {
                       fontWeight: 300,
                     }}
                   >
-                    {project.body.map((paragraph) => {
-                      // For mango, wrap its "2025" so the experience entrance can
-                      // measure it and morph out from that exact spot.
-                      const yearAt =
-                        project.key === 'mango' ? paragraph.indexOf('2025') : -1;
-                      return (
-                        <p key={`${project.key}-${paragraph}`} style={{ margin: 0 }}>
-                          {yearAt >= 0 ? (
-                            <>
-                              {paragraph.slice(0, yearAt)}
-                              <span ref={seed2025Ref}>2025</span>
-                              {paragraph.slice(yearAt + 4)}
-                            </>
-                          ) : (
-                            paragraph
-                          )}
-                        </p>
-                      );
-                    })}
+                    {project.body.map((paragraph) => (
+                      <p key={`${project.key}-${paragraph}`} style={{ margin: 0 }}>
+                        {paragraph}
+                      </p>
+                    ))}
                   </div>
                   {project.imageSrc ? (
                     <div style={{ marginTop: '0.4rem' }}>
@@ -923,7 +896,7 @@ export default function StoryPlayer() {
             zIndex: 4,
           }}
         >
-          <ExperienceSection active={onExperience} seedOrigin={seedOrigin} />
+          <ExperienceSection active={onExperience} />
         </div>
       ) : null}
 
@@ -933,7 +906,7 @@ export default function StoryPlayer() {
         fillProgress={player.fillProgress}
         visible={introDone}
         isTransitioning={player.isTransitioning}
-        onNavigate={handleNavigate}
+        onNavigate={player.navigateTo}
       />
     </div>
   );

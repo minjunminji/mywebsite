@@ -88,6 +88,19 @@ main {
   border-radius: 2px;
 }
 
+/* The experience section is its own scroll container. Hide its scrollbar (like
+   html/body) so a scrollbar appearing in one lens but not the other never
+   changes the content width or nudges the centered column. */
+.exp-section {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.exp-section::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
 @media (max-width: 900px) and (orientation: portrait) {
   html,
   body {
