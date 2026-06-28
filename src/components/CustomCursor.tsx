@@ -54,8 +54,11 @@ export default function CustomCursor() {
     let renderY = 0;
     // True once we've seen a real pointer position (avoids a flash at 0,0).
     let hasPointer = false;
-    // True while the pointer is inside the window and focused.
+    // True while the pointer is inside the window and the window is focused.
     let inWindow = false;
+    // Last opacity we wrote, so we only touch the DOM when visibility flips.
+    // Matches the element's initial inline opacity: 0 (hidden).
+    let lastVisible = false;
     let rafId: number | null = null;
 
     const render = () => {
@@ -70,8 +73,13 @@ export default function CustomCursor() {
         // rect in a follow-up task; the loop below stays unchanged.
       }
 
+      // Reveal only once a real pointer position is known, so re-entry/refocus
+      // never flashes the cursor at (0,0).
       const visible = hasPointer && inWindow;
-      el.style.opacity = visible ? '1' : '0';
+      if (visible !== lastVisible) {
+        el.style.opacity = visible ? '1' : '0';
+        lastVisible = visible;
+      }
       el.style.transform = `translate3d(${renderX - radius}px, ${renderY - radius}px, 0)`;
 
       rafId = requestAnimationFrame(render);
@@ -84,18 +92,28 @@ export default function CustomCursor() {
       inWindow = true;
     };
 
-    // Pointer left the window entirely.
-    const onMouseLeave = () => {
+    // Pointer entered / left the window entirely.
+    const onPointerEnter = () => {
+      inWindow = true;
+    };
+    const onPointerLeave = () => {
       inWindow = false;
     };
 
-    // Window lost focus (e.g. tab/app switch).
+    // Window gained / lost focus (e.g. tab/app switch). `focus` restores the
+    // cursor after alt-tabbing back without moving the pointer; `visible` still
+    // gates on hasPointer so this never flashes at (0,0).
+    const onFocus = () => {
+      inWindow = true;
+    };
     const onBlur = () => {
       inWindow = false;
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
-    root.addEventListener('mouseleave', onMouseLeave);
+    root.addEventListener('pointerenter', onPointerEnter);
+    root.addEventListener('pointerleave', onPointerLeave);
+    window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
 
     rafId = requestAnimationFrame(render);
@@ -103,7 +121,9 @@ export default function CustomCursor() {
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
-      root.removeEventListener('mouseleave', onMouseLeave);
+      root.removeEventListener('pointerenter', onPointerEnter);
+      root.removeEventListener('pointerleave', onPointerLeave);
+      window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
     };
