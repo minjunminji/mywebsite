@@ -7,7 +7,9 @@ import { useDecrypt, type DecryptLine } from './useDecrypt';
 const INK = '#1f1812';
 const PALE = 'rgba(31,24,18,0.28)';
 const MONO = "var(--font-inconsolata), ui-monospace, monospace";
-const SLOT_LINE = '1.15em';
+// One headline line — the slot's slide step and each lens word's box height.
+// Matches the headline line-height so the selected word sits on the baseline.
+const SLOT_LINE = '1.4em';
 
 // --- entrance choreography (tunable; verify/adjust visually) ---
 const T_ISOLATE = 400; // mango's 2025 sits alone
@@ -313,13 +315,15 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
               className="exp-lens-slot"
               style={{
                 display: 'inline-block',
-                width: '8ch',
-                height: SLOT_LINE,
-                verticalAlign: 'bottom',
                 position: 'relative',
+                verticalAlign: 'baseline',
                 overflow: 'visible',
+                whiteSpace: 'nowrap',
               }}
             >
+              {/* Invisible in-flow anchor: gives the slot a real text baseline (so
+                  the selected word lines up with the sentence) and its width. */}
+              <span aria-hidden style={{ visibility: 'hidden' }}>{LENSES[0]}</span>
               {/* Fixed order: software on top, product below. The whole stack
                   slides up by one line to bring product onto the baseline; the
                   off-baseline lens shows pale above or below the sentence. */}
@@ -342,7 +346,6 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                     aria-pressed={lens === l}
                     style={{
                       display: 'block',
-                      width: '100%',
                       height: SLOT_LINE,
                       lineHeight: SLOT_LINE,
                       border: 'none',
