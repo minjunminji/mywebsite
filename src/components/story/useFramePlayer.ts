@@ -7,6 +7,9 @@ import { buildFrameQueue } from '@/components/story/frameQueue';
 const LOOP_INTERVAL_MS = 180;
 const PLAYBACK_FPS = 12;
 const SKIP_SPEED_MULTIPLIER = 2;
+// A leg with no frames (mango <-> experience) still runs as a brief timed
+// transition so the outgoing content fades out instead of hard-cutting.
+const EMPTY_SEGMENT_HOLD_MS = 600;
 
 function restFrame(index: number): string {
   const stop = STOPS[index];
@@ -146,17 +149,21 @@ export function useFramePlayer(active: boolean): FramePlayer {
       setTarget(next);
       setNavDir(next > currentStop ? 1 : -1);
 
+      queueRef.current = queue;
+      queueIndexRef.current = 0;
+
       if (queue.length === 0) {
-        setCurrentStop(next);
-        setFillProgress(next);
+        // No frames for this leg: hold briefly (transition stays "running" with
+        // currentStop on the origin) so the outgoing content fades out and the
+        // nav fill sweeps, then park — instead of an instant cut.
+        transitionMsRef.current = EMPTY_SEGMENT_HOLD_MS;
+        setIsTransitioning(true);
         return;
       }
 
       const speed = Math.abs(next - currentStop) >= 2 ? SKIP_SPEED_MULTIPLIER : 1;
       transitionMsRef.current = (queue.length / (PLAYBACK_FPS * speed)) * 1000;
 
-      queueRef.current = queue;
-      queueIndexRef.current = 0;
       setIsTransitioning(true);
     },
     [currentStop, isTransitioning],

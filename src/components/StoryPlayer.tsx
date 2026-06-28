@@ -216,7 +216,7 @@ export default function StoryPlayer() {
         src={frame}
         alt="Hand-drawn animated scene"
         draggable={false}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', opacity: goingToExperience ? 0 : 1, transition: 'opacity 360ms ease', zIndex: 1 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', opacity: goingToExperience ? 0 : 1, transition: goingToExperience ? 'opacity 600ms ease' : 'opacity 360ms ease', zIndex: 1 }}
       />
 
       {/* Soft edge fade so the train drawing blends into the page. Sized to the
@@ -464,8 +464,13 @@ export default function StoryPlayer() {
             transform: `translateY(5vh) translateX(${onProject ? '0px' : exitX})`,
             opacity: onProject ? 1 : 0,
             // Slide+fade out while leaving; snap back instantly on arrival so the
-            // article's own slide-in animation owns the entrance.
-            transition: onProject ? 'opacity 300ms ease' : 'opacity 220ms ease, transform 300ms cubic-bezier(0.4, 0, 1, 1)',
+            // article's own slide-in animation owns the entrance. Leaving for the
+            // experience section fades out slower (0.6s) so it's not abrupt.
+            transition: onProject
+              ? 'opacity 300ms ease'
+              : goingToExperience
+                ? 'opacity 600ms ease, transform 600ms cubic-bezier(0.4, 0, 1, 1)'
+                : 'opacity 220ms ease, transform 300ms cubic-bezier(0.4, 0, 1, 1)',
             pointerEvents: onProject ? 'auto' : 'none',
             zIndex: 6,
           }}
