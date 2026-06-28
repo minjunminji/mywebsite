@@ -162,9 +162,22 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
         }),
       );
     };
+    let raf = 0;
+    const onResize = () => {
+      window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(measure);
+    };
     measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    // Re-measure once the web font settles, so the year anchors land on the
+    // final Inconsolata metrics rather than the fallback's.
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      document.fonts.ready.then(measure).catch(() => {});
+    }
+    window.addEventListener('resize', onResize);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', onResize);
+    };
   }, [lens]);
 
   // Stacked / isolate anchor geometry (derived from the measured box).
@@ -211,7 +224,10 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'center',
+        // `safe center` keeps the résumé centered when it fits but falls back to
+        // top-aligned (scrollable) when a lens overflows a short viewport.
+        justifyContent: 'safe center',
+        overflowY: 'auto',
         gap: '2.4rem',
         padding: 'clamp(4rem, 10vh, 8rem) clamp(1.5rem, 8vw, 9rem)',
         fontFamily: MONO,
@@ -233,6 +249,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
       >
         here&apos;s me as a{' '}
         <span
+          className="exp-lens-slot"
           style={{
             display: 'inline-block',
             width: '8ch',
@@ -253,6 +270,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
               <button
                 key={l}
                 type="button"
+                className="exp-lens"
                 onClick={() => setLens(l)}
                 aria-pressed={lens === l}
                 disabled={!togglable}

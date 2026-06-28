@@ -81,6 +81,19 @@ main {
   transition: opacity 260ms ease;
 }
 
+/* Keyboard focus for the experience lens toggle. The selected word's button is
+   clipped to one line, so the visible indicator rides on the slot container,
+   whose own outline isn't clipped by its overflow. */
+.exp-lens:focus-visible {
+  outline: none;
+}
+
+.exp-lens-slot:focus-within {
+  outline: 2px solid #1f1812;
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
 @media (max-width: 900px) and (orientation: portrait) {
   html,
   body {
