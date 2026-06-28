@@ -93,6 +93,7 @@ export const NAV: readonly NavEntry[] = [
       { stopId: 'mango', label: 'mango' },
     ],
   },
+  { label: 'experience', stopId: 'experience' },
 ];
 
 // --- About text + timing (kept in sync with current ScrollScenePlayer) ---

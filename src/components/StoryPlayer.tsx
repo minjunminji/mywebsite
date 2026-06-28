@@ -13,6 +13,7 @@ import {
   CORNER_LINKS,
   PROJECT_CONTENT,
   firstProjectIndex,
+  isExperienceStop,
   isProjectStop,
   landingFrames,
   stopIndexById,
@@ -25,6 +26,7 @@ import {
 import { useFramePlayer } from '@/components/story/useFramePlayer';
 import StoryNav from '@/components/story/StoryNav';
 import RevealFluid from '@/components/RevealFluid';
+import ExperienceSection from '@/components/experience/ExperienceSection';
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -67,6 +69,9 @@ export default function StoryPlayer() {
   const aboutIndex = stopIndexById('about');
   const onAbout = introDone && !player.isTransitioning && player.currentStop === aboutIndex;
   const onProject = introDone && !player.isTransitioning && isProjectStop(player.currentStop);
+  const experienceIndex = stopIndexById('experience');
+  const onExperience = introDone && !player.isTransitioning && isExperienceStop(player.currentStop);
+  const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
   const cornerVisible = introDone && player.position !== 0;
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
@@ -210,7 +215,7 @@ export default function StoryPlayer() {
         src={frame}
         alt="Hand-drawn animated scene"
         draggable={false}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', zIndex: 1 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', opacity: goingToExperience ? 0 : 1, transition: 'opacity 360ms ease', zIndex: 1 }}
       />
 
       {/* Soft edge fade so the train drawing blends into the page. Sized to the
@@ -876,6 +881,22 @@ export default function StoryPlayer() {
             })()}
           </div>
         </aside>
+      ) : null}
+
+      {/* ===== experience section (static, Task 5) ===== */}
+      {goingToExperience ? (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            opacity: onExperience ? 1 : 0,
+            transition: 'opacity 400ms ease',
+            pointerEvents: onExperience ? 'auto' : 'none',
+            zIndex: 4,
+          }}
+        >
+          <ExperienceSection lens="software" />
+        </div>
       ) : null}
 
       <StoryNav
