@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { EXPERIENCE, LENSES, type Lens } from '@/components/story/storyData';
-import { scanDelayMs } from './decrypt';
 import { useDecrypt, type DecryptLine } from './useDecrypt';
 
 const INK = '#1f1812';
@@ -14,13 +13,13 @@ const SLOT_LINE = '1.15em';
 const T_ISOLATE = 400; // mango's 2025 sits alone
 const T_TRAVEL = 700; // it glides toward the stack
 const T_STACK = 800; // the other years slide up into a tight stack
-const LINE_INSERT_MS = 170; // each bullet line is "typed" in as a new line
+const LINE_STEP_MS = 150; // the wave advances one line every step
+const PER_CHAR_MS = 7; // char-to-char scramble stagger within a line
 const SETTLE_MS = 350; // pause after the last line before finishing
-const SCAN_MS = 850; // lens-toggle decrypt duration
 const EASE = 'cubic-bezier(0.65,0,0.35,1)';
 
 type Phase = 'isolate' | 'travel' | 'stack' | 'expand' | 'done';
-type DecryptMode = 'scan' | 'expand';
+type DecryptMode = 'wave' | 'toggle';
 
 // The seed year (mango's "2025") is the bottom of the tight stack.
 const SEED = EXPERIENCE.length - 1;
@@ -46,24 +45,30 @@ function useReducedMotion(): boolean {
   return reduced;
 }
 
-// Build the per-line decrypt schedule. `scan` staggers left-to-right across all
-// bullets (lens toggle). `expand` keys each line's scramble to the moment it is
-// inserted (one new line every LINE_INSERT_MS), so a line "types in" as it lands.
-function buildLines(lens: Lens, mode: DecryptMode): DecryptLine[] {
-  const out: DecryptLine[] = [];
-  let globalIndex = 0;
-  EXPERIENCE.forEach((entry) => {
-    entry.bullets[lens].forEach((text, bulletIndex) => {
-      const delays = text.split('').map((_, charIndex) =>
-        mode === 'expand'
-          ? scanDelayMs(charIndex, bulletIndex, 7, LINE_INSERT_MS)
-          : scanDelayMs(charIndex, globalIndex, 7, 110),
-      );
-      out.push({ text, delays, seed: globalIndex + 1 });
-      globalIndex += 1;
+type WaveLine =
+  | { kind: 'title'; entryIndex: number; text: string }
+  | { kind: 'bullet'; entryIndex: number; bulletIndex: number; text: string };
+
+// One flat, top-to-bottom list of every decoding line — each block's title, then
+// its bullets — so a single wave can sweep straight down the whole résumé.
+function buildWave(lens: Lens): {
+  lines: WaveLine[];
+  titleIndex: number[];
+  bulletIndex: number[][];
+} {
+  const lines: WaveLine[] = [];
+  const titleIndex: number[] = [];
+  const bulletIndex: number[][] = [];
+  EXPERIENCE.forEach((entry, entryIndex) => {
+    titleIndex[entryIndex] = lines.length;
+    lines.push({ kind: 'title', entryIndex, text: `${entry.company} / ${entry.title}` });
+    bulletIndex[entryIndex] = [];
+    entry.bullets[lens].forEach((text, bulletIndex_) => {
+      bulletIndex[entryIndex][bulletIndex_] = lines.length;
+      lines.push({ kind: 'bullet', entryIndex, bulletIndex: bulletIndex_, text });
     });
   });
-  return out;
+  return { lines, titleIndex, bulletIndex };
 }
 
 type ExperienceSectionProps = {
@@ -77,34 +82,31 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
   const reduced = useReducedMotion();
   const [lens, setLens] = useState<Lens>('software');
   const [phase, setPhase] = useState<Phase>('isolate');
-  // How many bullet lines are currently inserted (per block, in parallel). Each
-  // increment adds a new line in normal flow, pushing the lower years apart.
-  const [revealCount, setRevealCount] = useState(0);
-  const revealCountRef = useRef(0);
+  // How far the wave has advanced, in lines from the top. Each step inserts the
+  // next line in normal flow (pushing the lower years apart) and decodes it.
+  const [waveAt, setWaveAt] = useState(0);
+  const waveAtRef = useRef(0);
 
-  const maxBullets = useMemo(
-    () => Math.max(...EXPERIENCE.map((e) => e.bullets[lens].length)),
-    [lens],
-  );
+  const wave = useMemo(() => buildWave(lens), [lens]);
+  const totalLines = wave.lines.length;
 
-  // One decrypt token; bump it (with a mode) only when a decrypt should fire —
-  // the entrance, or a lens toggle. The expand -> done transition must NOT bump
-  // it, or the resolved bullets would re-scramble.
+  // One decrypt token; bump it (with a mode) only when a decode should fire — the
+  // entrance wave, or a lens toggle. The expand -> done transition must NOT bump
+  // it, or the resolved text would re-scramble.
   const [decrypt, setDecrypt] = useState<{ token: number; mode: DecryptMode }>({
     token: 0,
-    mode: 'scan',
+    mode: 'toggle',
   });
 
-  // Entrance timeline: fly in -> stack -> hand off to flow (expand). Replays
-  // whenever the section becomes active.
+  // Entrance timeline: fly in -> stack -> hand off to the flow wave (expand).
   useEffect(() => {
     if (!active) {
       return;
     }
-    revealCountRef.current = 0; // allow the stack to be re-measured while collapsed
-    setRevealCount(0);
+    waveAtRef.current = 0; // allow the stack to be re-measured while collapsed
+    setWaveAt(0);
     if (reduced) {
-      setRevealCount(maxBullets);
+      setWaveAt(totalLines);
       setPhase('done');
       return;
     }
@@ -115,79 +117,77 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
       window.setTimeout(() => setPhase('expand'), T_ISOLATE + T_TRAVEL + T_STACK),
     ];
     return () => timers.forEach((id) => window.clearTimeout(id));
-  }, [active, reduced, maxBullets]);
+  }, [active, reduced, totalLines]);
 
-  // During expand, insert one bullet line across all blocks every LINE_INSERT_MS.
+  // During expand, advance the wave one line every LINE_STEP_MS.
   useEffect(() => {
     if (phase !== 'expand' || reduced) {
       return;
     }
     const id = window.setInterval(() => {
-      setRevealCount((c) => Math.min(c + 1, maxBullets));
-    }, LINE_INSERT_MS);
+      setWaveAt((c) => Math.min(c + 1, totalLines));
+    }, LINE_STEP_MS);
     return () => window.clearInterval(id);
-  }, [phase, reduced, maxBullets]);
+  }, [phase, reduced, totalLines]);
 
-  // Finish once every line has been inserted (plus a short settle).
+  // Finish once the wave has passed every line (plus a short settle).
   useEffect(() => {
-    if (phase === 'expand' && revealCount >= maxBullets) {
+    if (phase === 'expand' && waveAt >= totalLines) {
       const id = window.setTimeout(() => setPhase('done'), SETTLE_MS);
       return () => window.clearTimeout(id);
     }
     return undefined;
-  }, [phase, revealCount, maxBullets]);
+  }, [phase, waveAt, totalLines]);
 
-  // Fire the entrance decrypt the moment we enter the expand phase.
+  // Fire the entrance wave the moment we enter expand.
   useEffect(() => {
     if (phase === 'expand') {
-      setDecrypt((d) => ({ token: d.token + 1, mode: 'expand' }));
+      setDecrypt((d) => ({ token: d.token + 1, mode: 'wave' }));
     }
   }, [phase]);
 
-  // Fire a scan decrypt on lens change — but skip the initial mount.
+  // Re-decode on lens change — but skip the initial mount.
   const firstLensRun = useRef(true);
   useEffect(() => {
     if (firstLensRun.current) {
       firstLensRun.current = false;
       return;
     }
-    setDecrypt((d) => ({ token: d.token + 1, mode: 'scan' }));
+    setDecrypt((d) => ({ token: d.token + 1, mode: 'toggle' }));
   }, [lens]);
 
-  const lines = useMemo(() => buildLines(lens, decrypt.mode), [lens, decrypt.mode]);
-  const durationMs = decrypt.mode === 'scan' ? SCAN_MS : maxBullets * LINE_INSERT_MS + 600;
-  const shown = useDecrypt(lines, decrypt.token, durationMs, reduced);
+  useEffect(() => {
+    waveAtRef.current = waveAt;
+  }, [waveAt]);
 
-  // Map the flat `shown` array back onto the nested bullets, with a raw fallback.
-  const shownByEntry = useMemo(() => {
-    const out: string[][] = EXPERIENCE.map(() => []);
-    let k = 0;
-    EXPERIENCE.forEach((entry, ei) => {
-      for (let i = 0; i < entry.bullets[lens].length; i += 1) {
-        out[ei].push(shown[k] ?? entry.bullets[lens][i]);
-        k += 1;
-      }
-    });
-    return out;
-  }, [shown, lens]);
+  // Decode schedule keyed to each line's place in the wave, so the scramble
+  // sweeps straight down. On a toggle, titles don't change, so they stay resolved.
+  const decryptLines: DecryptLine[] = useMemo(
+    () =>
+      wave.lines.map((wl, i) => {
+        const titleStaysResolved = decrypt.mode === 'toggle' && wl.kind === 'title';
+        const delays = wl.text
+          .split('')
+          .map((_, ci) => (titleStaysResolved ? 0 : i * LINE_STEP_MS + ci * PER_CHAR_MS));
+        return { text: wl.text, delays, seed: i + 1 };
+      }),
+    [wave, decrypt.mode],
+  );
+  const durationMs = totalLines * LINE_STEP_MS + 600;
+  const shown = useDecrypt(decryptLines, decrypt.token, durationMs, reduced);
 
   // Measure the tight stack: each in-flow year's position while collapsed (no
-  // bullets). The overlay years fly into exactly these; the bullets then insert
-  // in normal flow and push the years apart from there.
+  // content). The overlay years fly into exactly these; the wave then inserts
+  // lines in normal flow and pushes the years apart from there.
   const sectionRef = useRef<HTMLElement | null>(null);
   const yearRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const [stackPos, setStackPos] = useState<{ x: number; y: number }[]>([]);
   useEffect(() => {
-    revealCountRef.current = revealCount;
-  }, [revealCount]);
-  useEffect(() => {
     const measure = () => {
       const section = sectionRef.current;
-      // Only capture the stack while it's still collapsed; once lines insert the
-      // years have moved and these positions no longer describe the tight stack.
-      if (!section || revealCountRef.current > 0) {
-        return;
+      if (!section || waveAtRef.current > 0) {
+        return; // only capture the stack while it's still collapsed
       }
       const sb = section.getBoundingClientRect();
       setBox({ w: sb.width, h: sb.height });
@@ -220,7 +220,6 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
   // The seed starts exactly on mango's "2025" when we arrived from there.
   const isolatePos = seedOrigin ?? { x: box.w * 0.6, y: box.h * 0.46 };
 
-  // Where overlay year `i` sits (and whether it shows) for the current phase.
   const yearTarget = (i: number): { x: number; y: number; opacity: number; dur: number } => {
     const sp = stackPos[i] ?? { x: 0, y: 0 };
     const seedSlot = stackPos[SEED] ?? isolatePos;
@@ -236,8 +235,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
       case 'stack':
         return { ...sp, opacity: 1, dur: T_STACK };
       default:
-        // expand/done: the in-flow years take over; fade the overlay out.
-        return { ...sp, opacity: 0, dur: 200 };
+        return { ...sp, opacity: 0, dur: 200 }; // in-flow years take over
     }
   };
 
@@ -248,11 +246,14 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
     stackPos.length > 0;
   const togglable = phase === 'done';
 
+  // Has the wave reached line `i` yet? (Everything is shown once done.)
+  const reached = (i: number): boolean => phase === 'done' || (phase === 'expand' && waveAt > i);
+  const lineText = (i: number): string =>
+    reached(i) ? (shown[i] ?? wave.lines[i].text) : '';
   const bulletsShownFor = (entryIndex: number): number => {
-    const total = EXPERIENCE[entryIndex].bullets[lens].length;
-    if (phase === 'done') return total;
-    if (phase === 'expand') return Math.min(revealCount, total);
-    return 0;
+    if (phase === 'done') return EXPERIENCE[entryIndex].bullets[lens].length;
+    if (phase !== 'expand') return 0;
+    return wave.bulletIndex[entryIndex].filter((i) => waveAt > i).length;
   };
 
   return (
@@ -264,8 +265,6 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        // Center the content column both axes; `safe` falls back to start (and
-        // scrolls) instead of clipping when a lens overflows a short viewport.
         justifyContent: 'safe center',
         alignItems: 'safe center',
         overflowY: 'auto',
@@ -289,7 +288,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
           style={{
             margin: 0,
             fontSize: 'clamp(1.1rem, 2.4vw, 2rem)',
-            fontWeight: 500,
+            fontWeight: 400,
             letterSpacing: '0.02em',
             opacity: revealed ? 1 : 0,
             transition: reduced ? 'none' : 'opacity 360ms ease',
@@ -331,7 +330,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                     textAlign: 'left',
                     whiteSpace: 'nowrap',
                     cursor: togglable ? 'pointer' : 'default',
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: selected ? INK : PALE,
                     transform: selected ? 'translateY(0)' : `translateY(${SLOT_LINE})`,
                     transition: reduced ? 'none' : `transform 420ms ${EASE}, color 300ms ease`,
@@ -357,12 +356,12 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                   style={{
                     flex: '0 0 auto',
                     width: '9ch',
-                    fontWeight: 900,
+                    fontWeight: 400,
                     fontSize: 'clamp(0.95rem, 1.5vw, 1.3rem)',
                     lineHeight: 1.4,
                     whiteSpace: 'nowrap',
                     // The overlay year owns the fly-in; the in-flow year appears
-                    // for the flow expand, exactly where the overlay landed.
+                    // for the wave, exactly where the overlay landed.
                     opacity: revealed ? 1 : 0,
                   }}
                 >
@@ -371,14 +370,13 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                 <div style={{ flex: '1 1 auto', minWidth: 0 }}>
                   <div
                     style={{
-                      fontWeight: 700,
+                      fontWeight: 400,
                       fontSize: 'clamp(0.95rem, 1.5vw, 1.3rem)',
                       lineHeight: 1.4,
-                      opacity: revealed ? 1 : 0,
-                      transition: reduced ? 'none' : 'opacity 320ms ease',
+                      minHeight: revealed ? '1.4em' : 0,
                     }}
                   >
-                    {entry.company} <span style={{ fontWeight: 400 }}>/ {entry.title}</span>
+                    {lineText(wave.titleIndex[entryIndex])}
                   </div>
                   <ul style={{ margin: count > 0 ? '0.5rem 0 0' : 0, padding: 0, listStyle: 'none' }}>
                     {entry.bullets[lens].slice(0, count).map((b, i) => (
@@ -394,7 +392,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                         }}
                       >
                         <span aria-hidden>&rsaquo;</span>
-                        <span aria-hidden>{shownByEntry[entryIndex][i] ?? b}</span>
+                        <span aria-hidden>{shown[wave.bulletIndex[entryIndex][i]] ?? b}</span>
                       </li>
                     ))}
                   </ul>
@@ -406,7 +404,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
       </div>
 
       {/* Year overlay — the flying/stacking years during the fly-in. Hidden once
-          they've landed and the in-flow years take over for the flow expand. */}
+          they've landed and the in-flow years take over for the wave. */}
       {overlayVisible ? (
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
           {EXPERIENCE.map((entry, i) => {
@@ -425,7 +423,7 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                   transform: `translate(${t.x}px, ${t.y}px)`,
                   opacity: t.opacity,
                   transition: `transform ${t.dur}ms ${EASE}, opacity ${t.dur}ms ease`,
-                  fontWeight: 900,
+                  fontWeight: 400,
                   fontSize: 'clamp(0.95rem, 1.5vw, 1.3rem)',
                   lineHeight: 1.4,
                   whiteSpace: 'nowrap',
