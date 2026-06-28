@@ -756,6 +756,7 @@ export default function StoryPlayer() {
                       >
                         <button
                           type="button"
+                          data-cursor-skip
                           aria-label={`Previous ${project.title} media`}
                           onClick={() => stepProjectCarousel(project.key, -1, carouselLength)}
                           style={{
@@ -797,6 +798,7 @@ export default function StoryPlayer() {
                               <button
                                 key={`${project.key}-dot-${dotIndex}`}
                                 type="button"
+                                data-cursor-skip
                                 aria-label={`Show ${project.title} media ${dotIndex + 1}`}
                                 onClick={() => jumpProjectCarousel(project.key, dotIndex)}
                                 style={{
@@ -815,6 +817,7 @@ export default function StoryPlayer() {
                         </div>
                         <button
                           type="button"
+                          data-cursor-skip
                           aria-label={`Next ${project.title} media`}
                           onClick={() => stepProjectCarousel(project.key, 1, carouselLength)}
                           style={{
