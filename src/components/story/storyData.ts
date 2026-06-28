@@ -93,7 +93,7 @@ export const NAV: readonly NavEntry[] = [
 // --- About text + timing (kept in sync with current ScrollScenePlayer) ---
 export const ABOUT_LINES = [
   "hi, i'm ryan!",
-  "i'm a sophomore computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
+  "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
   'in my spare time, i like to produce music, cook, and play soccer.',
 ] as const;
 
@@ -164,9 +164,9 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
     linkHref: 'http://tryrebase.io/',
     body: [
-      'an ai-native resume builder that stores your experience as reusable building blocks instead of rewriting one static document every time.',
-      'you paste a job description, and it pulls the most relevant experience, rewrites bullets for role fit, and exports an ats-friendly pdf with typst.',
-      'it also helps you capture wins as they happen and asks targeted follow-up questions to turn vague points into specific, credible impact.',
+      'an ai-native resume builder that treats your career as a structured database instead of a folder full of near-identical files. each experience lives once as a reusable block, and you assemble tailored resumes on demand.',
+      'drop in a job description and it picks your most relevant experience, rewrites the bullets to fit the role, and renders a clean, ats-friendly pdf with typst.',
+      'it also keeps your source material sharp — log wins the moment they happen, and targeted follow-up questions turn "improved performance" into something specific and credible.',
     ],
     carouselImages: [
       {
