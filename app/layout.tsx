@@ -3,7 +3,15 @@ import type { Metadata } from 'next';
 import type { Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';
+import { Inconsolata } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
+
+const inconsolata = Inconsolata({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '700', '900'],
+  variable: '--font-inconsolata',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'ryan kim',
@@ -25,7 +33,7 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" className={GeistSans.variable}>
+    <html lang="en" className={`${GeistSans.variable} ${inconsolata.variable}`}>
       <body>
         {children}
         <Analytics />
