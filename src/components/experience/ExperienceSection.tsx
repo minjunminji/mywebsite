@@ -29,7 +29,10 @@ const INTRO_FADE_DELAY_MS = 1000;
 // keep a year from briefly reading a neighbour's slot mid-toggle.
 const LINE_OFFSET = EXPERIENCE.length;
 
-type Phase = 'pre' | 'intro' | 'expand' | 'done';
+// pre: not arrived. intro: headline/stack faded in, awaiting a choice. expand:
+// first reveal wave. recode: a lens toggle re-running as a wave (old text ahead
+// of the front, new text decoding behind it). done: settled + interactive.
+type Phase = 'pre' | 'intro' | 'expand' | 'recode' | 'done';
 type DecryptMode = 'wave' | 'toggle';
 
 // The résumé is one column centered horizontally.
@@ -146,9 +149,9 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
     setPhase(reduced ? 'done' : 'intro');
   }, [active, reduced]);
 
-  // Picking a lens: the first choice starts the downward decode wave; later
-  // clicks (once the résumé is shown) just re-decode the bullets for the new
-  // lens. Clicks during the wave itself are ignored.
+  // Picking a lens: the first choice starts the downward reveal wave; later
+  // clicks (once the résumé is shown) re-run as a recode wave that sweeps the
+  // old bullets into the new ones. Clicks during a wave itself are ignored.
   const handleLensClick = (l: Lens): void => {
     if (phase === 'intro') {
       setLens(l);
@@ -162,22 +165,29 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
     }
     setLens(l);
     setDecrypt((d) => ({ token: d.token + 1, mode: 'toggle' }));
+    if (!reduced) {
+      // Sweep the change through as a wave instead of re-scrambling everything.
+      setWaveAt(0);
+      setPhase('recode');
+    }
   };
 
-  // During expand, advance the wave one line every LINE_STEP_MS.
+  // Advance the wave front one line per step while a wave is running. The recode
+  // (toggle) wave moves faster, matching the compressed toggle decode timing.
   useEffect(() => {
-    if (phase !== 'expand' || reduced) {
+    if ((phase !== 'expand' && phase !== 'recode') || reduced) {
       return;
     }
+    const stepMs = phase === 'recode' ? LINE_STEP_MS / TOGGLE_SPEEDUP : LINE_STEP_MS;
     const id = window.setInterval(() => {
       setWaveAt((c) => Math.min(c + 1, totalLines - 1));
-    }, LINE_STEP_MS);
+    }, stepMs);
     return () => window.clearInterval(id);
   }, [phase, reduced, totalLines]);
 
   // Finish once the wave has reached the last line (plus a short settle).
   useEffect(() => {
-    if (phase === 'expand' && waveAt >= totalLines - 1) {
+    if ((phase === 'expand' || phase === 'recode') && waveAt >= totalLines - 1) {
       const id = window.setTimeout(() => setPhase('done'), SETTLE_MS);
       return () => window.clearTimeout(id);
     }
@@ -219,13 +229,18 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
   const durationMs = totalLines * LINE_STEP_MS + HOLD_MS + 600;
   const shown = useDecrypt(decryptLines, decrypt.token, durationMs, reduced);
 
-  const revealed = phase === 'expand' || phase === 'done';
+  const revealed = phase === 'expand' || phase === 'recode' || phase === 'done';
   // A lens has been picked once the résumé starts revealing. Before that (intro)
   // the stack rests halfway between the two pale words, waiting for a choice.
-  const chosen = revealed;
+  const chosen = phase !== 'pre' && phase !== 'intro';
+  // The lens we're leaving — its bullets stay visible ahead of a recode front.
+  const prevLens: Lens = lens === LENSES[0] ? LENSES[1] : LENSES[0];
 
-  // Has the wave reached line `i` yet? (Everything is shown once done.)
-  const reached = (i: number): boolean => phase === 'done' || (phase === 'expand' && waveAt >= i);
+  // Has the wave reached line `i` yet? Titles/years are always shown during a
+  // recode (only the bullets change); during the first reveal they wait for the
+  // front; once done everything is shown.
+  const reached = (i: number): boolean =>
+    phase === 'done' || phase === 'recode' || (phase === 'expand' && waveAt >= i);
   // The currently-painted text for a wave line / a year (falls back to the final
   // text when the decode array is mid-reindex). A year's slot is fixed at its
   // entryIndex; wave lines are offset by LINE_OFFSET (years lead the list).
@@ -233,9 +248,23 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
   const yearShown = (entryIndex: number): string =>
     shown[entryIndex] ?? EXPERIENCE[entryIndex].year;
   const bulletsShownFor = (entryIndex: number): number => {
-    if (phase === 'done') return EXPERIENCE[entryIndex].bullets[lens].length;
+    if (phase === 'done' || phase === 'recode') return EXPERIENCE[entryIndex].bullets[lens].length;
     if (phase !== 'expand') return 0;
     return wave.bulletIndex[entryIndex].filter((i) => waveAt >= i).length;
+  };
+  // What a bullet paints, plus the text its box is sized to. Ahead of a recode
+  // front (the line not yet reached) it keeps the previous lens's bullet, so the
+  // old text stays readable until the wave sweeps over it; behind the front it
+  // decodes into the new bullet. The box tracks whichever it's showing, so it
+  // grows/shrinks at the front rather than clipping.
+  const bulletView = (entryIndex: number, i: number): { final: string; shown: string } => {
+    const bi = wave.bulletIndex[entryIndex][i];
+    if (phase === 'recode' && waveAt < bi) {
+      const prev = EXPERIENCE[entryIndex].bullets[prevLens][i] ?? '';
+      return { final: prev, shown: prev };
+    }
+    const next = EXPERIENCE[entryIndex].bullets[lens][i];
+    return { final: next, shown: shown[LINE_OFFSET + bi] ?? next };
   };
 
   return (
@@ -293,8 +322,9 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
             }}
           >
             {/* Invisible in-flow anchor: gives the slot a real text baseline (so
-                the selected word lines up with the sentence) and its width. */}
-            <span aria-hidden style={{ visibility: 'hidden' }}>{LENSES[0]}</span>
+                the selected word lines up with the sentence) and its width. Must
+                match the buttons' weight so the reserved width stays correct. */}
+            <span aria-hidden style={{ visibility: 'hidden', fontWeight: 500 }}>{LENSES[0]}</span>
             {/* Fixed order: software on top, product below. Before a choice the
                 stack rests half a line up so the baseline falls between the two;
                 a choice slides the picked word onto the baseline. */}
@@ -335,7 +365,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                     textAlign: 'left',
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
-                    fontWeight: 400,
+                    fontWeight: 500,
                     // Both pale until a choice is made, then the picked lens inks.
                     color: chosen && lens === l ? INK : PALE,
                     transition: reduced ? 'none' : 'color 300ms ease',
@@ -346,7 +376,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
               ))}
             </span>
           </span>{' '}
-          engineer
+          <span style={{ fontWeight: 500 }}>engineer:</span>
         </h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
@@ -387,26 +417,31 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                     ) : null}
                   </div>
                   <ul style={{ margin: count > 0 ? '0.5rem 0 0' : 0, padding: 0, listStyle: 'none' }}>
-                    {entry.bullets[lens].slice(0, count).map((b, i) => (
-                      <li
-                        key={`${entry.key}-${i}`}
-                        aria-label={b}
-                        style={{
-                          fontWeight: 300,
-                          fontSize: 'clamp(0.8rem, 1.05vw, 1rem)',
-                          lineHeight: 1.6,
-                          display: 'flex',
-                          gap: '0.6ch',
-                        }}
-                      >
-                        <span aria-hidden>&rsaquo;</span>
-                        <DecodingText
-                          final={b}
-                          shown={shown[LINE_OFFSET + wave.bulletIndex[entryIndex][i]] ?? b}
-                          style={{ flex: '1 1 auto', minWidth: 0 }}
-                        />
-                      </li>
-                    ))}
+                    {entry.bullets[lens].slice(0, count).map((b, i) => {
+                      const view = bulletView(entryIndex, i);
+                      return (
+                        <li
+                          key={`${entry.key}-${i}`}
+                          aria-label={b}
+                          style={{
+                            fontWeight: 300,
+                            fontSize: 'clamp(0.8rem, 1.05vw, 1rem)',
+                            lineHeight: 1.6,
+                            display: 'flex',
+                            gap: '0.6ch',
+                          }}
+                        >
+                          {/* Marker hidden for an empty slot (a new bullet not yet
+                              reached by the recode front) so no lone › shows. */}
+                          {view.final !== '' ? <span aria-hidden>&rsaquo;</span> : null}
+                          <DecodingText
+                            final={view.final}
+                            shown={view.shown}
+                            style={{ flex: '1 1 auto', minWidth: 0 }}
+                          />
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </article>
