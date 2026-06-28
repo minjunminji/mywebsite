@@ -265,7 +265,7 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
     title: 'systems engineering intern',
     bullets: {
       software: [
-        'engineered a parallelized Python (Pandas) ETL pipeline that automated a manual geospatial workflow, reducing processing time from 8 hours to under 30 seconds (>1,000× speedup) through optimized file I/O and vectorization',
+        'built a parallelized Python (Pandas) ETL pipeline that automated a manual geospatial workflow, reducing processing time from 8 hours to under 30 seconds (>1,000× speedup) through optimized file I/O and vectorization',
         'developed automated web scrapers to ingest, normalize, and schema-map unstructured vendor data from 200+ hardware platforms into a centralized database for technical evaluation',
       ],
       product: [

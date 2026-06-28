@@ -95,19 +95,33 @@ function buildWave(lens: Lens): {
 function DecodingText({
   final,
   shown,
+  boldLen = 0,
   style,
 }: {
   final: string;
   shown: string;
+  /** Render the first N characters at weight 500 (e.g. a title's company). */
+  boldLen?: number;
   style?: CSSProperties;
 }) {
+  // Split off the bold prefix in both layers so the reserved width (sizer) and
+  // the painted text (overlay) track the same weights and stay aligned.
+  const render = (text: string) =>
+    boldLen > 0 ? (
+      <>
+        <span style={{ fontWeight: 500 }}>{text.slice(0, boldLen)}</span>
+        {text.slice(boldLen)}
+      </>
+    ) : (
+      text
+    );
   return (
     <span style={{ position: 'relative', display: 'block', overflow: 'hidden', ...style }}>
       <span aria-hidden style={{ visibility: 'hidden' }}>
-        {final}
+        {render(final)}
       </span>
       <span aria-hidden style={{ position: 'absolute', left: 0, top: 0, right: 0 }}>
-        {shown}
+        {render(shown)}
       </span>
     </span>
   );
@@ -413,7 +427,11 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                     }}
                   >
                     {reached(titleI) ? (
-                      <DecodingText final={wave.lines[titleI].text} shown={lineShown(titleI)} />
+                      <DecodingText
+                        final={wave.lines[titleI].text}
+                        shown={lineShown(titleI)}
+                        boldLen={entry.company.length}
+                      />
                     ) : null}
                   </div>
                   <ul style={{ margin: count > 0 ? '0.5rem 0 0' : 0, padding: 0, listStyle: 'none' }}>
