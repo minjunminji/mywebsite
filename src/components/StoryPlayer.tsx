@@ -203,7 +203,7 @@ export default function StoryPlayer() {
               width: '100%',
               maxWidth: '28rem',
               color: '#1f1812',
-              fontFamily: "'Cascadia Mono', monospace",
+              fontFamily: "var(--font-geist-sans), sans-serif",
               fontWeight: 600,
               fontSize: 'clamp(0.95rem, 1.25vw, 1.2rem)',
               lineHeight: 1.7,
@@ -284,7 +284,7 @@ export default function StoryPlayer() {
           display: 'inline-flex',
           flexDirection: 'column',
           alignItems: 'flex-start',
-          fontFamily: "'Cascadia Mono', monospace",
+          fontFamily: "var(--font-geist-sans), sans-serif",
           fontWeight: 600,
           fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
           lineHeight: 1,
@@ -436,7 +436,7 @@ export default function StoryPlayer() {
                     flexDirection: 'column',
                     gap: '1.1rem',
                     color: '#1f1812',
-                    fontFamily: "'Cascadia Mono', monospace",
+                    fontFamily: "var(--font-geist-sans), sans-serif",
                     paddingBottom: '2rem',
                   }}
                 >

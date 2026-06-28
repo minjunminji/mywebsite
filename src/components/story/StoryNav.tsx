@@ -239,7 +239,7 @@ export default function StoryNav({
         display: 'flex',
         alignItems: 'center',
         gap: gapValue,
-        fontFamily: "'Cascadia Mono', monospace",
+        fontFamily: "var(--font-geist-sans), sans-serif",
         fontWeight: 600,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
