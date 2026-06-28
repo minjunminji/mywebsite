@@ -6,15 +6,32 @@ import { useEffect, useRef } from 'react';
 /*  Tunables — group every knob here for experimentation.             */
 /* ------------------------------------------------------------------ */
 
-/** Diameter of the free cursor circle, in px. Dial in by eye. */
+/** Diameter of the free cursor circle, in px. Dial in by eye (reference uses 15). */
 const CURSOR_DIAMETER = 18;
 
-/** Padding the pill adds around a hovered label, per side, in px. */
-const PILL_PAD_X = 12;
-const PILL_PAD_Y = 7;
+/** Diameter of the grown blob while hovering a clickable label, in px. */
+const CURSOR_HOVER_SIZE = 56;
 
 /**
- * Leaky-integrator spring used for the circle → pill morph (and the melt back).
+ * How far the stuck blob leans toward the pointer, as a fraction of the
+ * pointer-to-center distance. 0 = sits dead-center on the label; ~0.1 = a subtle
+ * lean that reads as the blob "reaching" toward the cursor.
+ */
+const STICK_LEAN = 0.1;
+
+/**
+ * Squash-and-stretch caps for the hover blob, applied directly each frame (not
+ * springed). The blob stretches along the pointer direction up to STRETCH_X_MAX
+ * and thins across it down to STRETCH_Y_MIN as the pointer pulls toward the
+ * label's edge. The height-for-X / width-for-Y pairing is deliberate (matches
+ * the reference): scaleX maps over half the label height, scaleY over half its
+ * width.
+ */
+const STRETCH_X_MAX = 1.3;
+const STRETCH_Y_MIN = 0.8;
+
+/**
+ * Leaky-integrator spring used for the grow → blob morph (and the melt back).
  * Stiffness pulls toward the target; damping (<1) bleeds velocity so it settles
  * with a slight elastic overshoot rather than ringing forever.
  */
@@ -28,22 +45,11 @@ const SPRING_DAMPING = 0.76;
  */
 const RELEASE_STIFFNESS = 0.45;
 
+/** Per-frame lerp easing rotation + stretch back to neutral while releasing. */
+const RELEASE_NEUTRALIZE_EASE = 0.25;
+
 /** Within this many px of the free circle (size + center), 'releasing' → 'free'. */
 const RELEASE_EPSILON = 0.5;
-
-/**
- * Liquid feel: a subtle velocity-based squash-and-stretch, free mode only.
- * `STRETCH_MAX` caps how far it stretches; `STRETCH_SPEED_REF` is the per-frame
- * pointer travel (px) that maps to (near) full stretch; `STRETCH_EASE` smooths
- * the value so it grows quickly and decays as the pointer slows; `STRETCH_SQUASH`
- * is how much it thins across the travel direction relative to the stretch.
- */
-const STRETCH_MAX = 0.3;
-const STRETCH_SPEED_REF = 45;
-const STRETCH_EASE = 0.2;
-const STRETCH_SQUASH = 0.55;
-/** Below this per-frame speed we hold the last stretch angle (avoids jitter). */
-const STRETCH_MIN_SPEED = 0.5;
 
 /**
  * Only activate on devices with a real hovering, fine pointer (mouse/trackpad).
@@ -58,16 +64,17 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 /** Class added to <html> to hide the native cursor while ours is active. */
 const HIDE_NATIVE_CURSOR_CLASS = 'cursor-hidden';
 
-/** Selector for the clickable things the cursor pills around (all text labels). */
+/** Selector for the clickable things the cursor sticks to (all text labels). */
 const TARGET_SELECTOR = 'a, button, [role="button"]';
-/** Marker on clickable non-text controls (icon buttons) that must NOT pill. */
+/** Marker on clickable non-text controls (icon buttons) that must NOT stick. */
 const SKIP_SELECTOR = '[data-cursor-skip]';
 
 /**
  * The cursor is driven by a small state machine inside one rAF loop:
- *   'free'      — snap 1:1 to the pointer, with a subtle velocity stretch.
- *   'pinned'    — spring center + size toward a hovered label's padded rect (pill).
- *   'releasing' — spring back to the circle-at-pointer, then hand back to 'free'.
+ *   'free'      — snap 1:1 to the pointer as a plain, un-stretched negative dot.
+ *   'pinned'    — spring center + size onto a hovered label, growing into a blob
+ *                 that rotates to face the pointer and stretches toward it.
+ *   'releasing' — spring back to the dot-at-pointer, then hand back to 'free'.
  */
 type CursorMode = 'free' | 'pinned' | 'releasing';
 
@@ -78,14 +85,30 @@ type Spring = { value: number; velocity: number };
  * Advance a spring one frame with a leaky integrator (slight elastic overshoot).
  * Pure-ish: mutates the passed spring in place, no other side effects.
  *
- * Note: these springs (and the velocity stretch below) are tuned per-frame for
- * ~60Hz with no dt-scaling, so they settle faster / the stretch reads weaker on
- * 120–144Hz displays. Intended, not a bug.
+ * Note: these springs are tuned per-frame for ~60Hz with no dt-scaling, so they
+ * settle faster on 120–144Hz displays. Intended, not a bug.
  */
 function stepSpring(spring: Spring, target: number, stiffness: number, damping: number) {
   spring.velocity += (target - spring.value) * stiffness;
   spring.velocity *= damping;
   spring.value += spring.velocity;
+}
+
+/**
+ * Clamped linear remap: map `value` from [inMin, inMax] onto [outMin, outMax],
+ * clamping the normalized input to [0, 1] first so the output never leaves its
+ * range. Mirrors framer-motion's `transform()` clamp the reference relies on.
+ */
+function remapClamped(
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number,
+): number {
+  if (inMax === inMin) return outMin;
+  const t = Math.min(1, Math.max(0, (value - inMin) / (inMax - inMin)));
+  return outMin + t * (outMax - outMin);
 }
 
 export default function CustomCursor() {
@@ -102,8 +125,8 @@ export default function CustomCursor() {
     const root = document.documentElement;
     root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
 
-    // Reduced motion: keep the cursor AND pill, but snap morphs to target each
-    // frame (no spring overshoot) and apply no velocity stretch. Tracked live.
+    // Reduced motion: keep the grow-to-blob on hover but snap size/center to
+    // target each frame (no spring) and apply no rotation/stretch. Tracked live.
     const reducedMotionMq = window.matchMedia(REDUCED_MOTION_QUERY);
     let reducedMotion = reducedMotionMq.matches;
 
@@ -115,19 +138,17 @@ export default function CustomCursor() {
     // Latest known pointer position (viewport coords).
     let pointerX = 0;
     let pointerY = 0;
-    // Pointer position sampled on the previous frame — drives the velocity stretch.
-    let lastPointerX = 0;
-    let lastPointerY = 0;
-    // Springable shape: center (cx/cy) and size (w/h). The center stays a CENTER
-    // point; the element is drawn at center - size/2. Corner radius is derived
-    // from the height each frame (always a full pill / circle), not its own spring.
+    // Springable shape: center (cx/cy) and size (diameter). The center stays a
+    // CENTER point; the element is drawn at center - size/2. Border-radius is a
+    // constant 50% (always a circle); the blob's shape comes from scale instead.
     const cx: Spring = { value: 0, velocity: 0 };
     const cy: Spring = { value: 0, velocity: 0 };
-    const w: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
-    const h: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
-    // Smoothed liquid-stretch magnitude (0..STRETCH_MAX) and its travel angle.
-    let stretch = 0;
-    let stretchAngle = 0;
+    const size: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
+    // Rotation + stretch applied to the blob. Set directly from geometry while
+    // pinned, eased back to neutral while releasing, neutral while free.
+    let angle = 0;
+    let scaleX = 1;
+    let scaleY = 1;
     // True once we've seen a real pointer position (avoids a flash at 0,0).
     let hasPointer = false;
     // True while the pointer is inside the window and the window is focused.
@@ -149,12 +170,6 @@ export default function CustomCursor() {
     };
 
     const render = () => {
-      // Per-frame pointer travel — used only for the free-mode liquid stretch.
-      const dx = pointerX - lastPointerX;
-      const dy = pointerY - lastPointerY;
-      lastPointerX = pointerX;
-      lastPointerY = pointerY;
-
       // If a pinned target was unmounted/hidden mid-hover (detached or its rect
       // collapsed), bail to releasing so we melt back instead of sticking.
       let pinnedRect: DOMRect | null = null;
@@ -167,18 +182,32 @@ export default function CustomCursor() {
         }
       }
 
-      // Resolve this frame's targets. Default = the free circle at the pointer.
+      // Resolve this frame's targets. Default = the free dot at the pointer.
       let targetCX = pointerX;
       let targetCY = pointerY;
-      let targetW = CURSOR_DIAMETER;
-      let targetH = CURSOR_DIAMETER;
+      let targetSize = CURSOR_DIAMETER;
       if (mode === 'pinned' && pinnedRect) {
         // Re-read every frame: the nav docks/animates, Experience is its own
         // scroll container, and the window can resize — a cached rect would drift.
-        targetW = pinnedRect.width + PILL_PAD_X * 2;
-        targetH = pinnedRect.height + PILL_PAD_Y * 2;
-        targetCX = pinnedRect.left + pinnedRect.width / 2;
-        targetCY = pinnedRect.top + pinnedRect.height / 2;
+        const centerX = pinnedRect.left + pinnedRect.width / 2;
+        const centerY = pinnedRect.top + pinnedRect.height / 2;
+        const dxToPointer = pointerX - centerX;
+        const dyToPointer = pointerY - centerY;
+        // Stuck center: sit on the label, leaning STICK_LEAN toward the pointer.
+        targetCX = centerX + dxToPointer * STICK_LEAN;
+        targetCY = centerY + dyToPointer * STICK_LEAN;
+        targetSize = CURSOR_HOVER_SIZE;
+        // Rotation + stretch are set directly (not springed) from the geometry.
+        if (reducedMotion) {
+          angle = 0;
+          scaleX = 1;
+          scaleY = 1;
+        } else {
+          angle = Math.atan2(dyToPointer, dxToPointer);
+          const absDistance = Math.max(Math.abs(dxToPointer), Math.abs(dyToPointer));
+          scaleX = remapClamped(absDistance, 0, pinnedRect.height / 2, 1, STRETCH_X_MAX);
+          scaleY = remapClamped(absDistance, 0, pinnedRect.width / 2, 1, STRETCH_Y_MIN);
+        }
       }
 
       // Stiffer pull while releasing so the melt-back catches a moving pointer fast.
@@ -192,32 +221,35 @@ export default function CustomCursor() {
         settle(cx, targetCX, stiffness);
         settle(cy, targetCY, stiffness);
       }
-      // Size always settles toward its target (circle, or pill when pinned).
-      settle(w, targetW, stiffness);
-      settle(h, targetH, stiffness);
+      // Size always settles toward its target (dot, or blob when pinned).
+      settle(size, targetSize, stiffness);
 
-      // Releasing → free once the shape is back to a circle sitting on the pointer.
+      // Neutralize rotation/stretch when not pinned: snap to neutral while free;
+      // ease back smoothly while releasing (the shrinking size masks the rest).
+      if (mode === 'free') {
+        angle = 0;
+        scaleX = 1;
+        scaleY = 1;
+      } else if (mode === 'releasing') {
+        if (reducedMotion) {
+          angle = 0;
+          scaleX = 1;
+          scaleY = 1;
+        } else {
+          angle += (0 - angle) * RELEASE_NEUTRALIZE_EASE;
+          scaleX += (1 - scaleX) * RELEASE_NEUTRALIZE_EASE;
+          scaleY += (1 - scaleY) * RELEASE_NEUTRALIZE_EASE;
+        }
+      }
+
+      // Releasing → free once the shape is back to a dot sitting on the pointer.
       if (mode === 'releasing') {
-        const sizeBack =
-          Math.abs(w.value - CURSOR_DIAMETER) < RELEASE_EPSILON &&
-          Math.abs(h.value - CURSOR_DIAMETER) < RELEASE_EPSILON;
+        const sizeBack = Math.abs(size.value - CURSOR_DIAMETER) < RELEASE_EPSILON;
         const centerBack =
           Math.abs(cx.value - pointerX) < RELEASE_EPSILON &&
           Math.abs(cy.value - pointerY) < RELEASE_EPSILON;
         if (sizeBack && centerBack) mode = 'free';
       }
-
-      // Liquid stretch — free mode only, off under reduced motion. Always smooth
-      // the value (so it decays even after pinning) but only apply it when free.
-      let stretchTarget = 0;
-      if (mode === 'free' && !reducedMotion) {
-        const speed = Math.hypot(dx, dy);
-        const n = Math.min(1, speed / STRETCH_SPEED_REF);
-        stretchTarget = STRETCH_MAX * (1 - (1 - n) * (1 - n)); // ease-out: grows fast
-        if (speed > STRETCH_MIN_SPEED) stretchAngle = Math.atan2(dy, dx);
-      }
-      stretch += (stretchTarget - stretch) * STRETCH_EASE;
-      const appliedStretch = mode === 'free' && !reducedMotion ? stretch : 0;
 
       // Reveal only once a real pointer position is known, so re-entry/refocus
       // never flashes the cursor at (0,0).
@@ -227,20 +259,15 @@ export default function CustomCursor() {
         lastVisible = visible;
       }
 
-      // Center-based draw: top-left = center - size/2, plus an optional stretch
-      // composed about the element center (transformOrigin: 'center') along travel.
-      let transform = `translate3d(${cx.value - w.value / 2}px, ${cy.value - h.value / 2}px, 0)`;
-      if (appliedStretch > 0) {
-        transform +=
-          ` rotate(${stretchAngle}rad)` +
-          ` scale(${1 + appliedStretch}, ${1 - appliedStretch * STRETCH_SQUASH})` +
-          ` rotate(${-stretchAngle}rad)`;
-      }
-      el.style.transform = transform;
-      el.style.width = `${w.value}px`;
-      el.style.height = `${h.value}px`;
-      // Radius derives from height (full pill / circle), so no separate spring.
-      el.style.borderRadius = `${h.value / 2}px`;
+      // Center-based draw: top-left = center - size/2, then rotate + stretch the
+      // blob about its center (transformOrigin: 'center'). The difference blend
+      // inverts whatever sits under the blob — no text is rendered.
+      const half = size.value / 2;
+      el.style.transform =
+        `translate3d(${cx.value - half}px, ${cy.value - half}px, 0)` +
+        ` rotate(${angle}rad) scale(${scaleX}, ${scaleY})`;
+      el.style.width = `${size.value}px`;
+      el.style.height = `${size.value}px`;
 
       rafId = requestAnimationFrame(render);
     };
@@ -249,12 +276,9 @@ export default function CustomCursor() {
       pointerX = e.clientX;
       pointerY = e.clientY;
       if (!hasPointer) {
-        // Seed the center + velocity baseline so the first frame doesn't lurch
-        // in from (0,0) or register a huge phantom stretch.
+        // Seed the center so the first frame doesn't lurch in from (0,0).
         cx.value = pointerX;
         cy.value = pointerY;
-        lastPointerX = pointerX;
-        lastPointerY = pointerY;
       }
       hasPointer = true;
       inWindow = true;
