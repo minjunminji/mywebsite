@@ -24,8 +24,9 @@ import { stepSpring, type Spring } from '../cursorMath';
 const DOT_SIZE = 18;
 /** Padding around the hovered element's rect, in px. */
 const HOVER_PAD = 8;
-/** Max corner radius of the wrap, in px. */
-const MAX_RADIUS = 16;
+/** Max corner radius of the wrap, in px. Clamped to half the box's shorter side,
+ *  so short targets become fully pill-ended; raise for rounder, lower for boxier. */
+const MAX_RADIUS = 28;
 
 /** Geometry spring — overdamped + low stiffness gives a slow, smooth dot↔box
  *  transition with (almost) no rebound. Lower STIFFNESS = slower transition;
