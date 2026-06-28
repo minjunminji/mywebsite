@@ -43,13 +43,14 @@ export const projectStills = {
 export const ABOUT_REFERENCE_IMAGE = '/about_ref.webp';
 
 // --- Stops: the flat, ordered player timeline ---
-export type StopId = 'landing' | 'about' | 'thisWebsite' | 'rebase' | 'mango';
+export type StopId = 'landing' | 'about' | 'thisWebsite' | 'rebase' | 'mango' | 'experience';
 
 export type Stop = {
   id: StopId;
   loop?: readonly string[]; // animated rest frames (landing, about)
   still?: string; // static rest frame (projects)
   isProject?: boolean;
+  isExperience?: boolean;
 };
 
 export const STOPS: readonly Stop[] = [
@@ -58,6 +59,7 @@ export const STOPS: readonly Stop[] = [
   { id: 'thisWebsite', still: projectStills.thisWebsite, isProject: true },
   { id: 'rebase', still: projectStills.rebase, isProject: true },
   { id: 'mango', still: projectStills.mango, isProject: true },
+  { id: 'experience', isExperience: true },
 ];
 
 // SEGMENTS[i] connects STOPS[i] -> STOPS[i+1]
@@ -66,11 +68,14 @@ export const SEGMENTS: readonly (readonly string[])[] = [
   trans2Frames, // about -> thisWebsite
   turnstileFrames, // thisWebsite -> rebase
   turnstileFrames, // rebase -> mango
+  [], // mango -> experience (generated morph, not frames)
 ];
 
 export const stopIndexById = (id: StopId): number => STOPS.findIndex((s) => s.id === id);
 export const firstProjectIndex = STOPS.findIndex((s) => s.isProject);
 export const isProjectStop = (index: number): boolean => STOPS[index]?.isProject === true;
+export const isExperienceStop = (index: number): boolean =>
+  STOPS[index]?.isExperience === true;
 
 // --- Nav: home (landing) + about + projects (expands into its 3 children) ---
 export type NavChild = { stopId: StopId; label: string };
@@ -203,6 +208,69 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     ],
     videoSrc: '/mango.mp4',
     videoTitle: 'Mango full-body gesture control demo',
+  },
+];
+
+// --- Experience content (text-only stop; two lenses over the same roles) ---
+export type Lens = 'software' | 'product';
+export const LENSES: readonly Lens[] = ['software', 'product'];
+
+export type ExperienceEntry = {
+  key: 'shopify' | 'sailbot' | 'paladin';
+  year: string; // anchor + ripple origin
+  company: string;
+  title: string; // fixed across lenses
+  bullets: Record<Lens, readonly string[]>;
+};
+
+// PLACEHOLDER bullets — Ryan supplies final copy. Bullet count may differ per lens.
+export const EXPERIENCE: readonly ExperienceEntry[] = [
+  {
+    key: 'shopify',
+    year: '2026',
+    company: 'shopify',
+    title: 'software engineer intern',
+    bullets: {
+      software: [
+        'placeholder software bullet one for shopify, roughly one line long.',
+        'placeholder software bullet two describing systems and impact here.',
+      ],
+      product: [
+        'placeholder product bullet one for shopify framed around outcomes.',
+        'placeholder product bullet two about users and metrics here.',
+      ],
+    },
+  },
+  {
+    key: 'sailbot',
+    year: '2025-2026',
+    company: 'ubc sailbot',
+    title: 'software website lead',
+    bullets: {
+      software: [
+        'placeholder software bullet one for sailbot about the data pipeline.',
+        'placeholder software bullet two about leading the web team.',
+      ],
+      product: [
+        'placeholder product bullet one for sailbot framed around delivery.',
+      ],
+    },
+  },
+  {
+    key: 'paladin',
+    year: '2025',
+    company: 'paladin technologies',
+    title: 'systems engineering intern',
+    bullets: {
+      software: [
+        'placeholder software bullet one for paladin about the etl pipeline.',
+        'placeholder software bullet two about tooling and adoption.',
+      ],
+      product: [
+        'placeholder product bullet one for paladin framed around process.',
+        'placeholder product bullet two about stakeholders and rollout.',
+      ],
+    },
   },
 ];
 
