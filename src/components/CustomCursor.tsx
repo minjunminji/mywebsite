@@ -21,6 +21,13 @@ const PILL_PAD_Y = 7;
 const SPRING_STIFFNESS = 0.2;
 const SPRING_DAMPING = 0.76;
 
+/**
+ * Stiffer pull used for the center + size springs ONLY while 'releasing', so the
+ * melt-back catches a still-moving pointer quickly instead of trailing — keeps
+ * the crisp 1:1 promise. Damping stays SPRING_DAMPING everywhere.
+ */
+const RELEASE_STIFFNESS = 0.45;
+
 /** Within this many px of the free circle (size + center), 'releasing' → 'free'. */
 const RELEASE_EPSILON = 0.5;
 
@@ -70,6 +77,10 @@ type Spring = { value: number; velocity: number };
 /**
  * Advance a spring one frame with a leaky integrator (slight elastic overshoot).
  * Pure-ish: mutates the passed spring in place, no other side effects.
+ *
+ * Note: these springs (and the velocity stretch below) are tuned per-frame for
+ * ~60Hz with no dt-scaling, so they settle faster / the stretch reads weaker on
+ * 120–144Hz displays. Intended, not a bug.
  */
 function stepSpring(spring: Spring, target: number, stiffness: number, damping: number) {
   spring.velocity += (target - spring.value) * stiffness;
@@ -91,8 +102,6 @@ export default function CustomCursor() {
     const root = document.documentElement;
     root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
 
-    const radius = CURSOR_DIAMETER / 2;
-
     // Reduced motion: keep the cursor AND pill, but snap morphs to target each
     // frame (no spring overshoot) and apply no velocity stretch. Tracked live.
     const reducedMotionMq = window.matchMedia(REDUCED_MOTION_QUERY);
@@ -109,13 +118,13 @@ export default function CustomCursor() {
     // Pointer position sampled on the previous frame — drives the velocity stretch.
     let lastPointerX = 0;
     let lastPointerY = 0;
-    // Springable shape: center (cx/cy), size (w/h), and corner radius (cr). The
-    // center stays a CENTER point; the element is drawn at center - size/2.
+    // Springable shape: center (cx/cy) and size (w/h). The center stays a CENTER
+    // point; the element is drawn at center - size/2. Corner radius is derived
+    // from the height each frame (always a full pill / circle), not its own spring.
     const cx: Spring = { value: 0, velocity: 0 };
     const cy: Spring = { value: 0, velocity: 0 };
     const w: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
     const h: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
-    const cr: Spring = { value: radius, velocity: 0 };
     // Smoothed liquid-stretch magnitude (0..STRETCH_MAX) and its travel angle.
     let stretch = 0;
     let stretchAngle = 0;
@@ -134,9 +143,9 @@ export default function CustomCursor() {
       spring.velocity = 0;
     };
     // Settle a spring toward its target — instant under reduced motion, else spring.
-    const settle = (spring: Spring, target: number) => {
+    const settle = (spring: Spring, target: number, stiffness: number) => {
       if (reducedMotion) snap(spring, target);
-      else stepSpring(spring, target, SPRING_STIFFNESS, SPRING_DAMPING);
+      else stepSpring(spring, target, stiffness, SPRING_DAMPING);
     };
 
     const render = () => {
@@ -163,7 +172,6 @@ export default function CustomCursor() {
       let targetCY = pointerY;
       let targetW = CURSOR_DIAMETER;
       let targetH = CURSOR_DIAMETER;
-      let targetR = radius;
       if (mode === 'pinned' && pinnedRect) {
         // Re-read every frame: the nav docks/animates, Experience is its own
         // scroll container, and the window can resize — a cached rect would drift.
@@ -171,21 +179,22 @@ export default function CustomCursor() {
         targetH = pinnedRect.height + PILL_PAD_Y * 2;
         targetCX = pinnedRect.left + pinnedRect.width / 2;
         targetCY = pinnedRect.top + pinnedRect.height / 2;
-        targetR = targetH / 2; // full pill
       }
+
+      // Stiffer pull while releasing so the melt-back catches a moving pointer fast.
+      const stiffness = mode === 'releasing' ? RELEASE_STIFFNESS : SPRING_STIFFNESS;
 
       // Center: snap 1:1 in free mode (no easing/lag); spring in pinned/releasing.
       if (mode === 'free') {
         snap(cx, targetCX);
         snap(cy, targetCY);
       } else {
-        settle(cx, targetCX);
-        settle(cy, targetCY);
+        settle(cx, targetCX, stiffness);
+        settle(cy, targetCY, stiffness);
       }
-      // Size + radius always settle toward their target (circle, or pill when pinned).
-      settle(w, targetW);
-      settle(h, targetH);
-      settle(cr, targetR);
+      // Size always settles toward its target (circle, or pill when pinned).
+      settle(w, targetW, stiffness);
+      settle(h, targetH, stiffness);
 
       // Releasing → free once the shape is back to a circle sitting on the pointer.
       if (mode === 'releasing') {
@@ -230,7 +239,8 @@ export default function CustomCursor() {
       el.style.transform = transform;
       el.style.width = `${w.value}px`;
       el.style.height = `${h.value}px`;
-      el.style.borderRadius = `${cr.value}px`;
+      // Radius derives from height (full pill / circle), so no separate spring.
+      el.style.borderRadius = `${h.value / 2}px`;
 
       rafId = requestAnimationFrame(render);
     };
