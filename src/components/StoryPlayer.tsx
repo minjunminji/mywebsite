@@ -30,6 +30,15 @@ const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const LANDING_LOOP_REPEATS = 4;
 const PAGE_BG = '#f7f7f5';
+const PAGE_BG_CLEAR = 'rgba(247, 247, 245, 0)';
+// Soft vignette that feathers the page background inward on every edge, so the
+// train drawing dissolves into the page instead of ending on a hard cutoff.
+const EDGE_FADE =
+  `linear-gradient(to right, ${PAGE_BG} 0%, ${PAGE_BG_CLEAR} 11%, ${PAGE_BG_CLEAR} 89%, ${PAGE_BG} 100%), ` +
+  `linear-gradient(to bottom, ${PAGE_BG} 0%, ${PAGE_BG_CLEAR} 8%, ${PAGE_BG_CLEAR} 92%, ${PAGE_BG} 100%)`;
+// Intrinsic size of every scene frame; used to find the contain-fit rect.
+const FRAME_W = 3840;
+const FRAME_H = 2160;
 
 type IntroPhase = 'landing' | 'trainSequence' | 'done';
 
@@ -38,6 +47,22 @@ export default function StoryPlayer() {
   const [introFrame, setIntroFrame] = useState<string>(landingFrames[0]);
   const introDone = introPhase === 'done';
   const player = useFramePlayer(introDone);
+
+  // Track the viewport so we can place the edge fade over the drawing's actual
+  // contain-fit rectangle (the frame is 16:9 and letterboxed on most screens).
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const update = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+  const fitScale =
+    viewport.w && viewport.h ? Math.min(viewport.w / FRAME_W, viewport.h / FRAME_H) : 0;
+  const drawW = FRAME_W * fitScale;
+  const drawH = FRAME_H * fitScale;
+  const drawLeft = (viewport.w - drawW) / 2;
+  const drawTop = (viewport.h - drawH) / 2;
 
   const aboutIndex = stopIndexById('about');
   const onAbout = introDone && !player.isTransitioning && player.currentStop === aboutIndex;
@@ -154,6 +179,9 @@ export default function StoryPlayer() {
   // so it fades in on arrival (forward) and fades out at the start (backward),
   // and stays put when moving between projects.
   const showProjectBg = isProjectStop(player.currentStop) && isProjectStop(player.target);
+  // Feather the train scene's edges into the page (intro, home idle, and either
+  // direction of the home transition).
+  const showTrainEdgeFade = !introDone || player.currentStop === 0 || player.target === 0;
 
   return (
     <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', overflow: 'hidden', background: PAGE_BG }}>
@@ -179,6 +207,24 @@ export default function StoryPlayer() {
         alt="Hand-drawn animated scene"
         draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', zIndex: 1 }}
+      />
+
+      {/* Soft edge fade so the train drawing blends into the page. Sized to the
+          drawing's contain-fit rect so the feather lands on its real edges. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: drawLeft,
+          top: drawTop,
+          width: drawW,
+          height: drawH,
+          pointerEvents: 'none',
+          background: EDGE_FADE,
+          opacity: showTrainEdgeFade && fitScale > 0 ? 1 : 0,
+          transition: 'opacity 320ms ease',
+          zIndex: 2,
+        }}
       />
 
       {/* Reveal effect — only when parked on about */}
