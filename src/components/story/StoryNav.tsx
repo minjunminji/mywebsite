@@ -246,7 +246,7 @@ export default function StoryNav({
         fontSize: docked ? 'clamp(0.78rem, 1vw, 0.95rem)' : 'clamp(1.05rem, 1.8vw, 1.6rem)',
         opacity: visible ? 1 : 0,
         transition:
-          'top 520ms cubic-bezier(0.65,0,0.35,1), font-size 520ms ease, gap 520ms ease, opacity 360ms ease',
+          'top 520ms cubic-bezier(0.65,0,0.35,1), font-size 520ms ease, gap 520ms ease, opacity 800ms ease 750ms',
         pointerEvents: visible && !isTransitioning ? 'auto' : 'none',
         userSelect: 'none',
         zIndex: 25,

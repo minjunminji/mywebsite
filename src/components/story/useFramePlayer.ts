@@ -145,9 +145,18 @@ export function useFramePlayer(active: boolean): FramePlayer {
     [currentStop, isTransitioning],
   );
 
+  // Layout position (drives nav dock/expand): adopt the destination immediately
+  // when moving forward (dock/expand ahead as you leave), but hold the current
+  // layout when moving backward so it only collapses/re-centers on arrival.
+  const layoutPosition = isTransitioning
+    ? target > currentStop
+      ? target
+      : currentStop
+    : currentStop;
+
   return {
     currentStop,
-    position: isTransitioning ? target : currentStop,
+    position: layoutPosition,
     fillProgress,
     isTransitioning,
     displayFrame,
