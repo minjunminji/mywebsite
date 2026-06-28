@@ -317,21 +317,31 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                 height: SLOT_LINE,
                 verticalAlign: 'bottom',
                 position: 'relative',
+                overflow: 'visible',
               }}
             >
-              {LENSES.map((l) => {
-                const selected = lens === l;
-                return (
+              {/* Fixed order: software on top, product below. The whole stack
+                  slides up by one line to bring product onto the baseline; the
+                  off-baseline lens shows pale above or below the sentence. */}
+              <span
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  display: 'block',
+                  transform: lens === LENSES[0] ? 'translateY(0)' : `translateY(-${SLOT_LINE})`,
+                  transition: reduced ? 'none' : `transform 420ms ${EASE}`,
+                }}
+              >
+                {LENSES.map((l) => (
                   <button
                     key={l}
                     type="button"
                     className="exp-lens"
                     onClick={() => setLens(l)}
-                    aria-pressed={selected}
+                    aria-pressed={lens === l}
                     style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: 0,
+                      display: 'block',
                       width: '100%',
                       height: SLOT_LINE,
                       lineHeight: SLOT_LINE,
@@ -344,15 +354,14 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
                       whiteSpace: 'nowrap',
                       cursor: 'pointer',
                       fontWeight: 400,
-                      color: selected ? INK : PALE,
-                      transform: selected ? 'translateY(0)' : `translateY(${SLOT_LINE})`,
-                      transition: reduced ? 'none' : `transform 420ms ${EASE}, color 300ms ease`,
+                      color: lens === l ? INK : PALE,
+                      transition: reduced ? 'none' : 'color 300ms ease',
                     }}
                   >
                     {l}
                   </button>
-                );
-              })}
+                ))}
+              </span>
             </span>{' '}
             engineer
           </h2>
