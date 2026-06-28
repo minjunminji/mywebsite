@@ -5,9 +5,10 @@ import { EXPERIENCE, type Lens } from '@/components/story/storyData';
 const INK = '#1f1812';
 const MONO = "var(--font-inconsolata), ui-monospace, monospace";
 
-export default function ExperienceSection({ lens = 'software' as Lens }: { lens?: Lens }) {
+export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }) {
   return (
     <section
+      aria-label="experience"
       style={{
         position: 'absolute',
         inset: 0,
@@ -39,7 +40,7 @@ export default function ExperienceSection({ lens = 'software' as Lens }: { lens?
             <div
               style={{
                 flex: '0 0 auto',
-                width: '7ch',
+                width: '9ch',
                 fontWeight: 900,
                 fontSize: 'clamp(0.95rem, 1.5vw, 1.3rem)',
                 lineHeight: 1.4,
@@ -61,7 +62,7 @@ export default function ExperienceSection({ lens = 'software' as Lens }: { lens?
               <ul style={{ margin: '0.5rem 0 0', padding: 0, listStyle: 'none' }}>
                 {entry.bullets[lens].map((b, i) => (
                   <li
-                    key={i}
+                    key={`${entry.key}-${i}`}
                     style={{
                       fontWeight: 300,
                       fontSize: 'clamp(0.8rem, 1.05vw, 1rem)',
