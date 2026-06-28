@@ -34,6 +34,11 @@ const LINE_H = 26;
 
 const EASE = 'cubic-bezier(0.65,0,0.35,1)';
 
+// The résumé is one column centered horizontally. The year stack lands wherever
+// the years fall in that centered layout (measured, never hardcoded), so the
+// content sits balanced around the stack and the years move only vertically.
+const CONTENT_MAX = '52rem';
+
 // prefers-reduced-motion (client-only)
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -70,9 +75,11 @@ function buildLines(lens: Lens, mode: 'scan' | 'ripple'): DecryptLine[] {
 type ExperienceSectionProps = {
   /** True once parked on the experience stop — drives the one-time entrance. */
   active: boolean;
+  /** Viewport position of mango's rendered "2025" — the morph's true origin. */
+  seedOrigin?: { x: number; y: number } | null;
 };
 
-export default function ExperienceSection({ active }: ExperienceSectionProps) {
+export default function ExperienceSection({ active, seedOrigin = null }: ExperienceSectionProps) {
   const reduced = useReducedMotion();
   const [lens, setLens] = useState<Lens>('software');
   const [phase, setPhase] = useState<Phase>('isolate');
@@ -178,14 +185,21 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
       window.cancelAnimationFrame(raf);
       window.removeEventListener('resize', onResize);
     };
-  }, [lens]);
+  }, [lens, active]);
 
-  // Stacked / isolate anchor geometry (derived from the measured box).
-  const stackX = box.w * 0.3;
-  const centerY = box.h * 0.46;
+  // Stacked / isolate anchor geometry. The stack lands on the measured year
+  // column (same x for every year), so once stacked the years move only
+  // vertically. The tight stack is centered on the final spread's midpoint, so
+  // the ripple reads as a pure vertical expansion.
+  const stackX = finalPos.length > 0 ? finalPos[0].x : box.w * 0.3;
+  const centerY =
+    finalPos.length > 0
+      ? finalPos.reduce((sum, p) => sum + p.y, 0) / finalPos.length
+      : box.h * 0.46;
   const stackGap = LINE_H * 1.3;
   const stackPos = EXPERIENCE.map((_, i) => ({ x: stackX, y: centerY + (i - 1) * stackGap }));
-  const isolatePos = { x: box.w * 0.6, y: box.h * 0.46 };
+  // The seed starts exactly on mango's "2025" when we arrived from there.
+  const isolatePos = seedOrigin ?? { x: box.w * 0.6, y: box.h * 0.46 };
 
   // Where overlay year `i` sits (and whether it shows) for the current phase.
   const yearTarget = (i: number): { x: number; y: number; opacity: number; dur: number } => {
@@ -224,17 +238,27 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        // `safe center` keeps the résumé centered when it fits but falls back to
-        // top-aligned (scrollable) when a lens overflows a short viewport.
+        // Center the content column both axes; `safe` falls back to start (and
+        // scrolls) instead of clipping when a lens overflows a short viewport.
         justifyContent: 'safe center',
+        alignItems: 'safe center',
         overflowY: 'auto',
-        gap: '2.4rem',
         padding: 'clamp(4rem, 10vh, 8rem) clamp(1.5rem, 8vw, 9rem)',
         fontFamily: MONO,
         color: INK,
         zIndex: 4,
       }}
     >
+      {/* The whole résumé is one centered column; the year stack lands on its
+          year cells (measured), so the content reads balanced around the spine. */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '2.4rem',
+          width: `min(${CONTENT_MAX}, 100%)`,
+        }}
+      >
       {/* headline — the lens word is the control: a fixed-width vertical slot
           stacking both lenses; only the stack slides, so "engineer" holds. */}
       <h2
@@ -254,45 +278,47 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
             display: 'inline-block',
             width: '8ch',
             height: SLOT_LINE,
-            overflow: 'hidden',
             verticalAlign: 'bottom',
             position: 'relative',
           }}
         >
-          <span
-            style={{
-              display: 'block',
-              transform: lens === 'software' ? 'translateY(0)' : `translateY(-${SLOT_LINE})`,
-              transition: reduced ? 'none' : `transform 420ms ${EASE}`,
-            }}
-          >
-            {LENSES.map((l) => (
+          {/* Both lenses stay visible: the selected one sits on the baseline in
+              ink, the other rests just below in pale. Clicking it slides it up. */}
+          {LENSES.map((l) => {
+            const selected = lens === l;
+            return (
               <button
                 key={l}
                 type="button"
                 className="exp-lens"
                 onClick={() => setLens(l)}
-                aria-pressed={lens === l}
+                aria-pressed={selected}
                 disabled={!togglable}
                 style={{
-                  display: 'block',
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '100%',
                   height: SLOT_LINE,
                   lineHeight: SLOT_LINE,
                   border: 'none',
                   background: 'transparent',
                   padding: 0,
+                  margin: 0,
                   font: 'inherit',
                   textAlign: 'left',
+                  whiteSpace: 'nowrap',
                   cursor: togglable ? 'pointer' : 'default',
                   fontWeight: 900,
-                  color: lens === l ? INK : PALE,
-                  transition: reduced ? 'none' : 'color 300ms ease',
+                  color: selected ? INK : PALE,
+                  transform: selected ? 'translateY(0)' : `translateY(${SLOT_LINE})`,
+                  transition: reduced ? 'none' : `transform 420ms ${EASE}, color 300ms ease`,
                 }}
               >
                 {l}
               </button>
-            ))}
-          </span>
+            );
+          })}
         </span>{' '}
         engineer
       </h2>
@@ -359,6 +385,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
             </div>
           </article>
         ))}
+      </div>
       </div>
 
       {/* Year overlay — the travelling/stacking years during the entrance.
