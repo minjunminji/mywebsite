@@ -12,10 +12,17 @@ function restFrame(index: number): string {
   return stop.loop?.[0] ?? stop.still ?? '';
 }
 
+// Smooth ease-in-out (cubic) for the nav fill sweep.
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
 export type FramePlayer = {
   currentStop: number;
-  /** Where we're parked, or heading during a transition. Drives the nav. */
+  /** Where we're parked, or heading during a transition. Drives nav layout. */
   position: number;
+  /** Continuous playhead in stop-space; drives the left-to-right black fill. */
+  fillProgress: number;
   isTransitioning: boolean;
   displayFrame: string;
   navigateTo: (target: number) => void;
@@ -30,16 +37,20 @@ export function useFramePlayer(active: boolean): FramePlayer {
   const [target, setTarget] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [displayFrame, setDisplayFrame] = useState(restFrame(0));
+  const [fillProgress, setFillProgress] = useState(0);
 
   const queueRef = useRef<string[]>([]);
   const queueIndexRef = useRef(0);
   const targetRef = useRef(0);
+  const fillFromRef = useRef(0);
 
   // Parked: animate the current stop's rest loop (or hold its still).
   useEffect(() => {
     if (!active || isTransitioning) {
       return;
     }
+
+    setFillProgress(currentStop);
 
     const stop = STOPS[currentStop];
 
@@ -60,27 +71,40 @@ export function useFramePlayer(active: boolean): FramePlayer {
     return () => window.clearInterval(id);
   }, [active, isTransitioning, currentStop]);
 
-  // Transitioning: step through the frame queue at a fixed FPS.
+  // Transitioning: play the frame queue at a fixed FPS, while the nav fill
+  // sweeps smoothly (eased, ~60fps) over the same window — synced at the
+  // start/end but decoupled from the choppy frame stepping in between.
   useEffect(() => {
     if (!isTransitioning) {
       return;
     }
 
     let rafId = 0;
-    let previous = 0;
+    let frameClock = 0;
+    let startTime = 0;
     const frameDuration = 1000 / PLAYBACK_FPS;
+    const totalDuration = Math.max(queueRef.current.length, 1) * frameDuration;
+    const from = fillFromRef.current;
+    const to = targetRef.current;
 
     const tick = (timestamp: number) => {
-      if (previous === 0) {
-        previous = timestamp;
+      if (startTime === 0) {
+        startTime = timestamp;
+        frameClock = timestamp;
       }
 
-      if (timestamp - previous >= frameDuration) {
-        previous = timestamp;
+      // Smooth, eased fill across the whole transition window.
+      const t = Math.min((timestamp - startTime) / totalDuration, 1);
+      setFillProgress(from + (to - from) * easeInOut(t));
+
+      // Advance the hand-drawn frames at a fixed FPS.
+      if (timestamp - frameClock >= frameDuration) {
+        frameClock = timestamp;
         const queue = queueRef.current;
 
         if (queueIndexRef.current >= queue.length) {
-          setCurrentStop(targetRef.current);
+          setCurrentStop(to);
+          setFillProgress(to);
           setIsTransitioning(false);
           return;
         }
@@ -105,10 +129,12 @@ export function useFramePlayer(active: boolean): FramePlayer {
 
       const queue = buildFrameQueue(currentStop, next, SEGMENTS);
       targetRef.current = next;
+      fillFromRef.current = currentStop;
       setTarget(next);
 
       if (queue.length === 0) {
         setCurrentStop(next);
+        setFillProgress(next);
         return;
       }
 
@@ -122,6 +148,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
   return {
     currentStop,
     position: isTransitioning ? target : currentStop,
+    fillProgress,
     isTransitioning,
     displayFrame,
     navigateTo,

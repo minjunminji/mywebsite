@@ -823,6 +823,7 @@ export default function StoryPlayer() {
 
       <StoryNav
         position={player.position}
+        fillProgress={player.fillProgress}
         visible={introDone}
         isTransitioning={player.isTransitioning}
         onNavigate={player.navigateTo}
