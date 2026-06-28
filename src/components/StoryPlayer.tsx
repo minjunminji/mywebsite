@@ -365,7 +365,7 @@ export default function StoryPlayer() {
             cursor: 'default',
           }}
         >
-          <span>ryan kim</span>
+          <span style={{ fontWeight: 400 }}>ryan kim</span>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
             <path
               d={isCornerMenuOpen ? 'M6 14l6-6 6 6' : 'M6 10l6 6 6-6'}
