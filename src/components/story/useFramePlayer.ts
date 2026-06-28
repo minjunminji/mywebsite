@@ -6,6 +6,7 @@ import { buildFrameQueue } from '@/components/story/frameQueue';
 
 const LOOP_INTERVAL_MS = 180;
 const PLAYBACK_FPS = 12;
+const SKIP_SPEED_MULTIPLIER = 2;
 
 function restFrame(index: number): string {
   const stop = STOPS[index];
@@ -84,10 +85,12 @@ export function useFramePlayer(active: boolean): FramePlayer {
     let rafId = 0;
     let frameClock = 0;
     let startTime = 0;
-    const frameDuration = 1000 / PLAYBACK_FPS;
-    const totalDuration = Math.max(queueRef.current.length, 1) * frameDuration;
     const from = fillFromRef.current;
     const to = targetRef.current;
+    // Skipping over a node (2+ stops) plays the whole run at double speed.
+    const speed = Math.abs(to - from) >= 2 ? SKIP_SPEED_MULTIPLIER : 1;
+    const frameDuration = 1000 / (PLAYBACK_FPS * speed);
+    const totalDuration = Math.max(queueRef.current.length, 1) * frameDuration;
 
     const tick = (timestamp: number) => {
       if (startTime === 0) {
