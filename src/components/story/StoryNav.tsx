@@ -44,14 +44,16 @@ export default function StoryNav({
   const docked = position !== 0;
   const projectsExpanded = isProjectStop(expandPosition);
   const gapValue = docked ? '0.55rem' : '0.9rem';
-  const connectorWidth = docked ? '2rem' : '3rem';
-  // Project sub-nodes get shorter connectors so they read as sub-pages.
-  const childConnectorWidth = docked ? '1rem' : '1.5rem';
+  // Project sub-nodes sit tighter than the main row (30% less spacing).
+  const childGapValue = docked ? '0.385rem' : '0.63rem';
+  const connectorWidth = docked ? '1.5rem' : '2.25rem';
+  // Project sub-nodes get very short connectors so they read as sub-pages.
+  const childConnectorWidth = docked ? '0.375rem' : '0.5625rem';
 
   // Rough pixel widths so a step's fill is a single constant-speed sweep across
   // its pieces (line then text), proportioned by their actual on-screen size.
-  const connPx = docked ? 32 : 48;
-  const childConnPx = docked ? 16 : 24;
+  const connPx = docked ? 24 : 36;
+  const childConnPx = docked ? 6 : 9;
   const charPx = docked ? 9 : 15;
   const estWidth = (piece: Piece): number =>
     piece.kind === 'conn'
@@ -136,7 +138,7 @@ export default function StoryNav({
       style={{
         display: 'inline-block',
         width: connectorWidth,
-        height: '2px',
+        height: '1px',
         background: lineFill(fraction),
         transition: 'width 520ms ease',
         ...extra,
@@ -204,6 +206,7 @@ export default function StoryNav({
         childEls.push(
           node(`cnode-${child.stopId}`, child.label, childStopIndex, fracById[`cnode-${child.stopId}`] ?? 0, {
             fontSize: '0.82em',
+            fontWeight: 350,
             ...reveal,
           }),
         );
@@ -225,7 +228,7 @@ export default function StoryNav({
               overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
-              gap: gapValue,
+              gap: childGapValue,
             }}
           >
             {childEls}
@@ -247,7 +250,7 @@ export default function StoryNav({
         alignItems: 'center',
         gap: gapValue,
         fontFamily: "var(--font-geist-sans), sans-serif",
-        fontWeight: 600,
+        fontWeight: 450,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
         fontSize: docked ? 'clamp(0.78rem, 1vw, 0.95rem)' : 'clamp(1.05rem, 1.8vw, 1.6rem)',
