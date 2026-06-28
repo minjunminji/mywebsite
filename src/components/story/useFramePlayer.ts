@@ -22,8 +22,10 @@ export type FramePlayer = {
   currentStop: number;
   /** Destination of the current/last navigation (equals currentStop when parked). */
   target: number;
-  /** Where we're parked, or heading during a transition. Drives nav layout. */
+  /** Dock position (top/size). Holds until arrival when moving backward. */
   position: number;
+  /** Expansion position (projects sub-nodes). Always follows the target. */
+  expandPosition: number;
   /** Continuous playhead in stop-space; drives the left-to-right black fill. */
   fillProgress: number;
   isTransitioning: boolean;
@@ -46,6 +48,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
   const queueIndexRef = useRef(0);
   const targetRef = useRef(0);
   const fillFromRef = useRef(0);
+  const transitionMsRef = useRef(0);
 
   // Parked: animate the current stop's rest loop (or hold its still).
   useEffect(() => {
@@ -87,10 +90,11 @@ export function useFramePlayer(active: boolean): FramePlayer {
     let startTime = 0;
     const from = fillFromRef.current;
     const to = targetRef.current;
-    // Skipping over a node (2+ stops) plays the whole run at double speed.
-    const speed = Math.abs(to - from) >= 2 ? SKIP_SPEED_MULTIPLIER : 1;
-    const frameDuration = 1000 / (PLAYBACK_FPS * speed);
-    const totalDuration = Math.max(queueRef.current.length, 1) * frameDuration;
+    // Skips (2+ stops) run at double speed and fill linearly so the ink tracks
+    // the (linear) frames; single steps keep the eased feel.
+    const isSkip = Math.abs(to - from) >= 2;
+    const totalDuration = Math.max(transitionMsRef.current, 1);
+    const frameDuration = totalDuration / Math.max(queueRef.current.length, 1);
 
     const tick = (timestamp: number) => {
       if (startTime === 0) {
@@ -98,9 +102,10 @@ export function useFramePlayer(active: boolean): FramePlayer {
         frameClock = timestamp;
       }
 
-      // Smooth, eased fill across the whole transition window.
+      // Fill across the whole transition window (linear for skips, eased otherwise).
       const t = Math.min((timestamp - startTime) / totalDuration, 1);
-      setFillProgress(from + (to - from) * easeInOut(t));
+      const progress = isSkip ? t : easeInOut(t);
+      setFillProgress(from + (to - from) * progress);
 
       // Advance the hand-drawn frames at a fixed FPS.
       if (timestamp - frameClock >= frameDuration) {
@@ -143,6 +148,9 @@ export function useFramePlayer(active: boolean): FramePlayer {
         return;
       }
 
+      const speed = Math.abs(next - currentStop) >= 2 ? SKIP_SPEED_MULTIPLIER : 1;
+      transitionMsRef.current = (queue.length / (PLAYBACK_FPS * speed)) * 1000;
+
       queueRef.current = queue;
       queueIndexRef.current = 0;
       setIsTransitioning(true);
@@ -150,19 +158,25 @@ export function useFramePlayer(active: boolean): FramePlayer {
     [currentStop, isTransitioning],
   );
 
-  // Layout position (drives nav dock/expand): adopt the destination immediately
-  // when moving forward (dock/expand ahead as you leave), but hold the current
-  // layout when moving backward so it only collapses/re-centers on arrival.
-  const layoutPosition = isTransitioning
+  // Dock position (top/size): adopt the target immediately when moving forward
+  // (dock ahead as you leave home), but hold the current layout when moving
+  // backward so the bar only re-centers/re-sizes once it actually reaches home.
+  const dockPosition = isTransitioning
     ? target > currentStop
       ? target
       : currentStop
     : currentStop;
 
+  // Expansion position (projects sub-nodes): always follows the target, so the
+  // sub-nodes collapse at the start of a move out and expand at the start of a
+  // move in — independent of the dock move.
+  const expandPosition = isTransitioning ? target : currentStop;
+
   return {
     currentStop,
     target,
-    position: layoutPosition,
+    position: dockPosition,
+    expandPosition,
     fillProgress,
     isTransitioning,
     displayFrame,

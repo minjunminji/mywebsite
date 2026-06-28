@@ -12,9 +12,11 @@ const NODE_PAD_PX = 5;
 // settles as a single smooth motion instead of parts easing out of sync.
 const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const LAYOUT_MS = 600;
+const EXPAND_MS = 560;
 
 type StoryNavProps = {
-  position: number; // current stop, or the target while transitioning (drives layout)
+  position: number; // dock position (top/size); holds until arrival when going back
+  expandPosition: number; // expansion position (projects sub-nodes); follows target
   fillProgress: number; // continuous playhead in stop-space (drives the black fill)
   visible: boolean; // false during the intro
   isTransitioning: boolean;
@@ -33,13 +35,14 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 export default function StoryNav({
   position,
+  expandPosition,
   fillProgress,
   visible,
   isTransitioning,
   onNavigate,
 }: StoryNavProps) {
   const docked = position !== 0;
-  const projectsExpanded = isProjectStop(position);
+  const projectsExpanded = isProjectStop(expandPosition);
   const gapValue = docked ? '0.55rem' : '0.9rem';
   const connectorWidth = docked ? '2rem' : '3rem';
   // Project sub-nodes get shorter connectors so they read as sub-pages.
@@ -213,7 +216,7 @@ export default function StoryNav({
             display: 'inline-grid',
             gridTemplateColumns: projectsExpanded ? '1fr' : '0fr',
             marginLeft: projectsExpanded ? '0' : `-${gapValue}`,
-            transition: `grid-template-columns 560ms ${EXPAND_EASE}, margin-left 560ms ${EXPAND_EASE}`,
+            transition: `grid-template-columns ${EXPAND_MS}ms ${EXPAND_EASE}, margin-left ${EXPAND_MS}ms ${EXPAND_EASE}`,
           }}
         >
           <div

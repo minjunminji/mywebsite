@@ -872,6 +872,7 @@ export default function StoryPlayer() {
 
       <StoryNav
         position={player.position}
+        expandPosition={player.expandPosition}
         fillProgress={player.fillProgress}
         visible={introDone}
         isTransitioning={player.isTransitioning}
