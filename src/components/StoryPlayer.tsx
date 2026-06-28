@@ -895,7 +895,7 @@ export default function StoryPlayer() {
             zIndex: 4,
           }}
         >
-          <ExperienceSection lens="software" />
+          <ExperienceSection />
         </div>
       ) : null}
 

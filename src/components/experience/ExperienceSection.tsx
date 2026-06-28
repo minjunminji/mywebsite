@@ -1,11 +1,66 @@
 'use client';
 
-import { EXPERIENCE, type Lens } from '@/components/story/storyData';
+import { useEffect, useMemo, useState } from 'react';
+import { EXPERIENCE, LENSES, type Lens } from '@/components/story/storyData';
+import { scanDelayMs } from './decrypt';
+import { useDecrypt, type DecryptLine } from './useDecrypt';
 
 const INK = '#1f1812';
 const MONO = "var(--font-inconsolata), ui-monospace, monospace";
+const SLOT_LINE = '1.15em';
 
-export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }) {
+// prefers-reduced-motion (client-only)
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduced(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return reduced;
+}
+
+export default function ExperienceSection() {
+  const [lens, setLens] = useState<Lens>('software');
+  const reduced = useReducedMotion();
+
+  // Flatten the active lens's bullets into decrypt lines in the SAME nested
+  // order they render (entry by entry, bullet by bullet), giving each a global
+  // line index used for the scan stagger and a stable per-line seed.
+  const lines: DecryptLine[] = useMemo(() => {
+    const out: DecryptLine[] = [];
+    let lineIndex = 0;
+    for (const entry of EXPERIENCE) {
+      for (const text of entry.bullets[lens]) {
+        out.push({
+          text,
+          delays: text.split('').map((_, ci) => scanDelayMs(ci, lineIndex, 7, 110)),
+          seed: lineIndex + 1,
+        });
+        lineIndex += 1;
+      }
+    }
+    return out;
+  }, [lens]);
+
+  const shown = useDecrypt(lines, lens, 850, reduced);
+
+  // Map the flat `shown` array back onto the nested bullets, falling back to the
+  // raw bullet text so a line is never blank.
+  const shownByEntry = useMemo(() => {
+    const out: string[][] = EXPERIENCE.map(() => []);
+    let k = 0;
+    EXPERIENCE.forEach((entry, ei) => {
+      for (let i = 0; i < entry.bullets[lens].length; i += 1) {
+        out[ei].push(shown[k] ?? entry.bullets[lens][i]);
+        k += 1;
+      }
+    });
+    return out;
+  }, [shown, lens]);
+
   return (
     <section
       aria-label="experience"
@@ -22,7 +77,8 @@ export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }
         zIndex: 4,
       }}
     >
-      {/* headline (toggle comes in Task 6) */}
+      {/* headline — the lens word is the control: a fixed-width vertical slot
+          stacking both lenses; only the stack slides, so "engineer" holds. */}
       <h2
         style={{
           margin: 0,
@@ -31,11 +87,55 @@ export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }
           letterSpacing: '0.02em',
         }}
       >
-        here&apos;s me as a <strong style={{ fontWeight: 900 }}>{lens}</strong> engineer
+        here&apos;s me as a{' '}
+        <span
+          style={{
+            display: 'inline-block',
+            width: '8ch',
+            height: SLOT_LINE,
+            overflow: 'hidden',
+            verticalAlign: 'bottom',
+            position: 'relative',
+          }}
+        >
+          <span
+            style={{
+              display: 'block',
+              transform: lens === 'software' ? 'translateY(0)' : `translateY(-${SLOT_LINE})`,
+              transition: reduced ? 'none' : 'transform 420ms cubic-bezier(0.65,0,0.35,1)',
+            }}
+          >
+            {LENSES.map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLens(l)}
+                aria-pressed={lens === l}
+                style={{
+                  display: 'block',
+                  height: SLOT_LINE,
+                  lineHeight: SLOT_LINE,
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  font: 'inherit',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontWeight: 900,
+                  color: lens === l ? INK : 'rgba(31,24,18,0.28)',
+                  transition: reduced ? 'none' : 'color 300ms ease',
+                }}
+              >
+                {l}
+              </button>
+            ))}
+          </span>
+        </span>{' '}
+        engineer
       </h2>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.8rem' }}>
-        {EXPERIENCE.map((entry) => (
+        {EXPERIENCE.map((entry, entryIndex) => (
           <article key={entry.key} style={{ display: 'flex', gap: 'clamp(1rem, 3vw, 3rem)' }}>
             <div
               style={{
@@ -63,6 +163,7 @@ export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }
                 {entry.bullets[lens].map((b, i) => (
                   <li
                     key={`${entry.key}-${i}`}
+                    aria-label={b}
                     style={{
                       fontWeight: 300,
                       fontSize: 'clamp(0.8rem, 1.05vw, 1rem)',
@@ -72,7 +173,7 @@ export default function ExperienceSection({ lens = 'software' }: { lens?: Lens }
                     }}
                   >
                     <span aria-hidden>&rsaquo;</span>
-                    <span>{b}</span>
+                    <span aria-hidden>{shownByEntry[entryIndex][i] ?? b}</span>
                   </li>
                 ))}
               </ul>
