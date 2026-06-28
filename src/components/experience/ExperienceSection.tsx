@@ -14,7 +14,8 @@ const T_ISOLATE = 400; // mango's 2025 sits alone
 const T_TRAVEL = 700; // it glides toward the stack
 const T_STACK = 800; // the other years slide up into a tight stack
 const LINE_STEP_MS = 150; // the wave advances one line every step
-const PER_CHAR_MS = 7; // char-to-char scramble stagger within a line
+const HOLD_MS = 220; // how long a line scrambles before it starts resolving
+const PER_CHAR_MS = 7; // char-to-char resolve stagger within a line
 const SETTLE_MS = 350; // pause after the last line before finishing
 const EASE = 'cubic-bezier(0.65,0,0.35,1)';
 
@@ -31,6 +32,10 @@ const rangeStart = (year: string): string => year.split('-')[0];
 // The résumé is one column centered horizontally; the year stack lands on its
 // measured year cells, so the content reads balanced around the spine.
 const CONTENT_MAX = '52rem';
+// Nudge the column up from dead-center so it sits a touch high.
+const SHIFT_UP = '-5vh';
+// The headline reads at the same scale as the years and titles.
+const HEAD_SIZE = 'clamp(0.95rem, 1.5vw, 1.3rem)';
 
 // prefers-reduced-motion (client-only)
 function useReducedMotion(): boolean {
@@ -46,17 +51,21 @@ function useReducedMotion(): boolean {
 }
 
 type WaveLine =
+  | { kind: 'headline'; text: string }
   | { kind: 'title'; entryIndex: number; text: string }
   | { kind: 'bullet'; entryIndex: number; bulletIndex: number; text: string };
 
-// One flat, top-to-bottom list of every decoding line — each block's title, then
-// its bullets — so a single wave can sweep straight down the whole résumé.
+// One flat, top-to-bottom list of every decoding line — the headline, then each
+// block's title and bullets — so a single wave sweeps straight down from the top.
 function buildWave(lens: Lens): {
   lines: WaveLine[];
+  headlineIndex: number;
   titleIndex: number[];
   bulletIndex: number[][];
 } {
   const lines: WaveLine[] = [];
+  lines.push({ kind: 'headline', text: `here's me as a ${lens} engineer` });
+  const headlineIndex = 0;
   const titleIndex: number[] = [];
   const bulletIndex: number[][] = [];
   EXPERIENCE.forEach((entry, entryIndex) => {
@@ -68,7 +77,7 @@ function buildWave(lens: Lens): {
       lines.push({ kind: 'bullet', entryIndex, bulletIndex: bulletIndex_, text });
     });
   });
-  return { lines, titleIndex, bulletIndex };
+  return { lines, headlineIndex, titleIndex, bulletIndex };
 }
 
 type ExperienceSectionProps = {
@@ -106,7 +115,6 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
     waveAtRef.current = 0; // allow the stack to be re-measured while collapsed
     setWaveAt(0);
     if (reduced) {
-      setWaveAt(totalLines);
       setPhase('done');
       return;
     }
@@ -117,7 +125,9 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
       window.setTimeout(() => setPhase('expand'), T_ISOLATE + T_TRAVEL + T_STACK),
     ];
     return () => timers.forEach((id) => window.clearTimeout(id));
-  }, [active, reduced, totalLines]);
+    // Intentionally NOT keyed on totalLines: a lens toggle changes the line
+    // count but must only re-decode, never replay the fly-in/stack entrance.
+  }, [active, reduced]);
 
   // During expand, advance the wave one line every LINE_STEP_MS.
   useEffect(() => {
@@ -125,14 +135,14 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
       return;
     }
     const id = window.setInterval(() => {
-      setWaveAt((c) => Math.min(c + 1, totalLines));
+      setWaveAt((c) => Math.min(c + 1, totalLines - 1));
     }, LINE_STEP_MS);
     return () => window.clearInterval(id);
   }, [phase, reduced, totalLines]);
 
-  // Finish once the wave has passed every line (plus a short settle).
+  // Finish once the wave has reached the last line (plus a short settle).
   useEffect(() => {
-    if (phase === 'expand' && waveAt >= totalLines) {
+    if (phase === 'expand' && waveAt >= totalLines - 1) {
       const id = window.setTimeout(() => setPhase('done'), SETTLE_MS);
       return () => window.clearTimeout(id);
     }
@@ -165,15 +175,17 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
   const decryptLines: DecryptLine[] = useMemo(
     () =>
       wave.lines.map((wl, i) => {
-        const titleStaysResolved = decrypt.mode === 'toggle' && wl.kind === 'title';
+        // On a toggle only the bullets change; the headline and titles stay put.
+        const staysResolved =
+          decrypt.mode === 'toggle' && (wl.kind === 'headline' || wl.kind === 'title');
         const delays = wl.text
           .split('')
-          .map((_, ci) => (titleStaysResolved ? 0 : i * LINE_STEP_MS + ci * PER_CHAR_MS));
+          .map((_, ci) => (staysResolved ? 0 : i * LINE_STEP_MS + HOLD_MS + ci * PER_CHAR_MS));
         return { text: wl.text, delays, seed: i + 1 };
       }),
     [wave, decrypt.mode],
   );
-  const durationMs = totalLines * LINE_STEP_MS + 600;
+  const durationMs = totalLines * LINE_STEP_MS + HOLD_MS + 600;
   const shown = useDecrypt(decryptLines, decrypt.token, durationMs, reduced);
 
   // Measure the tight stack: each in-flow year's position while collapsed (no
@@ -244,16 +256,15 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
     (phase === 'isolate' || phase === 'travel' || phase === 'stack') &&
     box.w > 0 &&
     stackPos.length > 0;
-  const togglable = phase === 'done';
 
   // Has the wave reached line `i` yet? (Everything is shown once done.)
-  const reached = (i: number): boolean => phase === 'done' || (phase === 'expand' && waveAt > i);
+  const reached = (i: number): boolean => phase === 'done' || (phase === 'expand' && waveAt >= i);
   const lineText = (i: number): string =>
     reached(i) ? (shown[i] ?? wave.lines[i].text) : '';
   const bulletsShownFor = (entryIndex: number): number => {
     if (phase === 'done') return EXPERIENCE[entryIndex].bullets[lens].length;
     if (phase !== 'expand') return 0;
-    return wave.bulletIndex[entryIndex].filter((i) => waveAt > i).length;
+    return wave.bulletIndex[entryIndex].filter((i) => waveAt >= i).length;
   };
 
   return (
@@ -280,69 +291,86 @@ export default function ExperienceSection({ active, seedOrigin = null }: Experie
           flexDirection: 'column',
           gap: '2.4rem',
           width: `min(${CONTENT_MAX}, 100%)`,
+          transform: `translateY(${SHIFT_UP})`,
         }}
       >
-        {/* headline — the lens word is the control: both lenses stay visible, the
-            selected on the baseline in ink, the other just below in pale. */}
-        <h2
-          style={{
-            margin: 0,
-            fontSize: 'clamp(1.1rem, 2.4vw, 2rem)',
-            fontWeight: 400,
-            letterSpacing: '0.02em',
-            opacity: revealed ? 1 : 0,
-            transition: reduced ? 'none' : 'opacity 360ms ease',
-          }}
-        >
-          here&apos;s me as a{' '}
-          <span
-            className="exp-lens-slot"
+        {/* headline — line 0 of the wave. While the wave runs it decodes as plain
+            text; once it lands it becomes the interactive lens control (both
+            lenses visible, selected on the baseline in ink, the other in pale). */}
+        {phase === 'done' ? (
+          <h2
             style={{
-              display: 'inline-block',
-              width: '8ch',
-              height: SLOT_LINE,
-              verticalAlign: 'bottom',
-              position: 'relative',
+              margin: 0,
+              fontSize: HEAD_SIZE,
+              fontWeight: 400,
+              letterSpacing: '0.02em',
+              lineHeight: 1.4,
+              minHeight: '1.4em',
             }}
           >
-            {LENSES.map((l) => {
-              const selected = lens === l;
-              return (
-                <button
-                  key={l}
-                  type="button"
-                  className="exp-lens"
-                  onClick={() => setLens(l)}
-                  aria-pressed={selected}
-                  disabled={!togglable}
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    width: '100%',
-                    height: SLOT_LINE,
-                    lineHeight: SLOT_LINE,
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                    margin: 0,
-                    font: 'inherit',
-                    textAlign: 'left',
-                    whiteSpace: 'nowrap',
-                    cursor: togglable ? 'pointer' : 'default',
-                    fontWeight: 700,
-                    color: selected ? INK : PALE,
-                    transform: selected ? 'translateY(0)' : `translateY(${SLOT_LINE})`,
-                    transition: reduced ? 'none' : `transform 420ms ${EASE}, color 300ms ease`,
-                  }}
-                >
-                  {l}
-                </button>
-              );
-            })}
-          </span>{' '}
-          engineer
-        </h2>
+            here&apos;s me as a{' '}
+            <span
+              className="exp-lens-slot"
+              style={{
+                display: 'inline-block',
+                width: '8ch',
+                height: SLOT_LINE,
+                verticalAlign: 'bottom',
+                position: 'relative',
+              }}
+            >
+              {LENSES.map((l) => {
+                const selected = lens === l;
+                return (
+                  <button
+                    key={l}
+                    type="button"
+                    className="exp-lens"
+                    onClick={() => setLens(l)}
+                    aria-pressed={selected}
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: 0,
+                      width: '100%',
+                      height: SLOT_LINE,
+                      lineHeight: SLOT_LINE,
+                      border: 'none',
+                      background: 'transparent',
+                      padding: 0,
+                      margin: 0,
+                      font: 'inherit',
+                      textAlign: 'left',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      fontWeight: 400,
+                      color: selected ? INK : PALE,
+                      transform: selected ? 'translateY(0)' : `translateY(${SLOT_LINE})`,
+                      transition: reduced ? 'none' : `transform 420ms ${EASE}, color 300ms ease`,
+                    }}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
+            </span>{' '}
+            engineer
+          </h2>
+        ) : (
+          <h2
+            aria-label="here's me as a software engineer"
+            style={{
+              margin: 0,
+              fontSize: HEAD_SIZE,
+              fontWeight: 400,
+              letterSpacing: '0.02em',
+              lineHeight: 1.4,
+              minHeight: '1.4em',
+            }}
+          >
+            <span aria-hidden>{lineText(wave.headlineIndex)}</span>
+          </h2>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
           {EXPERIENCE.map((entry, entryIndex) => {
