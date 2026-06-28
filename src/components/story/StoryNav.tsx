@@ -8,6 +8,10 @@ const PALE = 'rgba(31, 24, 18, 0.28)';
 const EXPAND_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const CHILD_STAGGER_MS = 70;
 const NODE_PAD_PX = 5;
+// One curve/duration for the whole dock move (position, scale, spacing) so it
+// settles as a single smooth motion instead of parts easing out of sync.
+const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
+const LAYOUT_MS = 600;
 
 type StoryNavProps = {
   position: number; // current stop, or the target while transitioning (drives layout)
@@ -246,7 +250,9 @@ export default function StoryNav({
         fontSize: docked ? 'clamp(0.78rem, 1vw, 0.95rem)' : 'clamp(1.05rem, 1.8vw, 1.6rem)',
         opacity: visible ? 1 : 0,
         transition:
-          'top 520ms cubic-bezier(0.65,0,0.35,1), font-size 520ms ease, gap 520ms ease, opacity 800ms ease 750ms',
+          `top ${LAYOUT_MS}ms ${LAYOUT_EASE}, transform ${LAYOUT_MS}ms ${LAYOUT_EASE}, ` +
+          `font-size ${LAYOUT_MS}ms ${LAYOUT_EASE}, gap ${LAYOUT_MS}ms ${LAYOUT_EASE}, ` +
+          'opacity 800ms ease 750ms',
         pointerEvents: visible && !isTransitioning ? 'auto' : 'none',
         userSelect: 'none',
         zIndex: 25,
