@@ -883,7 +883,7 @@ export default function StoryPlayer() {
         </aside>
       ) : null}
 
-      {/* ===== experience section (static, Task 5) ===== */}
+      {/* ===== experience section ===== */}
       {goingToExperience ? (
         <div
           style={{
@@ -895,7 +895,7 @@ export default function StoryPlayer() {
             zIndex: 4,
           }}
         >
-          <ExperienceSection />
+          <ExperienceSection active={onExperience} />
         </div>
       ) : null}
 
