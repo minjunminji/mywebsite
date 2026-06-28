@@ -19,10 +19,12 @@ const SCAN_MS = 850; // lens-toggle decrypt duration
 
 type Phase = 'isolate' | 'travel' | 'stack' | 'ripple' | 'done';
 
-// The seed year (mango's "2025") is paladin — the bottom of the final stack.
+// The seed year (mango's "2025") is the bottom of the final stack.
 const SEED = EXPERIENCE.length - 1;
-// sailbot (middle) is the one whose year completes from 2025 -> 2025-2026.
-const SAILBOT = 1;
+// The experience whose year is a range (e.g. 2025-2026) completes mid-entrance:
+// it shows the range's start until the ripple, then the full range morphs in.
+const RANGE_INDEX = EXPERIENCE.findIndex((e) => e.year.includes('-'));
+const rangeStart = (year: string): string => year.split('-')[0];
 
 // Ripple tuning. CELL_W/LINE_H approximate a monospace cell so the wave reads as
 // roughly circular from each year; refine against the rendered font if needed.
@@ -194,6 +196,9 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
   };
 
   const revealed = phase === 'ripple' || phase === 'done';
+  // Bullets only appear once their ripple decrypt has actually started (or after
+  // the entrance), so they never flash resolved before scrambling.
+  const bulletsRevealed = phase === 'done' || (phase === 'ripple' && decrypt.mode === 'ripple');
   const overlayVisible = phase !== 'done' && box.w > 0;
   const togglable = phase === 'done';
 
@@ -312,7 +317,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                   margin: '0.5rem 0 0',
                   padding: 0,
                   listStyle: 'none',
-                  opacity: revealed ? 1 : 0,
+                  opacity: bulletsRevealed ? 1 : 0,
                   transition: reduced ? 'none' : 'opacity 200ms ease',
                 }}
               >
@@ -344,7 +349,8 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
         <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 5 }}>
           {EXPERIENCE.map((entry, i) => {
             const t = yearTarget(i);
-            const text = i === SAILBOT ? (phase === 'ripple' ? entry.year : '2025') : entry.year;
+            const text =
+              i === RANGE_INDEX && phase !== 'ripple' ? rangeStart(entry.year) : entry.year;
             return (
               <div
                 key={entry.key}
