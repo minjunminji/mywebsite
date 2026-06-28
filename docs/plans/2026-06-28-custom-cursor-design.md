@@ -1,7 +1,17 @@
 # Custom Cursor — Design
 
 **Date:** 2026-06-28
-**Status:** Validated, ready for implementation
+**Status:** Implemented (hover behavior revised — see Revision below)
+
+> **Revision (2026-06-28): sticky-cursor rework.** The original hover behavior — a
+> circle swelling into a **pill that hugs the label** — was replaced after review
+> against a reference the user preferred (Olivier Larose's "sticky cursor"). The
+> hover now **sticks to the element and grows into a fixed-size round blob that
+> rotates and squash-stretches toward the pointer** (it does *not* wrap the text
+> into a pill). Free movement stays snappy 1:1, and the negative/`difference` look
+> is kept. The reference's "Magnetic" component (which physically drags page DOM
+> toward the cursor) is intentionally **not** adopted. Sections below are updated to
+> the shipped behavior; the pill is retained only in this note for history.
 
 ## Summary
 
@@ -11,10 +21,12 @@ hand-drawn art and the About reveal canvas alike. It is one element with
 `mix-blend-mode: difference`.
 
 When free, it snaps **1:1** to the pointer (no lag) — a re-skinned cursor. When it
-reaches a **text label** (the only clickable things on the site), it behaves like
-**liquid**: it sticks, swells from a circle into a **pill** hugging that label, and
-— because the blend is preserved — the label text reads inverted inside the pill
-(black pill, light text). It melts back to a circle on the way out.
+reaches a **text label** (the only clickable things on the site), it **sticks** to
+that element: it glides onto the label's center (leaning slightly toward the
+pointer), **grows into a larger round blob**, and **rotates + squash-stretches
+toward the pointer** as you move — a magnetic, liquid feel. Because the blend is
+preserved, whatever is under the blob (the label text) reads inverted. It melts
+back to the snappy dot on the way out.
 
 ## Look
 
@@ -23,27 +35,33 @@ reaches a **text label** (the only clickable things on the site), it behaves lik
   inverts the backdrop and black does nothing. Over the cream `#f7f7f5` the dot
   reads as near-black; over ink `#1f1812` it flips light. This is the "negative of
   whatever's behind it" — for free, including the WebGL reveal output.
-- **The pill inverts its label for free.** A difference element over the label
-  inverts the composited pixels beneath it, so no text needs re-drawing — the
-  label simply appears light inside the black pill.
-- **Size** is a tunable (`D`, starting ~18px); to be dialed in by eye.
+- **The blob inverts whatever it covers for free.** A difference element over the
+  label inverts the composited pixels beneath it, so no text needs re-drawing — the
+  text simply reads light inside the dark blob.
+- **Size** is tunable: free diameter `CURSOR_DIAMETER` (~18px) and the hover blob
+  `CURSOR_HOVER_SIZE` (~56px); to be dialed in by eye.
 
 ## Behavior
 
 A 3-mode state machine, driven by one `requestAnimationFrame` loop over mutable
-refs (no React re-renders):
+refs (no React re-renders). Center and size are **springed**; rotation and stretch
+are set **directly** each frame (instant, responsive to the pointer):
 
-- **free** — target is a circle of diameter `D` centered on the pointer; position
-  **snaps 1:1** (no easing) so it feels precise. A subtle, tunable velocity-stretch
-  (squash along the travel direction, decaying when slowing) gives fast flicks a
-  liquid streak; defaults mild.
-- **pinned** — on `pointerover` of a target, position + size **spring** toward the
-  label's padded rect, swelling circle → **pill** (`border-radius = height / 2`)
-  with a slight elastic overshoot. The rect is re-read **every frame**, so the pill
-  tracks moving targets (the nav docking animation, Experience scroll, resize).
-- **releasing** — on `pointerout`, it springs back toward the circle-at-pointer and
-  melts down, then hands control back to **free** (snap resumes) once within an
-  epsilon. No teleport.
+- **free** — a circle of diameter `CURSOR_DIAMETER` whose center **snaps 1:1** to
+  the pointer (no easing, no stretch) so it feels precise.
+- **pinned** — on `pointerover` of a target, with `rect = el.getBoundingClientRect()`
+  re-read **every frame** (so it tracks the nav docking animation, Experience
+  scroll, resize): the center springs toward `rect.center + STICK_LEAN · (pointer −
+  rect.center)` (sticks to the element, leaning ~10% toward the pointer); the size
+  springs toward `CURSOR_HOVER_SIZE`; the shape stays a **circle** (`border-radius:
+  50%`). Each frame it also rotates to face the pointer (`angle = atan2(dy, dx)`)
+  and squash-stretches toward it via a clamped remap — `scaleX: 1 → 1.3` over
+  `rect.height/2`, `scaleY: 1 → 0.8` over `rect.width/2` (the reference's deliberate
+  height-for-X / width-for-Y pairing). The elongation comes from `scale`, not the
+  border-radius.
+- **releasing** — on `pointerout`, center + size spring back toward the
+  circle-at-pointer (a snappier `RELEASE_STIFFNESS`) while rotation/scale ease to
+  neutral; hands back to **free** (snap resumes) once within an epsilon. No teleport.
 
 Spring integrator: `v += (target − current) · stiffness; v *= damping;
 current += v` — slight overshoot, fast settle.
@@ -56,8 +74,8 @@ current += v` — slight overshoot, fast settle.
   labels (`home` / `about` / `projects` / `experience` + project children), and the
   `software` / `product` lens toggles.
 - The **carousel arrows and dots** are the only clickable non-text elements; they
-  get a `data-cursor-skip` marker so they keep the plain dot instead of swelling
-  into a pill around an icon.
+  get a `data-cursor-skip` marker so they keep the plain dot instead of grabbing
+  the blob around an icon.
 
 ## Architecture
 
@@ -81,7 +99,8 @@ current += v` — slight overshoot, fast settle.
   !important; }`. The `!important` overrides the inline `cursor: pointer` /
   `cursor: default` scattered through the components.
 - **Reduced motion** (`prefers-reduced-motion: reduce`): keep the cursor and the
-  pill (a core affordance) but stiffen the spring to near-instant — no bounce.
+  hover grow (a core affordance) but snap to targets with no rotation/stretch — no
+  bounce.
 - **First paint:** hidden until the first `pointermove`; hide on `pointerleave` /
   window blur.
 
@@ -92,18 +111,22 @@ current += v` — slight overshoot, fast settle.
   adds `transform` / `filter` / `isolation` around the app root, the cursor must
   stay a direct child of `<body>` (or move to a portal) to keep blending against
   the whole page.
-- **`width`/`height`/`border-radius` per frame** on one childless fixed element is
+- **`width`/`height` (+ `transform`) per frame** on one childless fixed element is
   cheap, but keep it to the single element — never animate layout-affecting props
-  on the page underneath.
+  on the page underneath. (`border-radius` is a constant `50%`; the elongation is
+  `scale`.)
 - **Difference over near-white:** the dot is `|0.969 − 1| ≈ 0.03`, i.e. ~`#080808`
   — visually black, not pure `#000`. Intended; white source is what makes it
   invert ink.
 
 ## Out of scope (v1)
 
-- True gooey **metaball** merging (SVG blur+threshold "liquid bridge"). The elastic
-  single-shape morph delivers the feel without the per-frame filter cost and the
-  fragility of combining a goo filter with full-page difference blend.
-- Proximity "reach from a distance" grab (engage is true hover + generous pill
-  padding). Can be added later if hover doesn't feel sticky enough.
-- Per-element cursor variants beyond pill / skip.
+- **DOM-dragging "Magnetic" wrapper** — the reference also translates the page's
+  clickable elements toward the cursor. Explicitly not wanted; only the cursor
+  itself moves.
+- True gooey **metaball** merging (SVG blur+threshold "liquid bridge"). The
+  rotate+stretch blob delivers the liquid feel without the per-frame filter cost and
+  the fragility of combining a goo filter with full-page difference blend.
+- Proximity "reach from a distance" grab (engage is true hover). Can be added later
+  if hover doesn't feel sticky enough.
+- Per-element cursor variants beyond blob / skip.
