@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { GeistSans } from 'geist/font/sans';
 import { Inconsolata } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
+import CustomCursor from '@/components/CustomCursor';
 
 const inconsolata = Inconsolata({
   subsets: ['latin'],
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" className={`${GeistSans.variable} ${inconsolata.variable}`}>
       <body>
         {children}
+        <CustomCursor />
         <Analytics />
       </body>
     </html>

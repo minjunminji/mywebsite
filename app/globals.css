@@ -27,6 +27,14 @@ body {
   font-family: Georgia, 'Times New Roman', serif;
 }
 
+/* When the custom cursor is active it adds this class to <html>. The
+   !important is required to override the many inline cursor: pointer /
+   cursor: default styles set throughout the components. */
+.cursor-hidden,
+.cursor-hidden * {
+  cursor: none !important;
+}
+
 main {
   position: relative;
   width: 100%;
