@@ -224,7 +224,7 @@ export type ExperienceEntry = {
   bullets: Record<Lens, readonly string[]>;
 };
 
-// PLACEHOLDER bullets — Ryan supplies final copy. Bullet count may differ per lens.
+// Bullet count may differ per lens.
 export const EXPERIENCE: readonly ExperienceEntry[] = [
   {
     key: 'shopify',
@@ -233,12 +233,14 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
     title: 'software engineer intern',
     bullets: {
       software: [
-        'placeholder software bullet one for shopify, roughly one line long.',
-        'placeholder software bullet two describing systems and impact here.',
+        'Engineered the experience layer for AI store-theme generation, architecting the client-side event logic and state management to track and render asynchronous generations.',
+        'Optimized on-device animation performance by profiling client runtime, isolating critical CPU spikes to canvas-setup lifecycles, and eliminating redundant component remounts.',
+        'Navigated deep stacked-PR workflows (Graphite) within a multi-million-line monorepo, shipping 10 production-ready PRs to main within my first six weeks despite high CI churn.',
       ],
       product: [
-        'placeholder product bullet one for shopify framed around outcomes.',
-        'placeholder product bullet two about users and metrics here.',
+        'Reframed the AI theme-generation UX paradigm, shifting from a high-friction synchronous wait to an asynchronous background workflow that mitigated 2-minute model latencies and kept merchants unblocked.',
+        'Owned the generation lifecycle end-to-end, defining the event-handling architecture for loading states, prompt handoffs, and real-time completion notifications.',
+        'Accelerated implementation velocity by proactively bridging gaps between static Figma designs and complex, multi-state UI transitions, reducing engineering-to-design feedback loops.',
       ],
     },
   },
@@ -249,11 +251,12 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
     title: 'software website lead',
     bullets: {
       software: [
-        'placeholder software bullet one for sailbot about the data pipeline.',
-        'placeholder software bullet two about leading the web team.',
+        'Architected an end-to-end AIS ship-tracking data pipeline using MongoDB, Redis caching, and webhooks to ingest real-time marine telemetry; successfully replaced a commercial vendor and saved $25k/year in operating costs.',
+        'Engineered a real-time React telemetry dashboard that visualizes autonomous sailboat sensor data, designing the ingestion layer to consume streaming telemetry from the networking subteam and store it in MongoDB for low-latency frontend fetching.',
       ],
       product: [
-        'placeholder product bullet one for sailbot framed around delivery.',
+        'Lead a cross-functional subteam of 7 full-stack developers and UI designers, managing sprint deliverables and aligning technical roadmaps with the mechanical and electrical engineering subteams.',
+        "Owning the product lifecycle for a new recruitment and hiring portal, gathering cross-subteam requirements to streamline the team's engineering onboarding and applicant tracking.",
       ],
     },
   },
@@ -264,12 +267,13 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
     title: 'systems engineering intern',
     bullets: {
       software: [
-        'placeholder software bullet one for paladin about the etl pipeline.',
-        'placeholder software bullet two about tooling and adoption.',
+        'Engineered a parallelized Python (Pandas) ETL pipeline that automated a manual geospatial workflow, reducing processing time from 8 hours to under 30 seconds (>1,000× speedup) through optimized file I/O and vectorization.',
+        'Developed automated web scrapers to ingest, normalize, and schema-map unstructured vendor data from 200+ hardware platforms into a centralized database for technical evaluation.',
       ],
       product: [
-        'placeholder product bullet one for paladin framed around process.',
-        'placeholder product bullet two about stakeholders and rollout.',
+        'Led technical requirements gathering with City of Vancouver IT and field engineering teams to scope a 250+ site municipal surveillance upgrade for upcoming large-scale public infrastructure readiness initiatives.',
+        'Designed a standardized KMZ metadata specification adopted as the official municipal requirement across all 250+ deployment sites to ensure uniform geospatial data logging.',
+        'Synthesized complex hardware capabilities into a structured technical decision matrix, streamlining the procurement process across 200+ vendors.',
       ],
     },
   },
