@@ -27,10 +27,13 @@ const HOVER_PAD = 8;
 /** Max corner radius of the wrap, in px. */
 const MAX_RADIUS = 16;
 
-/** Geometry spring (slight overshoot). */
-const SPRING_STIFFNESS = 0.18;
-const SPRING_DAMPING = 0.72;
-const RELEASE_STIFFNESS = 0.45;
+/** Geometry spring — overdamped + low stiffness gives a slow, smooth dot↔box
+ *  transition with (almost) no rebound. Lower STIFFNESS = slower transition;
+ *  lower DAMPING = less "boing". At this damping, keep stiffness under ~0.12 to
+ *  stay non-bouncy (above that it starts to overshoot/oscillate again). */
+const SPRING_STIFFNESS = 0.09; // engage: dot → box (slow)
+const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
+const RELEASE_STIFFNESS = 0.1; // release: box → dot (also slow now, was 0.45)
 const RELEASE_EPSILON = 0.5;
 
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
