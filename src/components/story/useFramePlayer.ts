@@ -19,6 +19,8 @@ function easeInOut(t: number): number {
 
 export type FramePlayer = {
   currentStop: number;
+  /** Destination of the current/last navigation (equals currentStop when parked). */
+  target: number;
   /** Where we're parked, or heading during a transition. Drives nav layout. */
   position: number;
   /** Continuous playhead in stop-space; drives the left-to-right black fill. */
@@ -156,6 +158,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
 
   return {
     currentStop,
+    target,
     position: layoutPosition,
     fillProgress,
     isTransitioning,

@@ -150,7 +150,10 @@ export default function StoryPlayer() {
     introPhase === 'trainSequence' ||
     (introDone && !player.isTransitioning && player.currentStop === 0);
   const frame = introDone ? player.displayFrame : introFrame;
-  const showProjectBg = isProjectStop(player.position);
+  // Only show the project backdrop while both ends of the move are projects —
+  // so it fades in on arrival (forward) and fades out at the start (backward),
+  // and stays put when moving between projects.
+  const showProjectBg = isProjectStop(player.currentStop) && isProjectStop(player.target);
 
   return (
     <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', overflow: 'hidden', background: PAGE_BG }}>
