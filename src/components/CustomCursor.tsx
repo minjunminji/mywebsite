@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { remapClamped, stepSpring, type Spring } from './cursorMath';
 
 /* ------------------------------------------------------------------ */
@@ -82,7 +83,16 @@ type CursorMode = 'free' | 'pinned' | 'releasing';
 export default function CustomCursor() {
   const elementRef = useRef<HTMLDivElement>(null);
 
+  // PROTOTYPE-ONLY: the cursor lab (/cursor-lab) mounts its own experimental
+  // cursors, so the global one would fight them and hide the native cursor.
+  // Bail entirely on that route (no activation, no native-cursor hiding).
+  // Remove this guard when the prototype is gone.
+  const pathname = usePathname();
+  const isCursorLab = pathname === '/cursor-lab';
+
   useEffect(() => {
+    if (isCursorLab) return;
+
     // Device gating: do nothing on touch / coarse-pointer devices. We neither
     // render a visible cursor nor hide the native one.
     if (!window.matchMedia(FINE_POINTER_QUERY).matches) return;
@@ -315,7 +325,10 @@ export default function CustomCursor() {
       reducedMotionMq.removeEventListener('change', onReducedMotionChange);
       root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
     };
-  }, []);
+  }, [isCursorLab]);
+
+  // PROTOTYPE-ONLY: render nothing on the cursor lab route.
+  if (isCursorLab) return null;
 
   return (
     <div
