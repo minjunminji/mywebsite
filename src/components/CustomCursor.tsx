@@ -67,6 +67,17 @@ const PRESS_DAMPING = 0.55;
  *  during the frame-by-frame scene transitions). */
 const CURSOR_MAX_DPR = 1.5;
 
+/** The canvas is sized to the blob's bounding box (not the viewport), so the
+ *  mix-blend-mode:difference recomposite stays a small rect instead of the whole
+ *  screen every frame. CANVAS_PAD is the margin (px) around the dot/box union for
+ *  the smin bridge bulge (~SMIN_K/4 ≈ 12), the edge warp (WARP_AMP), and AA, so
+ *  the shape never clips at the canvas edge. */
+const CANVAS_PAD = 28;
+/** Quantize the canvas CSS size to this step (px) so the backing store is only
+ *  reallocated when it crosses a bucket — resizing the drawing buffer every frame
+ *  is expensive. The extra transparent margin is free under difference. */
+const CANVAS_STEP = 32;
+
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
@@ -183,6 +194,7 @@ export default function CustomCursor() {
       uniform float u_stream;     // 0..1 — release drain stream (cursor→bulk cone)
       uniform float u_motion;     // 1 normal, 0 under prefers-reduced-motion
       uniform float u_press;      // press squish scale (1 = none, <1 = smaller)
+      uniform vec2  u_origin;     // canvas top-left in viewport CSS px
 
       // Signed distance to a rounded box centered at the origin.
       float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -243,9 +255,12 @@ export default function CustomCursor() {
       }
 
       void main() {
-        // physical, bottom-left  ->  CSS px, top-left
+        // physical, bottom-left  ->  CSS px, top-left (canvas-local), then offset
+        // by the canvas origin so all the geometry below stays in viewport coords
+        // even though the canvas only covers the blob's bounding box.
         vec2 p = gl_FragCoord.xy / u_dpr;
         p.y = u_resolution.y - p.y;
+        p += u_origin;
 
         // Press squish: domain-scale the whole shape around the box center, so the
         // free dot and the wrapped blob shrink uniformly while the pointer is held.
@@ -322,6 +337,7 @@ export default function CustomCursor() {
       stream: gl.getUniformLocation(program, 'u_stream'),
       motion: gl.getUniformLocation(program, 'u_motion'),
       press: gl.getUniformLocation(program, 'u_press'),
+      origin: gl.getUniformLocation(program, 'u_origin'),
     };
 
     const quadBuf = gl.createBuffer();
@@ -379,19 +395,9 @@ export default function CustomCursor() {
     };
 
     const cursorDpr = () => Math.min(window.devicePixelRatio || 1, CURSOR_MAX_DPR);
-    const scaleByDpr = (v: number) => Math.floor(v * cursorDpr());
 
     const render = (now: number) => {
       if (destroyed) return;
-
-      // DPR-aware resize.
-      const cw = scaleByDpr(canvas.clientWidth);
-      const ch = scaleByDpr(canvas.clientHeight);
-      if (canvas.width !== cw || canvas.height !== ch) {
-        canvas.width = cw;
-        canvas.height = ch;
-      }
-      const dpr = cursorDpr();
 
       let rect: DOMRect | null = null;
       if (mode === 'pinned') {
@@ -503,12 +509,42 @@ export default function CustomCursor() {
         lastVisible = visible;
       }
 
+      // ---- Fit the canvas to the blob's bounding box ------------------------
+      // A full-viewport canvas under mix-blend-mode forces the compositor to
+      // re-blend the WHOLE screen every frame (worst when the scene behind it is
+      // also animating). Sizing it to the union of the dot and the wrapped/
+      // draining box — padded for the smin bulge + edge warp — shrinks that blend
+      // to a small rect. Move it with a compositor-only transform every frame;
+      // only reallocate the backing store when the quantized size changes.
+      const dpr = cursorDpr();
+      const dotR = DOT_SIZE / 2;
+      const halfW = w.value / 2;
+      const halfH = h.value / 2;
+      const minX = Math.min(pointerX - dotR, cx.value - halfW);
+      const minY = Math.min(pointerY - dotR, cy.value - halfH);
+      const maxX = Math.max(pointerX + dotR, cx.value + halfW);
+      const maxY = Math.max(pointerY + dotR, cy.value + halfH);
+      const originX = Math.floor(minX - CANVAS_PAD);
+      const originY = Math.floor(minY - CANVAS_PAD);
+      const cssW = Math.ceil((Math.ceil(maxX + CANVAS_PAD) - originX) / CANVAS_STEP) * CANVAS_STEP;
+      const cssH = Math.ceil((Math.ceil(maxY + CANVAS_PAD) - originY) / CANVAS_STEP) * CANVAS_STEP;
+      const pxW = Math.max(1, Math.round(cssW * dpr));
+      const pxH = Math.max(1, Math.round(cssH * dpr));
+      if (canvas.width !== pxW || canvas.height !== pxH) {
+        canvas.width = pxW;
+        canvas.height = pxH;
+        canvas.style.width = `${pxW / dpr}px`;
+        canvas.style.height = `${pxH / dpr}px`;
+      }
+      canvas.style.transform = `translate(${originX}px, ${originY}px)`;
+
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
 
-      gl.uniform2f(u.resolution, canvas.clientWidth, canvas.clientHeight);
+      gl.uniform2f(u.resolution, pxW / dpr, pxH / dpr);
+      gl.uniform2f(u.origin, originX, originY);
       gl.uniform1f(u.dpr, dpr);
       gl.uniform1f(u.time, now * 0.001);
       // Hide the shape until a real pointer position is known.
@@ -628,9 +664,16 @@ export default function CustomCursor() {
       aria-hidden
       style={{
         position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
+        left: 0,
+        top: 0,
+        // Size + position are driven each frame by the rAF loop so the canvas only
+        // covers the blob (keeps the difference recomposite off the full viewport).
+        // Start tiny and off-screen until the first frame places it.
+        width: '1px',
+        height: '1px',
+        transform: 'translate(-9999px, -9999px)',
+        transformOrigin: 'top left',
+        willChange: 'transform',
         display: 'block',
         mixBlendMode: 'difference',
         pointerEvents: 'none',
