@@ -34,8 +34,12 @@ const MAX_RADIUS = 28;
  *  stay non-bouncy (above that it starts to overshoot/oscillate again). */
 const SPRING_STIFFNESS = 0.09; // engage: dot → box (slow)
 const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
-const RELEASE_STIFFNESS = 0.1; // release: box → dot (also slow now, was 0.45)
-const RELEASE_EPSILON = 0.5;
+/** Release is a TIMED ease back onto the cursor (ms), NOT a spring. A spring
+ *  chases the moving cursor and, being overdamped, always lags — it only catches
+ *  up once you stop, reading as a loose circle trailing the box. A timed lerp
+ *  lands exactly on the live cursor within this window however you keep moving.
+ *  Lower = snappier retract. */
+const RELEASE_DURATION = 260;
 /** How far (px) past a target's edge the cursor can travel before the wrap lets
  *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
 const RELEASE_DISTANCE = 30;
@@ -139,7 +143,8 @@ export default function CursorSDF() {
       uniform float u_tailRadius; // px
       uniform vec4  u_box;        // cx, cy, halfW, halfH (DOM px)
       uniform float u_corner;     // px
-      uniform float u_wrap;       // 0..1
+      uniform float u_wrap;       // 0..1 — box edge warp + size gate
+      uniform float u_bridge;     // 0..1 — dot↔box smooth-min strength
 
       // Signed distance to a rounded box centered at the origin.
       float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -230,9 +235,11 @@ export default function CursorSDF() {
           dCursor = sdRoundedCone(p, u_cursor, u_tail, u_dotRadius, u_tailRadius);
         }
 
-        // Merge the teardrop into the box. Strength grows in as we wrap (≈0 when
-        // free → the box is just the dot, so this is a no-op there).
-        float k = mix(0.001, ${glf(SMIN_K)}, u_wrap);
+        // Merge the teardrop into the box. The bridge stays full while releasing
+        // (not tied to the shrinking wrap), so the box melts back into the cursor
+        // as one gooey body instead of detaching into a trailing circle. ≈0 when
+        // free → the box is just the dot, so this is a no-op there.
+        float k = mix(0.001, ${glf(SMIN_K)}, u_bridge);
         float d = smin(dCursor, dBox, k);
 
         // ~1 physical px anti-aliased edge.
@@ -258,6 +265,7 @@ export default function CursorSDF() {
       box: gl.getUniformLocation(program, 'u_box'),
       corner: gl.getUniformLocation(program, 'u_corner'),
       wrap: gl.getUniformLocation(program, 'u_wrap'),
+      bridge: gl.getUniformLocation(program, 'u_bridge'),
     };
 
     const quadBuf = gl.createBuffer();
@@ -282,6 +290,15 @@ export default function CursorSDF() {
     const w: Spring = { value: DOT_SIZE, velocity: 0 };
     const h: Spring = { value: DOT_SIZE, velocity: 0 };
     const grow: Spring = { value: 0, velocity: 0 };
+
+    // Timed-release state: snapshot of the wrap when it lets go, plus the start
+    // time, so we can ease it back onto the live cursor over RELEASE_DURATION.
+    let relStart: number | null = null;
+    let relCX = 0;
+    let relCY = 0;
+    let relW = 0;
+    let relH = 0;
+    let relG = 0;
 
     const snap = (s: Spring, target: number) => {
       s.value = target;
@@ -351,28 +368,42 @@ export default function CursorSDF() {
         tGrow = 1;
       }
 
-      const stiffness = mode === 'releasing' ? RELEASE_STIFFNESS : SPRING_STIFFNESS;
       if (mode === 'free') {
+        // Plain snappy dot.
+        relStart = null;
         snap(cx, tCX);
         snap(cy, tCY);
         snap(w, tW);
         snap(h, tH);
         snap(grow, tGrow);
+      } else if (mode === 'pinned') {
+        // Engage: spring in slowly toward the wrapped box (overdamped, no bounce).
+        relStart = null;
+        stepSpring(cx, tCX, SPRING_STIFFNESS, SPRING_DAMPING);
+        stepSpring(cy, tCY, SPRING_STIFFNESS, SPRING_DAMPING);
+        stepSpring(w, tW, SPRING_STIFFNESS, SPRING_DAMPING);
+        stepSpring(h, tH, SPRING_STIFFNESS, SPRING_DAMPING);
+        stepSpring(grow, tGrow, SPRING_STIFFNESS, SPRING_DAMPING);
       } else {
-        stepSpring(cx, tCX, stiffness, SPRING_DAMPING);
-        stepSpring(cy, tCY, stiffness, SPRING_DAMPING);
-        stepSpring(w, tW, stiffness, SPRING_DAMPING);
-        stepSpring(h, tH, stiffness, SPRING_DAMPING);
-        stepSpring(grow, tGrow, stiffness, SPRING_DAMPING);
-      }
-
-      if (mode === 'releasing') {
-        const back =
-          Math.abs(w.value - DOT_SIZE) < RELEASE_EPSILON &&
-          Math.abs(cx.value - pointerX) < RELEASE_EPSILON &&
-          Math.abs(cy.value - pointerY) < RELEASE_EPSILON &&
-          grow.value < 0.02;
-        if (back) mode = 'free';
+        // Releasing: timed ease-out back onto the LIVE cursor. Because we lerp
+        // from the let-go snapshot toward the current pointer, it lands exactly on
+        // the cursor at t=1 — no residual lag, even while the cursor keeps moving.
+        if (relStart === null) {
+          relStart = now;
+          relCX = cx.value;
+          relCY = cy.value;
+          relW = w.value;
+          relH = h.value;
+          relG = grow.value;
+        }
+        const t = Math.min((now - relStart) / RELEASE_DURATION, 1);
+        const e = 1 - Math.pow(1 - t, 3); // ease-out cubic: quick off the button, gentle landing
+        cx.value = relCX + (pointerX - relCX) * e;
+        cy.value = relCY + (pointerY - relCY) * e;
+        w.value = relW + (DOT_SIZE - relW) * e;
+        h.value = relH + (DOT_SIZE - relH) * e;
+        grow.value = relG + (0 - relG) * e;
+        if (t >= 1) mode = 'free';
       }
 
       gl.viewport(0, 0, canvas.width, canvas.height);
@@ -391,6 +422,9 @@ export default function CursorSDF() {
       gl.uniform4f(u.box, cx.value, cy.value, w.value / 2, h.value / 2);
       gl.uniform1f(u.corner, MAX_RADIUS);
       gl.uniform1f(u.wrap, grow.value);
+      // Keep the dot↔box bridge full through the whole release so it melts in as
+      // one body; in free it follows grow (≈0, so the dot stays a plain dot).
+      gl.uniform1f(u.bridge, mode === 'releasing' ? 1.0 : grow.value);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
       gl.enableVertexAttribArray(aPos);
