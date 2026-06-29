@@ -38,13 +38,16 @@ const RELEASE_STIFFNESS = 0.1; // release: box → dot (also slow now, was 0.45)
 const RELEASE_EPSILON = 0.5;
 /** How far (px) past a target's edge the cursor can travel before the wrap lets
  *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
-const RELEASE_DISTANCE = 44;
+const RELEASE_DISTANCE = 30;
 
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min blend radius in px (bigger = longer liquid bridge dot↔box). Sized
  *  to ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while
  *  it "holds on" past the edge, instead of detaching before it lets go. */
 const SMIN_K = 48;
+/** Smoothing (px) for blending the gapless connector neck into the body. Bigger
+ *  = a softer, blobbier junction; smaller = a more defined neck. */
+const NECK_SMOOTH = 10;
 /** Domain-warp amplitude in px when fully wrapped (subtle!). */
 const WARP_AMP = 4;
 /** Noise spatial scale (smaller = larger, lazier warp). */
@@ -141,6 +144,28 @@ export default function CursorSDF() {
         return mix(b, a, h) - k * h * (1.0 - h);
       }
 
+      // Signed distance to a 2D rounded cone (a tapered capsule) from a (radius
+      // r1) to b (radius r2). Used as a neck so the blob stays connected to the
+      // cursor with no gap on a fast pull, then vanishes as it reels back in. (iq)
+      float sdRoundedCone(vec2 p, vec2 a, vec2 b, float r1, float r2) {
+        vec2 ba = b - a;
+        float l2 = dot(ba, ba);
+        float rr = r1 - r2;
+        float a2 = l2 - rr * rr;
+        float il2 = 1.0 / l2;
+        vec2 pa = p - a;
+        float y = dot(pa, ba);
+        float z = y - l2;
+        vec2 xv = pa * l2 - ba * y;
+        float x2 = dot(xv, xv);
+        float y2 = y * y * l2;
+        float z2 = z * z * l2;
+        float kk = sign(rr) * rr * rr * x2;
+        if (sign(z) * a2 * z2 > kk) return sqrt(x2 + z2) * il2 - r2;
+        if (sign(y) * a2 * y2 < kk) return sqrt(x2 + y2) * il2 - r1;
+        return (sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
+      }
+
       float hash(vec2 p) {
         p = fract(p * vec2(123.34, 345.45));
         p += dot(p, p + 34.345);
@@ -186,6 +211,21 @@ export default function CursorSDF() {
         // Merge strength grows in as we wrap (≈0 when free → plain dot).
         float k = mix(0.001, ${glf(SMIN_K)}, u_wrap);
         float d = smin(dDot, dBox, k);
+
+        // Gapless connector: when the cursor outruns the box (fast pull-away),
+        // the smin bridge above snaps once the gap exceeds k. A tapered cone from
+        // the box center to the cursor (dot-radius at the cursor end) always spans
+        // the gap, so the shape stays one piece and the neck shrinks to nothing as
+        // the box catches up. Guard skips the degenerate a≈b / containment cases
+        // (which would NaN the cone) — and naturally excludes the free dot.
+        vec2 ab = u_cursor - boxCenter;
+        float nl2 = dot(ab, ab);
+        float r1 = max(u_dotRadius, min(boxHalf.x, boxHalf.y));
+        float nrr = r1 - u_dotRadius;
+        if (nl2 > nrr * nrr + 1.0) {
+          float dNeck = sdRoundedCone(p, boxCenter, u_cursor, r1, u_dotRadius);
+          d = smin(d, dNeck, ${glf(NECK_SMOOTH)});
+        }
 
         // ~1 physical px anti-aliased edge.
         float aa = 1.0 / u_dpr;
