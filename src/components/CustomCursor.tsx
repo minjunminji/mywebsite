@@ -61,6 +61,12 @@ const PRESS_SCALE = 0.8;
 const PRESS_STIFFNESS = 0.35;
 const PRESS_DAMPING = 0.55;
 
+/** Cap the cursor canvas backing-store DPR. A full-viewport canvas at full
+ *  device-pixel-ratio is a lot of fragments every frame; 1.5 keeps the blob crisp
+ *  while cutting the per-frame GPU + upload cost (which is what starves the cursor
+ *  during the frame-by-frame scene transitions). */
+const CURSOR_MAX_DPR = 1.5;
+
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
@@ -372,7 +378,8 @@ export default function CustomCursor() {
       else stepSpring(s, target, SPRING_STIFFNESS, SPRING_DAMPING);
     };
 
-    const scaleByDpr = (v: number) => Math.floor(v * (window.devicePixelRatio || 1));
+    const cursorDpr = () => Math.min(window.devicePixelRatio || 1, CURSOR_MAX_DPR);
+    const scaleByDpr = (v: number) => Math.floor(v * cursorDpr());
 
     const render = (now: number) => {
       if (destroyed) return;
@@ -384,7 +391,7 @@ export default function CustomCursor() {
         canvas.width = cw;
         canvas.height = ch;
       }
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = cursorDpr();
 
       let rect: DOMRect | null = null;
       if (mode === 'pinned') {
