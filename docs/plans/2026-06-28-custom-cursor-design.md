@@ -94,7 +94,9 @@ current += v` — slight overshoot, fast settle.
   marker (a metaball around a ~0.5rem dot looks wrong). The **prev/next chevrons**
   wrap, but tighten the blob with `data-cursor-pad="-4"` — a per-target override of
   the default `HOVER_PAD` — so it hugs the 14px icon instead of ballooning to the
-  full 2rem button.
+  full 2rem button. The top-right social icons use the same `data-cursor-pad`. Any
+  such tight control also releases at a shorter `TIGHT_RELEASE_DISTANCE` (15px)
+  rather than the default 30px, so the small blob lets go near its own edge.
 
 ## Architecture
 

@@ -47,6 +47,11 @@ const RELEASE_DURATION = 260;
 /** How far (px) past a target's edge the cursor can travel before the wrap lets
  *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
 const RELEASE_DISTANCE = 30;
+/** Release distance for "tight" controls — those that opt into a smaller wrap via
+ *  data-cursor-pad (the gallery chevrons and social icons). Shorter than
+ *  RELEASE_DISTANCE so a small blob lets go near its own edge instead of holding
+ *  on as far as a full-size label does. */
+const TIGHT_RELEASE_DISTANCE = 15;
 
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
@@ -307,6 +312,8 @@ export default function CustomCursor() {
     // Wrap padding for the active target (px). Defaults to HOVER_PAD; a target can
     // override it with data-cursor-pad (negative = a tighter blob, e.g. chevrons).
     let activePad = HOVER_PAD;
+    // Release distance for the active target — tighter for data-cursor-pad controls.
+    let activeRelease = RELEASE_DISTANCE;
     let pointerX = -9999;
     let pointerY = -9999;
     let hasPointer = false;
@@ -371,7 +378,7 @@ export default function CustomCursor() {
           // box "holds on" to the cursor further out before letting go.
           const dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
           const dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
-          if (Math.hypot(dx, dy) > RELEASE_DISTANCE) {
+          if (Math.hypot(dx, dy) > activeRelease) {
             activeEl = null;
             mode = 'releasing';
             rect = null;
@@ -514,6 +521,9 @@ export default function CustomCursor() {
         const padAttr = target.getAttribute('data-cursor-pad');
         const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
         activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
+        // A target that customizes its pad is a "tight" control, so it also lets go
+        // sooner (TIGHT_RELEASE_DISTANCE) rather than holding on like a big label.
+        activeRelease = padAttr !== null ? TIGHT_RELEASE_DISTANCE : RELEASE_DISTANCE;
         mode = 'pinned';
       }
     };
