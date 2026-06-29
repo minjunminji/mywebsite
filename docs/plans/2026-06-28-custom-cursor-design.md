@@ -90,9 +90,9 @@ current += v` — slight overshoot, fast settle.
   site's text labels: corner-menu links, project-title links, the `StoryNav`
   labels (`home` / `about` / `projects` / `experience` + project children), and the
   `software` / `product` lens toggles.
-- The **carousel arrows and dots** are the only clickable non-text elements; they
-  get a `data-cursor-skip` marker so they keep the plain dot instead of grabbing
-  the blob around an icon.
+- The **carousel dots** keep the plain dot — they carry a `data-cursor-skip`
+  marker (a metaball around a ~0.5rem dot looks wrong). The **prev/next chevrons**
+  wrap like any other button (each is a 2rem control, so the wrap reads fine).
 
 ## Architecture
 
