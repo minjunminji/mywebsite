@@ -7,15 +7,15 @@ import { stepSpring, type Spring } from '../cursorMath';
 /*  Technique 3 — SDF blob (WebGL2).                                   */
 /*                                                                    */
 /*  A full-viewport <canvas> with mix-blend-mode:difference. The       */
-/*  fragment shader computes the signed distance to a rounded box at    */
-/*  the hovered rect and to the cursor dot, then merges them with a     */
-/*  polynomial smooth-min so the dot melts into the box as one liquid   */
-/*  body. The sample point is domain-warped by a little fbm noise       */
-/*  (driven by u_time) for a subtle organic wobble. The SDF is          */
-/*  thresholded with smoothstep over ~1px into a crisp white fill on    */
-/*  transparent. When not hovering it just draws the dot at the cursor. */
-/*  Geometry (center/size/wrap) is springed on the JS side, mirroring   */
-/*  the other two techniques; the shader only renders + wobbles.        */
+/*  fragment shader builds one solid white shape from signed-distance  */
+/*  fields and thresholds it crisply, so it reads as the page          */
+/*  "negative". The cursor is a teardrop: the round dot plus a short   */
+/*  trailing point, smooth-min'd into a gooey comet that grows while   */
+/*  moving and collapses to a circle at rest (capped at ~one diameter  */
+/*  long). On hover that teardrop smooth-min's with a rounded box that  */
+/*  springs to wrap the element, so dot, tail and box are one body.    */
+/*  A little fbm domain-warp wobbles the box edge. Geometry is springed */
+/*  on the JS side; the shader only renders + wobbles.                 */
 /* ------------------------------------------------------------------ */
 
 /* ---- Tunables (dial "subtle" by eye) ----------------------------- */
@@ -40,10 +40,22 @@ const RELEASE_EPSILON = 0.5;
  *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
 const RELEASE_DISTANCE = 30;
 
+/* ---- Trailing tail — a short, gooey comet behind the moving dot --- */
+/** How fast the tail point chases the cursor (per frame). Higher = the tail
+ *  keeps up tighter, so it's shorter; lower = it lags more, longer tail. */
+const TAIL_FOLLOW = 0.4;
+/** Max tail length (dot center → tail point), in px. Capped to one diameter so
+ *  the trail stays short, per the desired look. */
+const TAIL_MAX = DOT_SIZE;
+/** Radius of the tail's trailing end, in px (small → it tapers to a point). */
+const TAIL_RADIUS = 2.5;
+
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
-/** Smooth-min blend radius in px (bigger = longer liquid bridge dot↔box). Sized
- *  to ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while
- *  it "holds on" past the edge, instead of detaching before it lets go. */
+/** Smooth-min radius joining the dot head to the tail point (gooey neck). */
+const TAIL_SMIN = 10;
+/** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
+ *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
+ *  "holds on" past the edge, instead of detaching before it lets go. */
 const SMIN_K = 48;
 /** Domain-warp amplitude in px when fully wrapped (subtle!). */
 const WARP_AMP = 4;
@@ -51,29 +63,6 @@ const WARP_AMP = 4;
 const WARP_NOISE_SCALE = 0.012;
 /** Noise time speed. */
 const WARP_TIME_SPEED = 0.35;
-
-/* ---- Trail tunables (reveal-style ping-pong feedback) ------------- */
-/* The trail is an organic, fading wisp inked along the cursor's PATH into a
- * ping-pong feedback buffer (borrowed from RevealFluid.tsx). Each frame the
- * buffer decays a little and a soft stroke is added from the previous cursor
- * position to the current one. The composite pass turns that buffer into a
- * gentle white coverage UNIONed with the crisp blob. Keep it SUBTLE. */
-/** Rough fade time in seconds — how long inked path lingers before vanishing.
- *  Bigger = a longer comet tail and a more forgiving bridge on a fast pull. */
-const TRAIL_FADE = 0.6;
-/** Stroke radius in px — half-thickness of the inked path (soft falloff to 0
- *  at this distance; solid only within ~10% of it). Wider = chunkier wisp. */
-const TRAIL_RADIUS = 16;
-/** How much ink a single frame's stroke deposits (0..1, accumulates + clamps).
- *  Higher = the trail reads in immediately; lower = it has to be retraced. */
-const TRAIL_STRENGTH = 0.6;
-/** Peak opacity of the trail in the composite (the blob itself is always 1).
- *  This is the main "subtlety" dial — lower for a fainter wisp. */
-const TRAIL_OPACITY = 0.5;
-/** Soft-edge thresholds mapping buffer value -> trail coverage. Values below
- *  EDGE0 are invisible (the faded tail); at/above EDGE1 are full TRAIL_OPACITY. */
-const TRAIL_EDGE0 = 0.08;
-const TRAIL_EDGE1 = 0.6;
 
 const TARGET_SELECTOR = 'a, button, [role="button"]';
 
@@ -132,80 +121,27 @@ export default function CursorSDF() {
 
     const vs = `#version 300 es
       in vec2 a_position;
-      out vec2 vUv;
       void main() {
-        // vUv: 0..1 across the quad, origin bottom-left (GL convention). Used to
-        // sample/write the trail buffer; both passes share this so a given screen
-        // pixel maps to the same texel in the update and composite passes.
-        vUv = a_position * 0.5 + 0.5;
         gl_Position = vec4(a_position, 0.0, 1.0);
       }
     `;
 
-    /* -------- Pass 1: trail update (ping-pong feedback) ------------- */
-    // Mirrors RevealFluid's blob shader. Reads the previous trail buffer, decays
-    // it a touch, then deposits a soft stroke from the previous cursor position
-    // to the current one (segment-distance trick → no dotted gaps on a fast
-    // move). Single R channel (RGBA8). All distances are in CSS px so they line
-    // up 1:1 with the composite pass and the DOM cursor coords.
-    const trailFS = `#version 300 es
-      precision highp float;
-      in vec2 vUv;
-      out vec4 fragColor;
-
-      uniform sampler2D u_prev;      // previous trail buffer
-      uniform vec2  u_resolution;    // CSS px
-      uniform vec2  u_cursor;        // DOM px (current)
-      uniform vec2  u_prevCursor;    // DOM px (previous frame)
-      uniform float u_active;        // 1 when a real pointer exists
-      uniform float u_dt;            // seconds since last frame
-
-      void main() {
-        float prev = texture(u_prev, vUv).r;
-
-        // Decay (clamped per-frame so a long frame can't wipe the whole trail).
-        prev -= clamp(u_dt / ${glf(TRAIL_FADE)}, 0.0, 0.1);
-        prev = clamp(prev, 0.0, 1.0);
-
-        if (u_active > 0.5) {
-          // This fragment in CSS px, top-left origin (vUv.y flipped to match DOM).
-          vec2 fragPx = vec2(vUv.x, 1.0 - vUv.y) * u_resolution;
-
-          // Closest point on the segment prevCursor -> cursor, then its distance.
-          vec2 seg = u_cursor - u_prevCursor;
-          float segLenSq = max(dot(seg, seg), 1e-5);
-          float t = clamp(dot(fragPx - u_prevCursor, seg) / segLenSq, 0.0, 1.0);
-          vec2 closest = u_prevCursor + seg * t;
-          float dist = distance(fragPx, closest);
-
-          float f = 1.0 - smoothstep(${glf(TRAIL_RADIUS)} * 0.1, ${glf(TRAIL_RADIUS)}, dist);
-          prev += f * ${glf(TRAIL_STRENGTH)};
-          prev = clamp(prev, 0.0, 1.0);
-        }
-
-        fragColor = vec4(prev, 0.0, 0.0, 1.0);
-      }
-    `;
-
-    /* -------- Pass 2: composite (crisp blob ∪ soft trail) ---------- */
     // All math is in CSS px with a top-left origin (matching DOM coords). We
-    // convert gl_FragCoord (physical px, bottom-left) accordingly. The blob is
-    // computed exactly as before (rounded box smin'd with the dot, warped); the
-    // trail buffer is read via vUv and unioned in as a soft, fading coverage.
-    const compositeFS = `#version 300 es
+    // convert gl_FragCoord (physical px, bottom-left) accordingly.
+    const fs = `#version 300 es
       precision highp float;
-      in vec2 vUv;
       out vec4 fragColor;
 
       uniform vec2  u_resolution; // CSS px
       uniform float u_dpr;
       uniform float u_time;
-      uniform vec2  u_cursor;     // DOM px, snappy dot center
+      uniform vec2  u_cursor;     // DOM px, snappy dot center (tail head)
+      uniform vec2  u_tail;       // DOM px, trailing tail point
       uniform float u_dotRadius;  // px
+      uniform float u_tailRadius; // px
       uniform vec4  u_box;        // cx, cy, halfW, halfH (DOM px)
       uniform float u_corner;     // px
       uniform float u_wrap;       // 0..1
-      uniform sampler2D u_trail;  // trail buffer (R channel)
 
       // Signed distance to a rounded box centered at the origin.
       float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -259,134 +195,60 @@ export default function CursorSDF() {
         vec2 boxHalf = u_box.zw;
         float corner = min(u_corner, min(boxHalf.x, boxHalf.y));
         float dBox = sdRoundBox(pb - boxCenter, boxHalf, corner);
-        float dDot = length(p - u_cursor) - u_dotRadius;
 
-        // Merge strength grows in as we wrap (≈0 when free → plain dot). The smin
-        // bridge keeps the dot connected to the box across small gaps; the trail
-        // (below) covers larger gaps on a fast pull-away.
+        // Cursor teardrop: the round dot (head) + a small trailing point, smooth-
+        // min'd into one gooey comet. When still the tail point sits on the dot,
+        // so it collapses back to a plain circle.
+        float dHead = length(p - u_cursor) - u_dotRadius;
+        float dTail = length(p - u_tail) - u_tailRadius;
+        float dCursor = smin(dHead, dTail, ${glf(TAIL_SMIN)});
+
+        // Merge the teardrop into the box. Strength grows in as we wrap (≈0 when
+        // free → the box is just the dot, so this is a no-op there).
         float k = mix(0.001, ${glf(SMIN_K)}, u_wrap);
-        float d = smin(dDot, dBox, k);
+        float d = smin(dCursor, dBox, k);
 
-        // ~1 physical px anti-aliased edge → crisp blob coverage.
+        // ~1 physical px anti-aliased edge.
         float aa = 1.0 / u_dpr;
-        float blobAlpha = 1.0 - smoothstep(-aa, aa, d);
-
-        // Soft trail coverage from the feedback buffer (fading wisp behind path).
-        float trailValue = texture(u_trail, vUv).r;
-        float trailAlpha = smoothstep(${glf(TRAIL_EDGE0)}, ${glf(TRAIL_EDGE1)}, trailValue)
-                           * ${glf(TRAIL_OPACITY)};
-
-        // Union: the blob stays fully crisp; the trail only adds where it's softer.
-        float coverage = max(blobAlpha, trailAlpha);
+        float alpha = 1.0 - smoothstep(-aa, aa, d);
 
         // Premultiplied white (premultipliedAlpha:true).
-        fragColor = vec4(vec3(coverage), coverage);
+        fragColor = vec4(vec3(alpha), alpha);
       }
     `;
 
-    const trailProgram = createProgram(vs, trailFS);
-    if (!trailProgram) return;
-    const compositeProgram = createProgram(vs, compositeFS);
-    if (!compositeProgram) return;
+    const program = createProgram(vs, fs);
+    if (!program) return;
 
-    // Composite-pass uniforms (the on-screen blob + trail union).
     const u = {
-      resolution: gl.getUniformLocation(compositeProgram, 'u_resolution'),
-      dpr: gl.getUniformLocation(compositeProgram, 'u_dpr'),
-      time: gl.getUniformLocation(compositeProgram, 'u_time'),
-      cursor: gl.getUniformLocation(compositeProgram, 'u_cursor'),
-      dotRadius: gl.getUniformLocation(compositeProgram, 'u_dotRadius'),
-      box: gl.getUniformLocation(compositeProgram, 'u_box'),
-      corner: gl.getUniformLocation(compositeProgram, 'u_corner'),
-      wrap: gl.getUniformLocation(compositeProgram, 'u_wrap'),
-      trail: gl.getUniformLocation(compositeProgram, 'u_trail'),
-    };
-    // Trail-update-pass uniforms.
-    const ut = {
-      prev: gl.getUniformLocation(trailProgram, 'u_prev'),
-      resolution: gl.getUniformLocation(trailProgram, 'u_resolution'),
-      cursor: gl.getUniformLocation(trailProgram, 'u_cursor'),
-      prevCursor: gl.getUniformLocation(trailProgram, 'u_prevCursor'),
-      active: gl.getUniformLocation(trailProgram, 'u_active'),
-      dt: gl.getUniformLocation(trailProgram, 'u_dt'),
+      resolution: gl.getUniformLocation(program, 'u_resolution'),
+      dpr: gl.getUniformLocation(program, 'u_dpr'),
+      time: gl.getUniformLocation(program, 'u_time'),
+      cursor: gl.getUniformLocation(program, 'u_cursor'),
+      tail: gl.getUniformLocation(program, 'u_tail'),
+      dotRadius: gl.getUniformLocation(program, 'u_dotRadius'),
+      tailRadius: gl.getUniformLocation(program, 'u_tailRadius'),
+      box: gl.getUniformLocation(program, 'u_box'),
+      corner: gl.getUniformLocation(program, 'u_corner'),
+      wrap: gl.getUniformLocation(program, 'u_wrap'),
     };
 
     const quadBuf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const aPosTrail = gl.getAttribLocation(trailProgram, 'a_position');
-    const aPosComposite = gl.getAttribLocation(compositeProgram, 'a_position');
-
-    // Bind the shared quad and point the given attribute at it, then draw.
-    const drawQuad = (aLoc: number) => {
-      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-      gl.enableVertexAttribArray(aLoc);
-      gl.vertexAttribPointer(aLoc, 2, gl.FLOAT, false, 0, 0);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    };
-
-    /* -------- ping-pong FBO pair for the trail (mirrors RevealFluid) */
-    // RGBA8, LINEAR, CLAMP_TO_EDGE. Sized to the physical (DPR-scaled) canvas.
-    const createFBO = (fw: number, fh: number) => {
-      const tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, fw, fh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-      const fbo = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-      return { tex, fbo };
-    };
-    // Clear an FBO to zero so the very first frame reads an empty trail (no flash).
-    const clearFBO = (fb: { fbo: WebGLFramebuffer | null }) => {
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fb.fbo);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-    };
-
-    const scaleByDpr = (v: number) => Math.floor(v * (window.devicePixelRatio || 1));
-
-    let fbW = Math.max(1, scaleByDpr(canvas.clientWidth));
-    let fbH = Math.max(1, scaleByDpr(canvas.clientHeight));
-    let fbA = createFBO(fbW, fbH);
-    let fbB = createFBO(fbW, fbH);
-    clearFBO(fbA);
-    clearFBO(fbB);
-
-    // Recreate both FBOs at a new size (and clear) when the canvas resizes.
-    const resizeFBOs = (fw: number, fh: number) => {
-      if (fw === fbW && fh === fbH) return;
-      gl.deleteTexture(fbA.tex);
-      gl.deleteFramebuffer(fbA.fbo);
-      gl.deleteTexture(fbB.tex);
-      gl.deleteFramebuffer(fbB.fbo);
-      fbW = fw;
-      fbH = fh;
-      fbA = createFBO(fw, fh);
-      fbB = createFBO(fw, fh);
-      clearFBO(fbA);
-      clearFBO(fbB);
-    };
+    const aPos = gl.getAttribLocation(program, 'a_position');
 
     /* -------- shared cursor state machine -------------------------- */
     let mode: Mode = 'free';
     let activeEl: Element | null = null;
     let pointerX = -9999;
     let pointerY = -9999;
+    // Trailing tail point (chases the cursor, clamped to a short max length).
+    let tailX = -9999;
+    let tailY = -9999;
     let hasPointer = false;
     let destroyed = false;
     let rafId: number | null = null;
-
-    // Trail bookkeeping: where the cursor was last frame (so the update pass can
-    // ink the segment prevCursor → cursor) and dt for the decay. prevCursor is
-    // seeded to the cursor on the first move so there's no stroke from (0,0).
-    let prevCursorX = pointerX;
-    let prevCursorY = pointerY;
-    let hasPrevCursor = false;
-    let lastTime = performance.now();
 
     const cx: Spring = { value: -9999, velocity: 0 };
     const cy: Spring = { value: -9999, velocity: 0 };
@@ -399,23 +261,34 @@ export default function CursorSDF() {
       s.velocity = 0;
     };
 
+    const scaleByDpr = (v: number) => Math.floor(v * (window.devicePixelRatio || 1));
+
     const render = (now: number) => {
       if (destroyed) return;
 
-      // Seconds since last frame (clamped like RevealFluid so a stalled tab can't
-      // wipe or over-build the trail in one giant step).
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
-      lastTime = now;
-
-      // DPR-aware resize (also resizes the trail FBOs to match).
+      // DPR-aware resize.
       const cw = scaleByDpr(canvas.clientWidth);
       const ch = scaleByDpr(canvas.clientHeight);
       if (canvas.width !== cw || canvas.height !== ch) {
         canvas.width = cw;
         canvas.height = ch;
-        resizeFBOs(cw, ch);
       }
       const dpr = window.devicePixelRatio || 1;
+
+      // Tail point chases the cursor, capped to TAIL_MAX behind it. When the
+      // cursor is still it converges onto the dot → a plain circle; when moving
+      // it lags into a short comet tail opposite the direction of travel.
+      if (hasPointer) {
+        tailX += (pointerX - tailX) * TAIL_FOLLOW;
+        tailY += (pointerY - tailY) * TAIL_FOLLOW;
+        const ldx = pointerX - tailX;
+        const ldy = pointerY - tailY;
+        const ldist = Math.hypot(ldx, ldy);
+        if (ldist > TAIL_MAX) {
+          tailX = pointerX - (ldx / ldist) * TAIL_MAX;
+          tailY = pointerY - (ldy / ldist) * TAIL_MAX;
+        }
+      }
 
       let rect: DOMRect | null = null;
       if (mode === 'pinned') {
@@ -475,59 +348,27 @@ export default function CursorSDF() {
         if (back) mode = 'free';
       }
 
-      const cursorX = hasPointer ? pointerX : -9999;
-      const cursorY = hasPointer ? pointerY : -9999;
-      // Seed prevCursor to the current cursor on the first real move (zero-length
-      // segment = a single dot at the cursor, no streak from the sentinel).
-      if (hasPointer && !hasPrevCursor) {
-        prevCursorX = cursorX;
-        prevCursorY = cursorY;
-        hasPrevCursor = true;
-      }
-
-      // --- Pass 1: update the trail (render to fbB, reading fbA) ---
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fbB.fbo);
-      gl.viewport(0, 0, fbW, fbH);
-      gl.useProgram(trailProgram);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, fbA.tex);
-      gl.uniform1i(ut.prev, 0);
-      gl.uniform2f(ut.resolution, canvas.clientWidth, canvas.clientHeight);
-      gl.uniform2f(ut.cursor, cursorX, cursorY);
-      gl.uniform2f(ut.prevCursor, prevCursorX, prevCursorY);
-      gl.uniform1f(ut.active, hasPointer ? 1 : 0);
-      gl.uniform1f(ut.dt, dt);
-      drawQuad(aPosTrail);
-
-      // Remember this frame's cursor for next frame's segment, then swap so fbA
-      // holds the freshly-updated trail for the composite pass below.
-      prevCursorX = cursorX;
-      prevCursorY = cursorY;
-      const tmp = fbA;
-      fbA = fbB;
-      fbB = tmp;
-
-      // --- Pass 2: composite the blob + trail to the screen ---
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.useProgram(compositeProgram);
+      gl.useProgram(program);
 
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, fbA.tex);
-      gl.uniform1i(u.trail, 0);
       gl.uniform2f(u.resolution, canvas.clientWidth, canvas.clientHeight);
       gl.uniform1f(u.dpr, dpr);
       gl.uniform1f(u.time, now * 0.001);
       // Hide everything until a real pointer position is known.
-      gl.uniform2f(u.cursor, cursorX, cursorY);
+      gl.uniform2f(u.cursor, hasPointer ? pointerX : -9999, hasPointer ? pointerY : -9999);
+      gl.uniform2f(u.tail, hasPointer ? tailX : -9999, hasPointer ? tailY : -9999);
       gl.uniform1f(u.dotRadius, DOT_SIZE / 2);
+      gl.uniform1f(u.tailRadius, TAIL_RADIUS);
       gl.uniform4f(u.box, cx.value, cy.value, w.value / 2, h.value / 2);
       gl.uniform1f(u.corner, MAX_RADIUS);
       gl.uniform1f(u.wrap, grow.value);
 
-      drawQuad(aPosComposite);
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
       rafId = requestAnimationFrame(render);
     };
@@ -538,6 +379,8 @@ export default function CursorSDF() {
       if (!hasPointer) {
         cx.value = pointerX;
         cy.value = pointerY;
+        tailX = pointerX;
+        tailY = pointerY;
       }
       hasPointer = true;
     };
@@ -548,8 +391,8 @@ export default function CursorSDF() {
         mode = 'pinned';
       }
     };
-    // No pointerout release: the wrap now lets go via the RELEASE_DISTANCE
-    // hysteresis in the render loop, so it can "hold on" past the element edge.
+    // No pointerout release: the wrap lets go via the RELEASE_DISTANCE hysteresis
+    // in the render loop, so it can "hold on" past the element edge.
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.addEventListener('pointerover', onPointerOver, true);
@@ -561,12 +404,7 @@ export default function CursorSDF() {
       window.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerover', onPointerOver, true);
       gl.deleteBuffer(quadBuf);
-      gl.deleteProgram(trailProgram);
-      gl.deleteProgram(compositeProgram);
-      gl.deleteTexture(fbA.tex);
-      gl.deleteFramebuffer(fbA.fbo);
-      gl.deleteTexture(fbB.tex);
-      gl.deleteFramebuffer(fbB.fbo);
+      gl.deleteProgram(program);
     };
   }, []);
 
