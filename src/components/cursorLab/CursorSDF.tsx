@@ -40,6 +40,11 @@ const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
  *  lands exactly on the live cursor within this window however you keep moving.
  *  Lower = snappier retract. */
 const RELEASE_DURATION = 260;
+/** How fast (ms) the releasing wrap re-centers onto the cursor — much shorter than
+ *  RELEASE_DURATION so it becomes concentric with the dot almost immediately and
+ *  then deflates in place, instead of trailing behind as a separate offset circle.
+ *  Keep this well under RELEASE_DURATION. */
+const RELEASE_POS_DURATION = 90;
 /** How far (px) past a target's edge the cursor can travel before the wrap lets
  *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
 const RELEASE_DISTANCE = 30;
@@ -385,9 +390,12 @@ export default function CursorSDF() {
         stepSpring(h, tH, SPRING_STIFFNESS, SPRING_DAMPING);
         stepSpring(grow, tGrow, SPRING_STIFFNESS, SPRING_DAMPING);
       } else {
-        // Releasing: timed ease-out back onto the LIVE cursor. Because we lerp
-        // from the let-go snapshot toward the current pointer, it lands exactly on
-        // the cursor at t=1 — no residual lag, even while the cursor keeps moving.
+        // Releasing: timed ease back onto the LIVE cursor. Position and size are
+        // decoupled — the box RE-CENTERS on the cursor fast (RELEASE_POS_DURATION)
+        // so it becomes concentric with the dot almost immediately, then DEFLATES
+        // its size onto the cursor over the longer RELEASE_DURATION. That way it
+        // reads as one blob shrinking onto the cursor, not a separate bigger circle
+        // trailing behind (which is what an offset, slowly-merging box looked like).
         if (relStart === null) {
           relStart = now;
           relCX = cx.value;
@@ -396,14 +404,18 @@ export default function CursorSDF() {
           relH = h.value;
           relG = grow.value;
         }
-        const t = Math.min((now - relStart) / RELEASE_DURATION, 1);
-        const e = 1 - Math.pow(1 - t, 3); // ease-out cubic: quick off the button, gentle landing
-        cx.value = relCX + (pointerX - relCX) * e;
-        cy.value = relCY + (pointerY - relCY) * e;
-        w.value = relW + (DOT_SIZE - relW) * e;
-        h.value = relH + (DOT_SIZE - relH) * e;
-        grow.value = relG + (0 - relG) * e;
-        if (t >= 1) mode = 'free';
+        const elapsed = now - relStart;
+        const tPos = Math.min(elapsed / RELEASE_POS_DURATION, 1);
+        const tSize = Math.min(elapsed / RELEASE_DURATION, 1);
+        const ePos = 1 - Math.pow(1 - tPos, 3); // ease-out: snap concentric quickly
+        const eSize = 1 - Math.pow(1 - tSize, 3); // ease-out: gentle deflate
+        // Once ePos hits 1 this tracks the live cursor exactly (stays concentric).
+        cx.value = relCX + (pointerX - relCX) * ePos;
+        cy.value = relCY + (pointerY - relCY) * ePos;
+        w.value = relW + (DOT_SIZE - relW) * eSize;
+        h.value = relH + (DOT_SIZE - relH) * eSize;
+        grow.value = relG + (0 - relG) * eSize;
+        if (tSize >= 1) mode = 'free';
       }
 
       gl.viewport(0, 0, canvas.width, canvas.height);
