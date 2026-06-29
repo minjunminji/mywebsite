@@ -36,10 +36,15 @@ const SPRING_STIFFNESS = 0.09; // engage: dot → box (slow)
 const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
 const RELEASE_STIFFNESS = 0.1; // release: box → dot (also slow now, was 0.45)
 const RELEASE_EPSILON = 0.5;
+/** How far (px) past a target's edge the cursor can travel before the wrap lets
+ *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
+const RELEASE_DISTANCE = 44;
 
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
-/** Smooth-min blend radius in px (bigger = longer liquid bridge dot↔box). */
-const SMIN_K = 28;
+/** Smooth-min blend radius in px (bigger = longer liquid bridge dot↔box). Sized
+ *  to ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while
+ *  it "holds on" past the edge, instead of detaching before it lets go. */
+const SMIN_K = 48;
 /** Domain-warp amplitude in px when fully wrapped (subtle!). */
 const WARP_AMP = 4;
 /** Noise spatial scale (smaller = larger, lazier warp). */
@@ -251,6 +256,17 @@ export default function CursorSDF() {
           activeEl = null;
           mode = 'releasing';
           rect = null;
+        } else {
+          // Hysteresis hold: stay wrapped until the cursor pulls RELEASE_DISTANCE
+          // past the element's edge (distance is 0 while inside the rect), so the
+          // box "holds on" to the cursor further out before letting go.
+          const dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
+          const dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
+          if (Math.hypot(dx, dy) > RELEASE_DISTANCE) {
+            activeEl = null;
+            mode = 'releasing';
+            rect = null;
+          }
         }
       }
 
@@ -330,17 +346,11 @@ export default function CursorSDF() {
         mode = 'pinned';
       }
     };
-    const onPointerOut = (e: PointerEvent) => {
-      if (!activeEl) return;
-      const related = e.relatedTarget;
-      if (related instanceof Node && activeEl.contains(related)) return;
-      activeEl = null;
-      mode = 'releasing';
-    };
+    // No pointerout release: the wrap now lets go via the RELEASE_DISTANCE
+    // hysteresis in the render loop, so it can "hold on" past the element edge.
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.addEventListener('pointerover', onPointerOver, true);
-    document.addEventListener('pointerout', onPointerOut, true);
     rafId = requestAnimationFrame(render);
 
     return () => {
@@ -348,7 +358,6 @@ export default function CursorSDF() {
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerover', onPointerOver, true);
-      document.removeEventListener('pointerout', onPointerOut, true);
       gl.deleteBuffer(quadBuf);
       gl.deleteProgram(program);
     };
