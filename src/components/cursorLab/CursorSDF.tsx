@@ -43,16 +43,14 @@ const RELEASE_DISTANCE = 30;
 /* ---- Trailing tail — a short, gooey comet behind the moving dot --- */
 /** How fast the tail point chases the cursor (per frame). Higher = the tail
  *  keeps up tighter, so it's shorter; lower = it lags more, longer tail. */
-const TAIL_FOLLOW = 0.4;
+const TAIL_FOLLOW = 0.2;
 /** Max tail length (dot center → tail point), in px. Capped to one diameter so
  *  the trail stays short, per the desired look. */
-const TAIL_MAX = DOT_SIZE;
+const TAIL_MAX = DOT_SIZE*3;
 /** Radius of the tail's trailing end, in px (small → it tapers to a point). */
-const TAIL_RADIUS = 2.5;
+const TAIL_RADIUS = 3;
 
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
-/** Smooth-min radius joining the dot head to the tail point (gooey neck). */
-const TAIL_SMIN = 10;
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
  *  "holds on" past the edge, instead of detaching before it lets go. */
@@ -155,6 +153,28 @@ export default function CursorSDF() {
         return mix(b, a, h) - k * h * (1.0 - h);
       }
 
+      // Signed distance to a 2D rounded cone (tapered capsule) from a (radius r1)
+      // to b (radius r2). One swept shape, so its two ends can never separate at
+      // speed — it just stretches and tapers. (iq)
+      float sdRoundedCone(vec2 p, vec2 a, vec2 b, float r1, float r2) {
+        vec2 ba = b - a;
+        float l2 = dot(ba, ba);
+        float rr = r1 - r2;
+        float a2 = l2 - rr * rr;
+        float il2 = 1.0 / l2;
+        vec2 pa = p - a;
+        float y = dot(pa, ba);
+        float z = y - l2;
+        vec2 xv = pa * l2 - ba * y;
+        float x2 = dot(xv, xv);
+        float y2 = y * y * l2;
+        float z2 = z * z * l2;
+        float kk = sign(rr) * rr * rr * x2;
+        if (sign(z) * a2 * z2 > kk) return sqrt(x2 + z2) * il2 - r2;
+        if (sign(y) * a2 * y2 < kk) return sqrt(x2 + y2) * il2 - r1;
+        return (sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
+      }
+
       float hash(vec2 p) {
         p = fract(p * vec2(123.34, 345.45));
         p += dot(p, p + 34.345);
@@ -196,12 +216,19 @@ export default function CursorSDF() {
         float corner = min(u_corner, min(boxHalf.x, boxHalf.y));
         float dBox = sdRoundBox(pb - boxCenter, boxHalf, corner);
 
-        // Cursor teardrop: the round dot (head) + a small trailing point, smooth-
-        // min'd into one gooey comet. When still the tail point sits on the dot,
-        // so it collapses back to a plain circle.
+        // Cursor teardrop: a tapered capsule swept from the dot head (radius
+        // u_dotRadius) to the trailing tail point (radius u_tailRadius). Being one
+        // swept shape, head and tail can NEVER separate at speed — it only
+        // stretches and tapers. Collapses to the head circle when the tail sits on
+        // the cursor (still); the guard skips the degenerate near-coincident case
+        // (tail within the head) that would NaN the cone.
         float dHead = length(p - u_cursor) - u_dotRadius;
-        float dTail = length(p - u_tail) - u_tailRadius;
-        float dCursor = smin(dHead, dTail, ${glf(TAIL_SMIN)});
+        float dCursor = dHead;
+        vec2 tb = u_tail - u_cursor;
+        float trr = u_dotRadius - u_tailRadius;
+        if (dot(tb, tb) > trr * trr + 1.0) {
+          dCursor = sdRoundedCone(p, u_cursor, u_tail, u_dotRadius, u_tailRadius);
+        }
 
         // Merge the teardrop into the box. Strength grows in as we wrap (≈0 when
         // free → the box is just the dot, so this is a no-op there).
