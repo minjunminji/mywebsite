@@ -92,7 +92,9 @@ current += v` — slight overshoot, fast settle.
   `software` / `product` lens toggles.
 - The **carousel dots** keep the plain dot — they carry a `data-cursor-skip`
   marker (a metaball around a ~0.5rem dot looks wrong). The **prev/next chevrons**
-  wrap like any other button (each is a 2rem control, so the wrap reads fine).
+  wrap, but tighten the blob with `data-cursor-pad="-4"` — a per-target override of
+  the default `HOVER_PAD` — so it hugs the 14px icon instead of ballooning to the
+  full 2rem button.
 
 ## Architecture
 

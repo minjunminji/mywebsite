@@ -25,7 +25,9 @@ import { stepSpring, type Spring } from './cursorMath';
 
 /** Diameter of the free cursor dot, in px. */
 const DOT_SIZE = 18;
-/** Padding around the hovered element's rect, in px. */
+/** Default padding around the hovered element's rect, in px. A target can override
+ *  it with a `data-cursor-pad` attribute (negative tightens the blob on small
+ *  controls like the gallery chevrons). */
 const HOVER_PAD = 8;
 /** Max corner radius of the wrap, in px. Clamped to half the box's shorter side,
  *  so short targets become fully pill-ended; raise for rounder, lower for boxier. */
@@ -302,6 +304,9 @@ export default function CustomCursor() {
     /* -------- cursor state machine --------------------------------- */
     let mode: Mode = 'free';
     let activeEl: Element | null = null;
+    // Wrap padding for the active target (px). Defaults to HOVER_PAD; a target can
+    // override it with data-cursor-pad (negative = a tighter blob, e.g. chevrons).
+    let activePad = HOVER_PAD;
     let pointerX = -9999;
     let pointerY = -9999;
     let hasPointer = false;
@@ -382,8 +387,9 @@ export default function CustomCursor() {
       if (mode === 'pinned' && rect) {
         tCX = rect.left + rect.width / 2;
         tCY = rect.top + rect.height / 2;
-        tW = rect.width + HOVER_PAD * 2;
-        tH = rect.height + HOVER_PAD * 2;
+        // Never let the wrap fall below the free dot, even with a negative pad.
+        tW = Math.max(rect.width + activePad * 2, DOT_SIZE);
+        tH = Math.max(rect.height + activePad * 2, DOT_SIZE);
         tGrow = 1;
       }
 
@@ -505,6 +511,9 @@ export default function CustomCursor() {
       const target = (e.target as Element | null)?.closest(TARGET_SELECTOR) ?? null;
       if (target && !target.closest(SKIP_SELECTOR)) {
         activeEl = target;
+        const padAttr = target.getAttribute('data-cursor-pad');
+        const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
+        activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
         mode = 'pinned';
       }
     };
