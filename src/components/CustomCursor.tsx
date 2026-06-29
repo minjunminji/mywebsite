@@ -1,251 +1,488 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { usePathname } from 'next/navigation';
-import { remapClamped, stepSpring, type Spring } from './cursorMath';
+import { stepSpring, type Spring } from './cursorMath';
 
-/* ------------------------------------------------------------------ */
-/*  Tunables — group every knob here for experimentation.             */
-/* ------------------------------------------------------------------ */
-
-/** Diameter of the free cursor circle, in px. Dial in by eye (reference uses 15). */
-const CURSOR_DIAMETER = 18;
-
-/** Diameter of the grown blob while hovering a clickable label, in px. */
-const CURSOR_HOVER_SIZE = 56;
-
-/**
- * How far the stuck blob leans toward the pointer, as a fraction of the
- * pointer-to-center distance. 0 = sits dead-center on the label; ~0.1 = a subtle
- * lean that reads as the blob "reaching" toward the cursor.
+/*
+ * CustomCursor — the site's negative liquid cursor (WebGL2 SDF).
+ *
+ * Replaces the OS cursor with one solid white shape rendered by a full-viewport
+ * <canvas> under mix-blend-mode:difference, so it shows the negative of whatever
+ * it covers. Free movement is a plain round dot; on hover it smooth-min's with a
+ * rounded box that springs to wrap the element (one liquid body); on leave the
+ * box drains off along the direction you left, down a tapering stream, back into
+ * the dot. An fbm domain-warp wobbles the wrapped edge. Geometry is springed /
+ * eased on the JS side; the shader renders + wobbles.
+ *
+ * Gating: activates only on fine-pointer (hover-capable) devices; honors
+ * prefers-reduced-motion (the wrap affordance is kept, the liquid motion is
+ * stripped); hides the native cursor via the `cursor-hidden` class while active.
+ * Mounted once in app/layout.tsx inside <body> (which has no
+ * transform/filter/isolation ancestor) so it blends against the whole page.
  */
-const STICK_LEAN = 0.1;
 
-/**
- * Squash-and-stretch caps for the hover blob, applied directly each frame (not
- * springed). The blob stretches along the pointer direction up to STRETCH_X_MAX
- * and thins across it down to STRETCH_Y_MIN as the pointer pulls toward the
- * label's edge. The height-for-X / width-for-Y pairing is deliberate (matches
- * the reference): scaleX maps over half the label height, scaleY over half its
- * width.
- */
-const STRETCH_X_MAX = 1.3;
-const STRETCH_Y_MIN = 0.8;
+/* ---- Tunables (dial "subtle" by eye) ----------------------------- */
 
-/**
- * Leaky-integrator spring used for the grow → blob morph (and the melt back).
- * Stiffness pulls toward the target; damping (<1) bleeds velocity so it settles
- * with a slight elastic overshoot rather than ringing forever.
- */
-const SPRING_STIFFNESS = 0.2;
-const SPRING_DAMPING = 0.76;
+/** Diameter of the free cursor dot, in px. */
+const DOT_SIZE = 18;
+/** Padding around the hovered element's rect, in px. */
+const HOVER_PAD = 8;
+/** Max corner radius of the wrap, in px. Clamped to half the box's shorter side,
+ *  so short targets become fully pill-ended; raise for rounder, lower for boxier. */
+const MAX_RADIUS = 28;
 
-/**
- * Stiffer pull used for the center + size springs ONLY while 'releasing', so the
- * melt-back catches a still-moving pointer quickly instead of trailing — keeps
- * the crisp 1:1 promise. Damping stays SPRING_DAMPING everywhere.
- */
-const RELEASE_STIFFNESS = 0.45;
+/** Geometry spring — overdamped + low stiffness gives a slow, smooth dot↔box
+ *  transition with (almost) no rebound. Lower STIFFNESS = slower transition;
+ *  lower DAMPING = less "boing". At this damping, keep stiffness under ~0.12 to
+ *  stay non-bouncy (above that it starts to overshoot/oscillate again). */
+const SPRING_STIFFNESS = 0.09; // engage: dot → box (slow)
+const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
+/** Release is a TIMED ease (ms), NOT a spring (a spring chases the moving cursor
+ *  and always lags). Over this window the bulk reels onto the LIVE cursor along
+ *  the pull axis and drains down the stream, landing exactly on it however you
+ *  keep moving. Lower = snappier retract. */
+const RELEASE_DURATION = 260;
+/** How far (px) past a target's edge the cursor can travel before the wrap lets
+ *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
+const RELEASE_DISTANCE = 30;
 
-/** Per-frame lerp easing rotation + stretch back to neutral while releasing. */
-const RELEASE_NEUTRALIZE_EASE = 0.25;
+/* ---- Shader-side tunables (injected as GLSL float literals) ------- */
+/** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
+ *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
+ *  "holds on" past the edge, instead of detaching before it lets go. */
+const SMIN_K = 48;
+/** Domain-warp amplitude in px when fully wrapped (subtle!). */
+const WARP_AMP = 4;
+/** Noise spatial scale (smaller = larger, lazier warp). */
+const WARP_NOISE_SCALE = 0.012;
+/** Noise time speed. */
+const WARP_TIME_SPEED = 0.35;
 
-/** Within this many px of the free circle (size + center), 'releasing' → 'free'. */
-const RELEASE_EPSILON = 0.5;
+/** Clickable things the cursor wraps (the site's text labels). */
+const TARGET_SELECTOR = 'a, button, [role="button"]';
+/** Marker on clickable non-text controls (icon buttons) that must NOT wrap. */
+const SKIP_SELECTOR = '[data-cursor-skip]';
 
-/**
- * Only activate on devices with a real hovering, fine pointer (mouse/trackpad).
- * On touch / coarse-pointer devices we render nothing and leave the OS cursor
- * untouched.
- */
+/** Only activate on devices with a real hovering, fine pointer (mouse/trackpad).
+ *  On touch / coarse-pointer devices we render nothing and leave the OS cursor. */
 const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
-
 /** Media query for users who asked the OS to reduce motion. */
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
-
 /** Class added to <html> to hide the native cursor while ours is active. */
 const HIDE_NATIVE_CURSOR_CLASS = 'cursor-hidden';
 
-/** Selector for the clickable things the cursor sticks to (all text labels). */
-const TARGET_SELECTOR = 'a, button, [role="button"]';
-/** Marker on clickable non-text controls (icon buttons) that must NOT stick. */
-const SKIP_SELECTOR = '[data-cursor-skip]';
+type Mode = 'free' | 'pinned' | 'releasing';
 
-/**
- * The cursor is driven by a small state machine inside one rAF loop:
- *   'free'      — snap 1:1 to the pointer as a plain, un-stretched negative dot.
- *   'pinned'    — spring center + size onto a hovered label, growing into a blob
- *                 that rotates to face the pointer and stretches toward it.
- *   'releasing' — spring back to the dot-at-pointer, then hand back to 'free'.
- */
-type CursorMode = 'free' | 'pinned' | 'releasing';
+/** Format a JS number as a GLSL float literal (always has a decimal point). */
+const glf = (n: number) => (Number.isInteger(n) ? n.toFixed(1) : String(n));
 
 export default function CustomCursor() {
-  const elementRef = useRef<HTMLDivElement>(null);
-
-  // PROTOTYPE-ONLY: the cursor lab (/cursor-lab) mounts its own experimental
-  // cursors, so the global one would fight them and hide the native cursor.
-  // Bail entirely on that route (no activation, no native-cursor hiding).
-  // Remove this guard when the prototype is gone.
-  const pathname = usePathname();
-  const isCursorLab = pathname === '/cursor-lab';
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (isCursorLab) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
     // Device gating: do nothing on touch / coarse-pointer devices. We neither
-    // render a visible cursor nor hide the native one.
+    // render a visible cursor nor hide the native one (the blank, transparent,
+    // pointer-events:none canvas left in the DOM is inert).
     if (!window.matchMedia(FINE_POINTER_QUERY).matches) return;
 
-    const el = elementRef.current;
-    if (!el) return;
+    const gl = canvas.getContext('webgl2', {
+      alpha: true,
+      depth: false,
+      stencil: false,
+      antialias: false,
+      premultipliedAlpha: true,
+    });
+    if (!gl) {
+      // Graceful fail: leave the canvas blank so the page still works.
+      console.warn('CustomCursor: WebGL2 unavailable; custom cursor disabled.');
+      return;
+    }
 
     const root = document.documentElement;
     root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
 
-    // Reduced motion: keep the grow-to-blob on hover but snap size/center to
-    // target each frame (no spring) and apply no rotation/stretch. Tracked live.
+    // Reduced motion: keep the wrap-on-hover affordance, but snap the engage /
+    // release (no spring, no drain) and switch the edge warp off. Tracked live.
     const reducedMotionMq = window.matchMedia(REDUCED_MOTION_QUERY);
     let reducedMotion = reducedMotionMq.matches;
 
-    /* --- mutable animation state (never triggers a React re-render) --- */
-    // Current mode of the state machine.
-    let mode: CursorMode = 'free';
-    // The label currently pinned (or being released from), null when free.
+    /* -------- shader helpers (mirrors RevealFluid.tsx) -------------- */
+    const createShader = (type: number, src: string) => {
+      const s = gl.createShader(type);
+      if (!s) return null;
+      gl.shaderSource(s, src);
+      gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+        console.error('CustomCursor shader error:', gl.getShaderInfoLog(s));
+        return null;
+      }
+      return s;
+    };
+    const createProgram = (vsSrc: string, fsSrc: string) => {
+      const vs = createShader(gl.VERTEX_SHADER, vsSrc);
+      const fs = createShader(gl.FRAGMENT_SHADER, fsSrc);
+      if (!vs || !fs) return null;
+      const p = gl.createProgram();
+      if (!p) return null;
+      gl.attachShader(p, vs);
+      gl.attachShader(p, fs);
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+        console.error('CustomCursor link error:', gl.getProgramInfoLog(p));
+        return null;
+      }
+      return p;
+    };
+
+    const vs = `#version 300 es
+      in vec2 a_position;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+      }
+    `;
+
+    // All math is in CSS px with a top-left origin (matching DOM coords). We
+    // convert gl_FragCoord (physical px, bottom-left) accordingly.
+    const fs = `#version 300 es
+      precision highp float;
+      out vec4 fragColor;
+
+      uniform vec2  u_resolution; // CSS px
+      uniform float u_dpr;
+      uniform float u_time;
+      uniform vec2  u_cursor;     // DOM px, dot center
+      uniform float u_dotRadius;  // px
+      uniform vec4  u_box;        // cx, cy, halfW, halfH (DOM px)
+      uniform float u_corner;     // px
+      uniform float u_wrap;       // 0..1 — box edge warp + size gate
+      uniform float u_bridge;     // 0..1 — dot↔box smooth-min strength
+      uniform float u_stream;     // 0..1 — release drain stream (cursor→bulk cone)
+      uniform float u_motion;     // 1 normal, 0 under prefers-reduced-motion
+
+      // Signed distance to a rounded box centered at the origin.
+      float sdRoundBox(vec2 p, vec2 b, float r) {
+        vec2 q = abs(p) - b + vec2(r);
+        return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+      }
+
+      // Polynomial smooth-min (merges two SDFs into one liquid body).
+      float smin(float a, float b, float k) {
+        float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
+        return mix(b, a, h) - k * h * (1.0 - h);
+      }
+
+      // Signed distance to a 2D rounded cone (tapered capsule) from a (radius r1)
+      // to b (radius r2). One swept shape, so its two ends can never separate at
+      // speed — it just stretches and tapers. (iq)
+      float sdRoundedCone(vec2 p, vec2 a, vec2 b, float r1, float r2) {
+        vec2 ba = b - a;
+        float l2 = dot(ba, ba);
+        float rr = r1 - r2;
+        float a2 = l2 - rr * rr;
+        float il2 = 1.0 / l2;
+        vec2 pa = p - a;
+        float y = dot(pa, ba);
+        float z = y - l2;
+        vec2 xv = pa * l2 - ba * y;
+        float x2 = dot(xv, xv);
+        float y2 = y * y * l2;
+        float z2 = z * z * l2;
+        float kk = sign(rr) * rr * rr * x2;
+        if (sign(z) * a2 * z2 > kk) return sqrt(x2 + z2) * il2 - r2;
+        if (sign(y) * a2 * y2 < kk) return sqrt(x2 + y2) * il2 - r1;
+        return (sqrt(x2 * a2 * il2) + y * rr) * il2 - r1;
+      }
+
+      float hash(vec2 p) {
+        p = fract(p * vec2(123.34, 345.45));
+        p += dot(p, p + 34.345);
+        return fract(p.x * p.y);
+      }
+      float noise(vec2 p) {
+        vec2 i = floor(p), f = fract(p);
+        float a = hash(i);
+        float b = hash(i + vec2(1.0, 0.0));
+        float c = hash(i + vec2(0.0, 1.0));
+        float d = hash(i + vec2(1.0, 1.0));
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+      float fbm(vec2 p) {
+        float v = 0.0, amp = 0.5;
+        for (int i = 0; i < 3; i++) {
+          v += amp * noise(p);
+          p *= 2.0;
+          amp *= 0.5;
+        }
+        return v;
+      }
+
+      void main() {
+        // physical, bottom-left  ->  CSS px, top-left
+        vec2 p = gl_FragCoord.xy / u_dpr;
+        p.y = u_resolution.y - p.y;
+
+        // Subtle domain warp of the box sample, gated by wrap (free dot stays
+        // crisp) and by motion (off under prefers-reduced-motion).
+        vec2 warp = vec2(
+          fbm(p * ${glf(WARP_NOISE_SCALE)} + u_time * ${glf(WARP_TIME_SPEED)}),
+          fbm(p * ${glf(WARP_NOISE_SCALE)} + 11.3 - u_time * ${glf(WARP_TIME_SPEED)})
+        ) - 0.5;
+        vec2 pb = p + warp * (${glf(WARP_AMP)} * u_wrap * u_motion);
+
+        vec2 boxCenter = u_box.xy;
+        vec2 boxHalf = u_box.zw;
+        float corner = min(u_corner, min(boxHalf.x, boxHalf.y));
+        float dBox = sdRoundBox(pb - boxCenter, boxHalf, corner);
+
+        // Cursor dot: a plain circle at the live pointer (no trail). All the gooey
+        // behaviour lives in the box wrap and the release stream below.
+        float dCursor = length(p - u_cursor) - u_dotRadius;
+
+        // Merge the dot into the box. u_bridge tracks the wrap amount (full when
+        // wrapped, easing to 0 on release), so the box melts back into the cursor
+        // as one gooey body and the smin inflation deflates to nothing as it lands
+        // — no leftover circle. ≈0 when free → the box is just the dot, a no-op.
+        float k = mix(0.001, ${glf(SMIN_K)}, u_bridge);
+        float d = smin(dCursor, dBox, k);
+
+        // Tablecloth stream: while releasing, a tapered cone from the live cursor
+        // (head, dot radius) to the trailing bulk (box center, ~bulk radius) keeps
+        // the neck solid, so the bulk drains into the cursor and can NEVER pinch
+        // off into a separate circle however far it trails. Gated by u_stream (0
+        // when free/pinned). Guard skips the degenerate near-coincident /
+        // containment case (bulk reeled onto the cursor) that would NaN the cone.
+        if (u_stream > 0.001) {
+          vec2 sb = boxCenter - u_cursor;
+          float bulkR = min(boxHalf.x, boxHalf.y);
+          float srr = bulkR - u_dotRadius;
+          if (dot(sb, sb) > srr * srr + 1.0) {
+            float dStream = sdRoundedCone(p, u_cursor, boxCenter, u_dotRadius, bulkR);
+            d = smin(d, dStream, k);
+          }
+        }
+
+        // ~1 physical px anti-aliased edge.
+        float aa = 1.0 / u_dpr;
+        float alpha = 1.0 - smoothstep(-aa, aa, d);
+
+        // Premultiplied white (premultipliedAlpha:true).
+        fragColor = vec4(vec3(alpha), alpha);
+      }
+    `;
+
+    const program = createProgram(vs, fs);
+    if (!program) {
+      root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
+      return;
+    }
+
+    const u = {
+      resolution: gl.getUniformLocation(program, 'u_resolution'),
+      dpr: gl.getUniformLocation(program, 'u_dpr'),
+      time: gl.getUniformLocation(program, 'u_time'),
+      cursor: gl.getUniformLocation(program, 'u_cursor'),
+      dotRadius: gl.getUniformLocation(program, 'u_dotRadius'),
+      box: gl.getUniformLocation(program, 'u_box'),
+      corner: gl.getUniformLocation(program, 'u_corner'),
+      wrap: gl.getUniformLocation(program, 'u_wrap'),
+      bridge: gl.getUniformLocation(program, 'u_bridge'),
+      stream: gl.getUniformLocation(program, 'u_stream'),
+      motion: gl.getUniformLocation(program, 'u_motion'),
+    };
+
+    const quadBuf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(program, 'a_position');
+
+    /* -------- cursor state machine --------------------------------- */
+    let mode: Mode = 'free';
     let activeEl: Element | null = null;
-    // Latest known pointer position (viewport coords).
-    let pointerX = 0;
-    let pointerY = 0;
-    // Springable shape: center (cx/cy) and size (diameter). The center stays a
-    // CENTER point; the element is drawn at center - size/2. Border-radius is a
-    // constant 50% (always a circle); the blob's shape comes from scale instead.
-    const cx: Spring = { value: 0, velocity: 0 };
-    const cy: Spring = { value: 0, velocity: 0 };
-    const size: Spring = { value: CURSOR_DIAMETER, velocity: 0 };
-    // Rotation + stretch applied to the blob. Set directly from geometry while
-    // pinned, eased back to neutral while releasing, neutral while free.
-    let angle = 0;
-    let scaleX = 1;
-    let scaleY = 1;
-    // True once we've seen a real pointer position (avoids a flash at 0,0).
+    let pointerX = -9999;
+    let pointerY = -9999;
     let hasPointer = false;
     // True while the pointer is inside the window and the window is focused.
     let inWindow = false;
-    // Last opacity we wrote, so we only touch the DOM when visibility flips.
-    // Matches the element's initial inline opacity: 0 (hidden).
+    // Last visibility we wrote, so we only touch the DOM when it flips.
     let lastVisible = false;
+    let destroyed = false;
     let rafId: number | null = null;
 
-    // Snap a spring straight to its target (reduced motion / free-mode center).
-    const snap = (spring: Spring, target: number) => {
-      spring.value = target;
-      spring.velocity = 0;
+    const cx: Spring = { value: -9999, velocity: 0 };
+    const cy: Spring = { value: -9999, velocity: 0 };
+    const w: Spring = { value: DOT_SIZE, velocity: 0 };
+    const h: Spring = { value: DOT_SIZE, velocity: 0 };
+    const grow: Spring = { value: 0, velocity: 0 };
+
+    // Timed-release state: snapshot of the wrap's size when it lets go, the start
+    // time, and the pull axis (unit) + how far the bulk starts behind the cursor
+    // along it — the bulk reels from relTrail → 0 down this axis as it deflates.
+    let relStart: number | null = null;
+    let relDirX = 0;
+    let relDirY = 0;
+    let relTrail = 0;
+    let relW = 0;
+    let relH = 0;
+    let relG = 0;
+
+    const snap = (s: Spring, target: number) => {
+      s.value = target;
+      s.velocity = 0;
     };
     // Settle a spring toward its target — instant under reduced motion, else spring.
-    const settle = (spring: Spring, target: number, stiffness: number) => {
-      if (reducedMotion) snap(spring, target);
-      else stepSpring(spring, target, stiffness, SPRING_DAMPING);
+    const settle = (s: Spring, target: number) => {
+      if (reducedMotion) snap(s, target);
+      else stepSpring(s, target, SPRING_STIFFNESS, SPRING_DAMPING);
     };
 
-    const render = () => {
-      // If a pinned target was unmounted/hidden mid-hover (detached or its rect
-      // collapsed), bail to releasing so we melt back instead of sticking.
-      let pinnedRect: DOMRect | null = null;
+    const scaleByDpr = (v: number) => Math.floor(v * (window.devicePixelRatio || 1));
+
+    const render = (now: number) => {
+      if (destroyed) return;
+
+      // DPR-aware resize.
+      const cw = scaleByDpr(canvas.clientWidth);
+      const ch = scaleByDpr(canvas.clientHeight);
+      if (canvas.width !== cw || canvas.height !== ch) {
+        canvas.width = cw;
+        canvas.height = ch;
+      }
+      const dpr = window.devicePixelRatio || 1;
+
+      let rect: DOMRect | null = null;
       if (mode === 'pinned') {
-        pinnedRect = activeEl && activeEl.isConnected ? activeEl.getBoundingClientRect() : null;
-        if (!pinnedRect || (pinnedRect.width === 0 && pinnedRect.height === 0)) {
+        rect = activeEl && activeEl.isConnected ? activeEl.getBoundingClientRect() : null;
+        if (!rect || (rect.width === 0 && rect.height === 0)) {
           activeEl = null;
           mode = 'releasing';
-          pinnedRect = null;
-        }
-      }
-
-      // Resolve this frame's targets. Default = the free dot at the pointer.
-      let targetCX = pointerX;
-      let targetCY = pointerY;
-      let targetSize = CURSOR_DIAMETER;
-      if (mode === 'pinned' && pinnedRect) {
-        // Re-read every frame: the nav docks/animates, Experience is its own
-        // scroll container, and the window can resize — a cached rect would drift.
-        const centerX = pinnedRect.left + pinnedRect.width / 2;
-        const centerY = pinnedRect.top + pinnedRect.height / 2;
-        const dxToPointer = pointerX - centerX;
-        const dyToPointer = pointerY - centerY;
-        // Stuck center: sit on the label, leaning STICK_LEAN toward the pointer.
-        targetCX = centerX + dxToPointer * STICK_LEAN;
-        targetCY = centerY + dyToPointer * STICK_LEAN;
-        targetSize = CURSOR_HOVER_SIZE;
-        // Rotation + stretch are set directly (not springed) from the geometry.
-        if (reducedMotion) {
-          angle = 0;
-          scaleX = 1;
-          scaleY = 1;
+          rect = null;
         } else {
-          angle = Math.atan2(dyToPointer, dxToPointer);
-          const absDistance = Math.max(Math.abs(dxToPointer), Math.abs(dyToPointer));
-          scaleX = remapClamped(absDistance, 0, pinnedRect.height / 2, 1, STRETCH_X_MAX);
-          scaleY = remapClamped(absDistance, 0, pinnedRect.width / 2, 1, STRETCH_Y_MIN);
+          // Hysteresis hold: stay wrapped until the cursor pulls RELEASE_DISTANCE
+          // past the element's edge (distance is 0 while inside the rect), so the
+          // box "holds on" to the cursor further out before letting go.
+          const dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
+          const dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
+          if (Math.hypot(dx, dy) > RELEASE_DISTANCE) {
+            activeEl = null;
+            mode = 'releasing';
+            rect = null;
+          }
         }
       }
 
-      // Stiffer pull while releasing so the melt-back catches a moving pointer fast.
-      const stiffness = mode === 'releasing' ? RELEASE_STIFFNESS : SPRING_STIFFNESS;
+      let tCX = pointerX;
+      let tCY = pointerY;
+      let tW = DOT_SIZE;
+      let tH = DOT_SIZE;
+      let tGrow = 0;
+      if (mode === 'pinned' && rect) {
+        tCX = rect.left + rect.width / 2;
+        tCY = rect.top + rect.height / 2;
+        tW = rect.width + HOVER_PAD * 2;
+        tH = rect.height + HOVER_PAD * 2;
+        tGrow = 1;
+      }
 
-      // Center: snap 1:1 in free mode (no easing/lag); spring in pinned/releasing.
       if (mode === 'free') {
-        snap(cx, targetCX);
-        snap(cy, targetCY);
+        // Plain snappy dot.
+        relStart = null;
+        snap(cx, tCX);
+        snap(cy, tCY);
+        snap(w, tW);
+        snap(h, tH);
+        snap(grow, tGrow);
+      } else if (mode === 'pinned') {
+        // Engage: spring in slowly toward the wrapped box (snap under reduced motion).
+        relStart = null;
+        settle(cx, tCX);
+        settle(cy, tCY);
+        settle(w, tW);
+        settle(h, tH);
+        settle(grow, tGrow);
+      } else if (reducedMotion) {
+        // Reduced motion: no drain — snap straight back to the dot at the pointer.
+        relStart = null;
+        snap(cx, pointerX);
+        snap(cy, pointerY);
+        snap(w, DOT_SIZE);
+        snap(h, DOT_SIZE);
+        snap(grow, 0);
+        mode = 'free';
       } else {
-        settle(cx, targetCX, stiffness);
-        settle(cy, targetCY, stiffness);
-      }
-      // Size always settles toward its target (dot, or blob when pinned).
-      settle(size, targetSize, stiffness);
-
-      // Neutralize rotation/stretch when not pinned: snap to neutral while free;
-      // ease back smoothly while releasing (the shrinking size masks the rest).
-      if (mode === 'free') {
-        angle = 0;
-        scaleX = 1;
-        scaleY = 1;
-      } else if (mode === 'releasing') {
-        if (reducedMotion) {
-          angle = 0;
-          scaleX = 1;
-          scaleY = 1;
-        } else {
-          angle += (0 - angle) * RELEASE_NEUTRALIZE_EASE;
-          scaleX += (1 - scaleX) * RELEASE_NEUTRALIZE_EASE;
-          scaleY += (1 - scaleY) * RELEASE_NEUTRALIZE_EASE;
+        // Releasing: a directional "tablecloth" drain. The dot stays at the LIVE
+        // cursor (your hand); the bulk (box) does NOT re-center on it. Instead it
+        // trails BEHIND the cursor along the pull axis captured at let-go and reels
+        // in (relTrail → 0) while it deflates, draining down the tapering stream
+        // (the shader cone) until it gathers into the dot. Anchored to the live
+        // cursor, so it lands exactly on it however you keep moving.
+        if (relStart === null) {
+          relStart = now;
+          relW = w.value;
+          relH = h.value;
+          relG = grow.value;
+          // Pull axis = box-center → cursor at let-go. This is the direction the
+          // cursor left in, and starting the bulk relTrail px back along it puts
+          // it exactly where it already is (continuous, no jump).
+          const ddx = pointerX - cx.value;
+          const ddy = pointerY - cy.value;
+          relTrail = Math.hypot(ddx, ddy);
+          relDirX = relTrail > 1e-3 ? ddx / relTrail : 0;
+          relDirY = relTrail > 1e-3 ? ddy / relTrail : 0;
         }
+        const elapsed = now - relStart;
+        const tSize = Math.min(elapsed / RELEASE_DURATION, 1);
+        const eSize = 1 - Math.pow(1 - tSize, 3); // ease-out: quick off, gentle landing
+        const trail = relTrail * (1 - eSize); // bulk reels onto the cursor
+        // Bulk sits `trail` px behind the LIVE cursor along the pull axis, so the
+        // stream stretches out as you keep moving and shortens as it reels in.
+        cx.value = pointerX - relDirX * trail;
+        cy.value = pointerY - relDirY * trail;
+        w.value = relW + (DOT_SIZE - relW) * eSize;
+        h.value = relH + (DOT_SIZE - relH) * eSize;
+        grow.value = relG + (0 - relG) * eSize;
+        if (tSize >= 1) mode = 'free';
       }
 
-      // Releasing → free once the shape is back to a dot sitting on the pointer.
-      if (mode === 'releasing') {
-        const sizeBack = Math.abs(size.value - CURSOR_DIAMETER) < RELEASE_EPSILON;
-        const centerBack =
-          Math.abs(cx.value - pointerX) < RELEASE_EPSILON &&
-          Math.abs(cy.value - pointerY) < RELEASE_EPSILON;
-        if (sizeBack && centerBack) mode = 'free';
-      }
-
-      // Reveal only once a real pointer position is known, so re-entry/refocus
-      // never flashes the cursor at (0,0).
+      // Reveal only once a real pointer position is known and the window is
+      // focused/entered, so re-entry/refocus never flashes the cursor at (0,0).
       const visible = hasPointer && inWindow;
       if (visible !== lastVisible) {
-        el.style.opacity = visible ? '1' : '0';
+        canvas.style.opacity = visible ? '1' : '0';
         lastVisible = visible;
       }
 
-      // Center-based draw: top-left = center - size/2, then rotate + stretch the
-      // blob about its center (transformOrigin: 'center'). The difference blend
-      // inverts whatever sits under the blob — no text is rendered.
-      const half = size.value / 2;
-      el.style.transform =
-        `translate3d(${cx.value - half}px, ${cy.value - half}px, 0)` +
-        ` rotate(${angle}rad) scale(${scaleX}, ${scaleY})`;
-      el.style.width = `${size.value}px`;
-      el.style.height = `${size.value}px`;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+
+      gl.uniform2f(u.resolution, canvas.clientWidth, canvas.clientHeight);
+      gl.uniform1f(u.dpr, dpr);
+      gl.uniform1f(u.time, now * 0.001);
+      // Hide the shape until a real pointer position is known.
+      gl.uniform2f(u.cursor, hasPointer ? pointerX : -9999, hasPointer ? pointerY : -9999);
+      gl.uniform1f(u.dotRadius, DOT_SIZE / 2);
+      gl.uniform4f(u.box, cx.value, cy.value, w.value / 2, h.value / 2);
+      gl.uniform1f(u.corner, MAX_RADIUS);
+      gl.uniform1f(u.wrap, grow.value);
+      // Bridge tracks grow in EVERY mode (including release). A polynomial smin
+      // doesn't just connect shapes, it inflates their union by ~k/4 of radius;
+      // letting bridge deflate with grow keeps it ~1 early (box still big/offset →
+      // melts in as one body) and eases it to 0 exactly as the box lands, so the
+      // release→free handoff is continuous (no popped-off leftover circle).
+      gl.uniform1f(u.bridge, grow.value);
+      // Stream cone only while releasing — it forms the draining tablecloth neck.
+      gl.uniform1f(u.stream, mode === 'releasing' ? 1.0 : 0.0);
+      gl.uniform1f(u.motion, reducedMotion ? 0.0 : 1.0);
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.enableVertexAttribArray(aPos);
+      gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
       rafId = requestAnimationFrame(render);
     };
@@ -254,16 +491,16 @@ export default function CustomCursor() {
       pointerX = e.clientX;
       pointerY = e.clientY;
       if (!hasPointer) {
-        // Seed the center so the first frame doesn't lurch in from (0,0).
         cx.value = pointerX;
         cy.value = pointerY;
       }
       hasPointer = true;
       inWindow = true;
     };
-
-    // Delegated targeting (capture phase): pin when the pointer enters a clickable
-    // text label, ignoring icon controls flagged with data-cursor-skip.
+    // Delegated targeting (capture phase): wrap when the pointer enters a clickable
+    // text label, ignoring icon controls flagged with data-cursor-skip. The wrap
+    // lets go via the RELEASE_DISTANCE hysteresis in the render loop (no pointerout),
+    // so it can "hold on" past the element edge.
     const onPointerOver = (e: PointerEvent) => {
       const target = (e.target as Element | null)?.closest(TARGET_SELECTOR) ?? null;
       if (target && !target.closest(SKIP_SELECTOR)) {
@@ -271,83 +508,64 @@ export default function CustomCursor() {
         mode = 'pinned';
       }
     };
-    const onPointerOut = (e: PointerEvent) => {
-      if (!activeEl) return;
-      // Moving onto a descendant of the active element is still "inside" — ignore.
-      const related = e.relatedTarget;
-      if (related instanceof Node && activeEl.contains(related)) return;
-      activeEl = null;
-      mode = 'releasing';
-    };
 
-    // Pointer entered / left the window entirely.
+    // Pointer entered / left the window entirely, and window focus changes (e.g.
+    // tab/app switch). `focus` restores the cursor after alt-tabbing back without
+    // moving the pointer; visibility still gates on hasPointer so it never flashes.
     const onPointerEnter = () => {
       inWindow = true;
     };
     const onPointerLeave = () => {
       inWindow = false;
     };
-
-    // Window gained / lost focus (e.g. tab/app switch). `focus` restores the
-    // cursor after alt-tabbing back without moving the pointer; `visible` still
-    // gates on hasPointer so this never flashes at (0,0).
     const onFocus = () => {
       inWindow = true;
     };
     const onBlur = () => {
       inWindow = false;
     };
-
     const onReducedMotionChange = (e: MediaQueryListEvent) => {
       reducedMotion = e.matches;
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
     document.addEventListener('pointerover', onPointerOver, true);
-    document.addEventListener('pointerout', onPointerOut, true);
     root.addEventListener('pointerenter', onPointerEnter);
     root.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
     reducedMotionMq.addEventListener('change', onReducedMotionChange);
-
     rafId = requestAnimationFrame(render);
 
     return () => {
+      destroyed = true;
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerover', onPointerOver, true);
-      document.removeEventListener('pointerout', onPointerOut, true);
       root.removeEventListener('pointerenter', onPointerEnter);
       root.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       reducedMotionMq.removeEventListener('change', onReducedMotionChange);
       root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
+      gl.deleteBuffer(quadBuf);
+      gl.deleteProgram(program);
     };
-  }, [isCursorLab]);
-
-  // PROTOTYPE-ONLY: render nothing on the cursor lab route.
-  if (isCursorLab) return null;
+  }, []);
 
   return (
-    <div
-      ref={elementRef}
+    <canvas
+      ref={canvasRef}
       aria-hidden
       style={{
         position: 'fixed',
-        top: 0,
-        left: 0,
-        width: CURSOR_DIAMETER,
-        height: CURSOR_DIAMETER,
-        borderRadius: '50%',
-        background: '#fff',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'block',
         mixBlendMode: 'difference',
         pointerEvents: 'none',
-        // Start off-screen and invisible; the rAF loop reveals it on first move.
-        transform: 'translate3d(-100px, -100px, 0)',
-        transformOrigin: 'center',
-        willChange: 'transform',
+        // Hidden until the rAF loop sees a real pointer position inside the window.
         opacity: 0,
         zIndex: 2147483647,
       }}

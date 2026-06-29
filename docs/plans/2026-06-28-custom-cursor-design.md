@@ -1,7 +1,24 @@
 # Custom Cursor — Design
 
 **Date:** 2026-06-28
-**Status:** Implemented (hover behavior revised — see Revision below)
+**Status:** Implemented (reworked twice — now a WebGL SDF metaball; see Revisions below)
+
+> **Revision (2026-06-28): WebGL SDF metaball rework.** The DOM sticky-blob (the
+> revision below, and the whole "Behavior"/"Architecture" body) was replaced with a
+> full-viewport **WebGL2 canvas** that renders one **signed-distance-field** shape
+> under `mix-blend-mode: difference`. Free movement is a plain round **dot**; on
+> hover it **smooth-min's with a rounded box** that springs to wrap the element
+> (one liquid body); on leave the box **"drains" off directionally** along the way
+> the pointer left, down a tapering stream, back into the dot (a "tablecloth pull"
+> feel). An fbm **domain-warp** wobbles the wrapped edge. This supersedes the
+> rotate+stretch blob *and* the "true gooey metaball — out of scope" note below:
+> the SDF gets real liquid merging in one cheap shader pass, no SVG goo filter. The
+> `/cursor-lab` prototype that compared three techniques (spring-jelly, turbulence,
+> SDF) has been **removed** now that SDF shipped, along with the now-unused
+> `remapClamped` math helper. `CustomCursor.tsx` is the SDF cursor; the production
+> gating (fine-pointer only, reduced-motion, native-cursor hide, focus/blur
+> visibility, `data-cursor-skip`) carried over from the version below. Sections
+> below are kept for history and describe the superseded sticky-blob.
 
 > **Revision (2026-06-28): sticky-cursor rework.** The original hover behavior — a
 > circle swelling into a **pill that hugs the label** — was replaced after review

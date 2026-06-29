@@ -17,20 +17,3 @@ export function stepSpring(spring: Spring, target: number, stiffness: number, da
   spring.velocity *= damping;
   spring.value += spring.velocity;
 }
-
-/**
- * Clamped linear remap: map `value` from [inMin, inMax] onto [outMin, outMax],
- * clamping the normalized input to [0, 1] first so the output never leaves its
- * range. Mirrors framer-motion's `transform()` clamp the reference relies on.
- */
-export function remapClamped(
-  value: number,
-  inMin: number,
-  inMax: number,
-  outMin: number,
-  outMax: number,
-): number {
-  if (inMax === inMin) return outMin;
-  const t = Math.min(1, Math.max(0, (value - inMin) / (inMax - inMin)));
-  return outMin + t * (outMax - outMin);
-}
