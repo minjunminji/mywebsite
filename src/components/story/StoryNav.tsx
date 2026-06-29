@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NAV, isProjectStop, stopIndexById } from '@/components/story/storyData';
 
 const INK = '#1f1812';
@@ -13,6 +13,12 @@ const NODE_PAD_PX = 5;
 const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const LAYOUT_MS = 600;
 const EXPAND_MS = 560;
+// The nav fades in once (the intro reveal) via the `opacity 800ms ease 750ms`
+// transition below. `visible` flips true at the START of that delayed fade, so
+// the buttons stay invisible for ~1.55s after it; gate interactivity on the
+// fade actually finishing or the cursor metaball wraps them before they appear.
+const REVEAL_DELAY_MS = 750;
+const REVEAL_DURATION_MS = 800;
 
 type StoryNavProps = {
   position: number; // dock position (top/size); holds until arrival when going back
@@ -41,6 +47,17 @@ export default function StoryNav({
   isTransitioning,
   onNavigate,
 }: StoryNavProps) {
+  // Stay non-interactive until the intro fade has finished (see REVEAL_* above).
+  const [interactive, setInteractive] = useState(false);
+  useEffect(() => {
+    if (!visible) {
+      setInteractive(false);
+      return;
+    }
+    const id = window.setTimeout(() => setInteractive(true), REVEAL_DELAY_MS + REVEAL_DURATION_MS);
+    return () => window.clearTimeout(id);
+  }, [visible]);
+
   const docked = position !== 0;
   const projectsExpanded = isProjectStop(expandPosition);
   const gapValue = docked ? '0.55rem' : '0.9rem';
@@ -259,7 +276,7 @@ export default function StoryNav({
           `top ${LAYOUT_MS}ms ${LAYOUT_EASE}, transform ${LAYOUT_MS}ms ${LAYOUT_EASE}, ` +
           `font-size ${LAYOUT_MS}ms ${LAYOUT_EASE}, gap ${LAYOUT_MS}ms ${LAYOUT_EASE}, ` +
           'opacity 800ms ease 750ms',
-        pointerEvents: visible && !isTransitioning ? 'auto' : 'none',
+        pointerEvents: interactive && !isTransitioning ? 'auto' : 'none',
         userSelect: 'none',
         zIndex: 25,
         whiteSpace: 'nowrap',
