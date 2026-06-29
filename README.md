@@ -1,8 +1,8 @@
 # Ryan Kim - Portfolio Website
 
-A hand-drawn, scroll-driven portfolio that feels more like moving through a short film than clicking through pages.
+A hand-drawn, navigation-driven portfolio where every section is an illustrated scene and animated frame sequences carry you between them — more short film than web page.
 
-I am a sophomore Computer Engineering student at UBC, and I built this site to combine illustration, interaction design, and frontend engineering in one place.
+I am a junior Computer Engineering student at UBC, and I built this site to combine illustration, interaction design, and frontend engineering in one place.
 
 ## Live Site
 
@@ -10,19 +10,19 @@ I am a sophomore Computer Engineering student at UBC, and I built this site to c
 
 ## What This Site Is
 
-This portfolio is one continuous animated scene:
+This portfolio is one continuous hand-drawn world:
 
 - a custom loading phase that preloads core assets
 - a landing + train sequence
 - an interactive About section with a cursor-based reveal effect
-- a Projects section that transitions through illustrated scenes
-- a sticky music player with waveform controls
+- a Projects section whose illustrated scenes you move through
+- an Experience section as the final stop
 
-Everything is intentionally linear and story-like so the experience feels guided, not just navigated.
+A persistent story nav — which doubles as a progress indicator — is the only way to move around: clicking a node plays the hand-drawn frame sequences forward or backward to transition between sections. There is no scrolling.
 
 ## Featured Projects Inside
 
-- **This Website**: custom scroll-state scene engine in Next.js/React
+- **This Website**: custom nav-driven frame-by-frame scene engine in Next.js/React
 - **Rebase**: AI-native resume builder
 - **Mango**: webcam full-body gesture controls for games
 
@@ -31,14 +31,14 @@ Everything is intentionally linear and story-like so the experience feels guided
 - Next.js 15
 - React 19
 - TypeScript
-- WaveSurfer.js
-- Custom WebGL2 shader (`RevealFluid`)
+- Custom WebGL2 shaders (`RevealFluid` + the SDF liquid cursor)
 
 ## Implementation Notes
 
-- Scene orchestration lives in `src/components/ScrollScenePlayer.tsx`
+- Scene orchestration lives in `src/components/StoryPlayer.tsx`
+- The story data model (stops, nav, content) lives in `src/components/story/storyData.ts`
 - WebGL reveal effect lives in `src/components/RevealFluid.tsx`
-- Audio UI lives in `src/components/StickyAudioPlayer.tsx`
+- The WebGL2 SDF liquid cursor lives in `src/components/CustomCursor.tsx`
 - App entry points are `app/page.tsx` and `app/layout.tsx`
 
 ## Performance Work
@@ -77,5 +77,5 @@ pnpm exec tsc --noEmit
 - `app/`: Next.js app router entry files
 - `src/components/`: core interactive components
 - `public/Animation/`: frame-by-frame scene images
-- `public/`: other media (audio, project images, reference assets, resume)
+- `public/`: other media (project images, video, reference assets, resume)
 

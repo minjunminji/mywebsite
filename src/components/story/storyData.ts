@@ -1,5 +1,5 @@
 // Pure data model for the nav-driven story. No React here.
-// Content + asset paths are kept in sync with the current ScrollScenePlayer.
+// Content + asset paths are consumed by StoryPlayer.
 
 // --- Frame asset lists (webp) ---
 export const landingFrames = [
@@ -96,7 +96,7 @@ export const NAV: readonly NavEntry[] = [
   { label: 'experience', stopId: 'experience' },
 ];
 
-// --- About text + timing (kept in sync with current ScrollScenePlayer) ---
+// --- About text + timing (consumed by StoryPlayer) ---
 export const ABOUT_LINES = [
   "hi, i'm ryan",
   "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy",
@@ -109,7 +109,7 @@ export const ABOUT_INITIAL_DELAY_MS = 200;
 export const ABOUT_FADE_DURATION_MS = 600;
 export const ABOUT_GROUP_GAP_MS = 800;
 
-// --- Project content (verbatim from current ScrollScenePlayer) ---
+// --- Project content ---
 export type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
   title: string;
@@ -142,10 +142,10 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'thisWebsite',
     title: 'this website',
-    techStack: ['Next.js', 'React', 'TypeScript', 'WaveSurfer.js', 'WebGL2'],
+    techStack: ['Next.js', 'React', 'TypeScript', 'WebGL2'],
     body: [
-      'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a scroll-driven story so the site feels like a film you move through.',
-      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react to make the experience linear, cinematic, and interactive.',
+      'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a hand-drawn world you navigate where each section is its own scene, and the drawings animate to carry you between them.',
+      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react — clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
       'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
     carouselImages: [
