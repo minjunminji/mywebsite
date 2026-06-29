@@ -53,6 +53,14 @@ const RELEASE_DISTANCE = 30;
  *  on as far as a full-size label does. */
 const TIGHT_RELEASE_DISTANCE = 15;
 
+/* ---- Click press — squish the whole shape while the pointer is held ---- */
+/** Scale of the metaball while pressed (1 = none). A domain scale around the box
+ *  center, so the free dot and the wrapped blob shrink the same way. */
+const PRESS_SCALE = 0.8;
+/** Press spring — snappy, with a little rebound on release. */
+const PRESS_STIFFNESS = 0.35;
+const PRESS_DAMPING = 0.55;
+
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
@@ -168,6 +176,7 @@ export default function CustomCursor() {
       uniform float u_bridge;     // 0..1 — dot↔box smooth-min strength
       uniform float u_stream;     // 0..1 — release drain stream (cursor→bulk cone)
       uniform float u_motion;     // 1 normal, 0 under prefers-reduced-motion
+      uniform float u_press;      // press squish scale (1 = none, <1 = smaller)
 
       // Signed distance to a rounded box centered at the origin.
       float sdRoundBox(vec2 p, vec2 b, float r) {
@@ -232,6 +241,10 @@ export default function CustomCursor() {
         vec2 p = gl_FragCoord.xy / u_dpr;
         p.y = u_resolution.y - p.y;
 
+        // Press squish: domain-scale the whole shape around the box center, so the
+        // free dot and the wrapped blob shrink uniformly while the pointer is held.
+        p = u_box.xy + (p - u_box.xy) / u_press;
+
         // Subtle domain warp of the box sample, gated by wrap (free dot stays
         // crisp) and by motion (off under prefers-reduced-motion).
         vec2 warp = vec2(
@@ -272,6 +285,9 @@ export default function CustomCursor() {
           }
         }
 
+        // Undo the press domain scale so distances are back in real px.
+        d *= u_press;
+
         // ~1 physical px anti-aliased edge.
         float aa = 1.0 / u_dpr;
         float alpha = 1.0 - smoothstep(-aa, aa, d);
@@ -299,6 +315,7 @@ export default function CustomCursor() {
       bridge: gl.getUniformLocation(program, 'u_bridge'),
       stream: gl.getUniformLocation(program, 'u_stream'),
       motion: gl.getUniformLocation(program, 'u_motion'),
+      press: gl.getUniformLocation(program, 'u_press'),
     };
 
     const quadBuf = gl.createBuffer();
@@ -317,6 +334,8 @@ export default function CustomCursor() {
     let pointerX = -9999;
     let pointerY = -9999;
     let hasPointer = false;
+    // True while a pointer button is held down (drives the press squish).
+    let pressed = false;
     // True while the pointer is inside the window and the window is focused.
     let inWindow = false;
     // Last visibility we wrote, so we only touch the DOM when it flips.
@@ -329,6 +348,8 @@ export default function CustomCursor() {
     const w: Spring = { value: DOT_SIZE, velocity: 0 };
     const h: Spring = { value: DOT_SIZE, velocity: 0 };
     const grow: Spring = { value: 0, velocity: 0 };
+    // Press squish: 1 at rest, springs toward PRESS_SCALE while the pointer is held.
+    const press: Spring = { value: 1, velocity: 0 };
 
     // Timed-release state: snapshot of the wrap's size when it lets go, the start
     // time, and the pull axis (unit) + how far the bulk starts behind the cursor
@@ -460,6 +481,13 @@ export default function CustomCursor() {
         if (tSize >= 1) mode = 'free';
       }
 
+      // Press squish toward PRESS_SCALE while held; springs back (with a little
+      // rebound) on release. The shader applies it as a domain scale, so the free
+      // dot and the wrapped blob shrink the same way.
+      const pressTarget = pressed ? PRESS_SCALE : 1;
+      if (reducedMotion) snap(press, pressTarget);
+      else stepSpring(press, pressTarget, PRESS_STIFFNESS, PRESS_DAMPING);
+
       // Reveal only once a real pointer position is known and the window is
       // focused/entered, so re-entry/refocus never flashes the cursor at (0,0).
       const visible = hasPointer && inWindow;
@@ -491,6 +519,7 @@ export default function CustomCursor() {
       // Stream cone only while releasing — it forms the draining tablecloth neck.
       gl.uniform1f(u.stream, mode === 'releasing' ? 1.0 : 0.0);
       gl.uniform1f(u.motion, reducedMotion ? 0.0 : 1.0);
+      gl.uniform1f(u.press, Math.max(press.value, 0.4));
 
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
       gl.enableVertexAttribArray(aPos);
@@ -536,18 +565,29 @@ export default function CustomCursor() {
     };
     const onPointerLeave = () => {
       inWindow = false;
+      pressed = false;
     };
     const onFocus = () => {
       inWindow = true;
     };
     const onBlur = () => {
       inWindow = false;
+      pressed = false;
     };
     const onReducedMotionChange = (e: MediaQueryListEvent) => {
       reducedMotion = e.matches;
     };
+    const onPointerDown = () => {
+      pressed = true;
+    };
+    const onPointerUp = () => {
+      pressed = false;
+    };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    window.addEventListener('pointercancel', onPointerUp, { passive: true });
     document.addEventListener('pointerover', onPointerOver, true);
     root.addEventListener('pointerenter', onPointerEnter);
     root.addEventListener('pointerleave', onPointerLeave);
@@ -560,6 +600,9 @@ export default function CustomCursor() {
       destroyed = true;
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
       document.removeEventListener('pointerover', onPointerOver, true);
       root.removeEventListener('pointerenter', onPointerEnter);
       root.removeEventListener('pointerleave', onPointerLeave);
