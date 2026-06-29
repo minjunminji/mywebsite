@@ -29,7 +29,7 @@ import ExperienceSection from '@/components/experience/ExperienceSection';
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
-const LANDING_LOOP_REPEATS = 4;
+const LANDING_LOOP_REPEATS = 2; // idle loops before the train (~1.4s; was 4 / ~2.9s)
 const PAGE_BG = '#f7f7f5';
 const PAGE_BG_CLEAR = 'rgba(247, 247, 245, 0)';
 // Soft vignette that feathers the page background inward on every edge, so the
@@ -114,7 +114,7 @@ export default function StoryPlayer() {
     });
   }, []);
 
-  // Intro: landing loop x4 -> 20-frame train build -> hand off to player.
+  // Intro: landing loop x2 -> 20-frame train build -> hand off to player.
   useEffect(() => {
     if (introPhase === 'landing') {
       let frame = 0;
