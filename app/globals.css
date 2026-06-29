@@ -87,6 +87,36 @@ main {
   transition: opacity 260ms ease;
 }
 
+/* Below the desktop breakpoint (phones + tablets) the whole site is replaced
+   by a full-screen notice. Pure CSS so there's no hydration flash and it
+   reacts live to resizing/rotating. Change the 1023px below to move the line. */
+.desktop-gate {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  html,
+  body {
+    overflow: hidden;
+  }
+
+  .desktop-gate {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: #f7f7f5;
+    color: #1e1a16;
+    font-family: var(--font-geist-sans), sans-serif;
+    font-weight: 400;
+    font-size: 1rem;
+    text-align: center;
+  }
+}
+
 /* Keyboard focus for the experience lens toggle (both words are visible). */
 .exp-lens:focus-visible {
   outline: 2px solid #1f1812;

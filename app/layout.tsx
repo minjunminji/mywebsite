@@ -39,6 +39,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         {children}
         <CustomCursor />
         <Analytics />
+        <div className="desktop-gate" role="alert">
+          please view this website on desktop, sorry! mobile support is coming soon
+        </div>
       </body>
     </html>
   );

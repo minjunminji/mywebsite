@@ -99,8 +99,8 @@ export const NAV: readonly NavEntry[] = [
 // --- About text + timing (kept in sync with current ScrollScenePlayer) ---
 export const ABOUT_LINES = [
   "hi, i'm ryan",
-  "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy.",
-  'in my spare time, i like to produce music, cook, and play soccer.',
+  "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy",
+  'in my spare time, i like to produce music, cook, and play soccer',
 ] as const;
 
 // About reveal: three fade groups (intro, body, hint). Each fades over
