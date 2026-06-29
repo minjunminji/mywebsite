@@ -10,7 +10,7 @@ import {
   ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS,
   ABOUT_REFERENCE_IMAGE,
   ALL_PRELOAD_FRAMES,
-  CORNER_LINKS,
+  SOCIAL_LINKS,
   PROJECT_CONTENT,
   firstProjectIndex,
   isExperienceStop,
@@ -20,7 +20,6 @@ import {
   trainSequenceFrames,
   turnstileBackgroundFrame,
   turnstileBackgroundFrameTwo,
-  type CornerLink,
   type ProjectContent,
 } from '@/components/story/storyData';
 import { useFramePlayer } from '@/components/story/useFramePlayer';
@@ -88,34 +87,6 @@ export default function StoryPlayer() {
       setAboutSeed((s) => s + 1);
     }
   }, [onAbout]);
-
-  // --- corner menu state (ported) ---
-  const [isCornerMenuOpen, setIsCornerMenuOpen] = useState(false);
-  const [hoveredCornerLink, setHoveredCornerLink] = useState<CornerLink['key'] | null>(null);
-  const cornerMenuCloseTimeoutRef = useRef<number | null>(null);
-  const openCornerMenu = () => {
-    if (cornerMenuCloseTimeoutRef.current !== null) {
-      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
-      cornerMenuCloseTimeoutRef.current = null;
-    }
-    setIsCornerMenuOpen(true);
-  };
-  const closeCornerMenuWithDelay = () => {
-    if (cornerMenuCloseTimeoutRef.current !== null) {
-      window.clearTimeout(cornerMenuCloseTimeoutRef.current);
-    }
-    cornerMenuCloseTimeoutRef.current = window.setTimeout(() => {
-      setIsCornerMenuOpen(false);
-      cornerMenuCloseTimeoutRef.current = null;
-    }, 170);
-  };
-  useEffect(() => {
-    return () => {
-      if (cornerMenuCloseTimeoutRef.current !== null) {
-        window.clearTimeout(cornerMenuCloseTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // --- project carousel state (ported) ---
   const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
@@ -332,19 +303,14 @@ export default function StoryPlayer() {
         </section>
       ) : null}
 
-      {/* ===== PORT BLOCK B: corner menu ===== */}
+      {/* ===== PORT BLOCK B: corner name (top-left) ===== */}
       <div
-        onMouseEnter={openCornerMenu}
-        onMouseLeave={closeCornerMenuWithDelay}
         style={{
           position: 'fixed',
           top: '1.5rem',
           left: '1.5rem',
-          display: 'inline-flex',
-          flexDirection: 'column',
-          alignItems: 'flex-start',
           fontFamily: "var(--font-geist-sans), sans-serif",
-          fontWeight: 600,
+          fontWeight: 400,
           fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
           lineHeight: 1,
           letterSpacing: '0.03em',
@@ -357,95 +323,50 @@ export default function StoryPlayer() {
           zIndex: 20,
         }}
       >
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            cursor: 'default',
-          }}
-        >
-          <span style={{ fontWeight: 400 }}>ryan kim</span>
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
-            <path
-              d={isCornerMenuOpen ? 'M6 14l6-6 6 6' : 'M6 10l6 6 6-6'}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <div
-          style={{
-            paddingTop: '0.55rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.45rem',
-            opacity: isCornerMenuOpen ? 1 : 0,
-            transform: isCornerMenuOpen ? 'translateY(0)' : 'translateY(-8px)',
-            maxHeight: isCornerMenuOpen ? '8rem' : '0',
-            overflow: 'hidden',
-            transition: 'opacity 180ms ease, transform 240ms ease, max-height 240ms ease',
-            pointerEvents: isCornerMenuOpen ? 'auto' : 'none',
-          }}
-        >
-          {CORNER_LINKS.map((link) => {
-            const isHovered = hoveredCornerLink === link.key;
+        ryan kim
+      </div>
 
-            return (
-              <a
-                key={link.key}
-                href={link.href}
-                target={link.openInNewTab ? '_blank' : undefined}
-                rel={link.openInNewTab ? 'noopener noreferrer' : undefined}
-                download={link.download ? '' : undefined}
-                onMouseEnter={() => setHoveredCornerLink(link.key)}
-                onMouseLeave={() => setHoveredCornerLink(null)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem',
-                  width: 'fit-content',
-                  color: '#1f1812',
-                  textDecoration: isHovered ? 'underline' : 'none',
-                  textDecorationThickness: '1px',
-                  textUnderlineOffset: '0.12em',
-                  paddingBottom: '0.08rem',
-                  fontWeight: 400,
-                  fontSize: 'clamp(0.82rem, 0.95vw, 0.92rem)',
-                  letterSpacing: '0.02em',
-                }}
-              >
-                <span>{link.label}</span>
-                {link.icon === 'download' ? (
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                    <path
-                      d="M12 4v10M8.5 10.5L12 14l3.5-3.5M5 18.5h14"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                    <path
-                      d="M8 8h8v8M16 8L8 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </a>
-            );
-          })}
-        </div>
+      {/* ===== Social links (top-right) — blobbable, same tight blob as the chevrons ===== */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '1.5rem',
+          right: '1.5rem',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          opacity: cornerVisible ? 0.9 : 0,
+          transition: 'opacity 360ms ease',
+          pointerEvents: cornerVisible ? 'auto' : 'none',
+          zIndex: 20,
+        }}
+      >
+        {SOCIAL_LINKS.map((link) => (
+          <a
+            key={link.key}
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={link.label}
+            data-cursor-pad="-4"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '2rem',
+              height: '2rem',
+              color: '#1f1812',
+            }}
+          >
+            <img
+              src={link.icon}
+              alt=""
+              width={18}
+              height={18}
+              style={{ display: 'block', width: '1.15rem', height: '1.15rem', objectFit: 'contain' }}
+            />
+          </a>
+        ))}
       </div>
 
       {/* ===== PORT BLOCK C: projects aside — single active project ===== */}

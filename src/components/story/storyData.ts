@@ -277,36 +277,27 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
   },
 ];
 
-export type CornerLink = {
-  key: 'github' | 'linkedin' | 'resume';
+export type SocialLink = {
+  key: 'linkedin' | 'github';
+  /** Accessible name for the icon link. */
   label: string;
   href: string;
-  icon: 'external' | 'download';
-  openInNewTab?: boolean;
-  download?: boolean;
+  /** Icon asset under /public. */
+  icon: string;
 };
 
-export const CORNER_LINKS: readonly CornerLink[] = [
-  {
-    key: 'github',
-    label: 'github',
-    href: 'https://github.com/minjunminji/',
-    icon: 'external',
-    openInNewTab: true,
-  },
+export const SOCIAL_LINKS: readonly SocialLink[] = [
   {
     key: 'linkedin',
-    label: 'linkedin',
+    label: 'LinkedIn',
     href: 'https://www.linkedin.com/in/ryankim373/',
-    icon: 'external',
-    openInNewTab: true,
+    icon: '/linkedin.png',
   },
   {
-    key: 'resume',
-    label: 'resume',
-    href: '/ryan_kim_resume.pdf',
-    icon: 'download',
-    download: true,
+    key: 'github',
+    label: 'GitHub',
+    href: 'https://github.com/minjunminji/',
+    icon: '/github.png',
   },
 ];
 
