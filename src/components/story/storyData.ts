@@ -103,11 +103,11 @@ export const ABOUT_LINES = [
   'in my spare time, i like to produce music, cook, and play soccer.',
 ] as const;
 
-export const ABOUT_INITIAL_DELAY_MS = 208;
-export const ABOUT_CHAR_STAGGER_MS = 19;
-export const ABOUT_LINE_GAP_MS = 166;
-export const ABOUT_CHAR_FADE_DURATION_MS = 416;
-export const ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS = 320;
+// About reveal: three fade groups (intro, body, hint). Each fades over
+// ABOUT_FADE_DURATION_MS, then waits ABOUT_GROUP_GAP_MS before the next begins.
+export const ABOUT_INITIAL_DELAY_MS = 200;
+export const ABOUT_FADE_DURATION_MS = 600;
+export const ABOUT_GROUP_GAP_MS = 800;
 
 // --- Project content (verbatim from current ScrollScenePlayer) ---
 export type ProjectContent = {

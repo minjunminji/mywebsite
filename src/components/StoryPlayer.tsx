@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
-  ABOUT_CHAR_FADE_DURATION_MS,
-  ABOUT_CHAR_STAGGER_MS,
+  ABOUT_FADE_DURATION_MS,
+  ABOUT_GROUP_GAP_MS,
   ABOUT_INITIAL_DELAY_MS,
-  ABOUT_LINE_GAP_MS,
   ABOUT_LINES,
-  ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS,
   ABOUT_REFERENCE_IMAGE,
   ALL_PRELOAD_FRAMES,
   SOCIAL_LINKS,
@@ -240,10 +238,12 @@ export default function StoryPlayer() {
             }}
           >
             {ABOUT_LINES.map((line, index) => {
-              const lineStartDelay =
-                ABOUT_INITIAL_DELAY_MS +
-                ABOUT_LINES.slice(0, index).join('').length * ABOUT_CHAR_STAGGER_MS +
-                index * ABOUT_LINE_GAP_MS;
+              // Fade groups: intro (line 0) first, then the body sentences (lines
+              // 1+2) together. Each group fades over ABOUT_FADE_DURATION_MS, then
+              // waits ABOUT_GROUP_GAP_MS before the next group begins.
+              const group = index === 0 ? 0 : 1;
+              const delay =
+                ABOUT_INITIAL_DELAY_MS + group * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS);
 
               return (
                 <p
@@ -254,27 +254,15 @@ export default function StoryPlayer() {
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'break-word',
                     fontWeight: index === 0 ? 600 : 300,
+                    opacity: 0,
+                    animationName: 'aboutFadeIn',
+                    animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
+                    animationTimingFunction: 'ease',
+                    animationFillMode: 'both',
+                    animationDelay: `${delay}ms`,
                   }}
                 >
-                  {line.split('').map((char, charIndex) => {
-                    const delay = lineStartDelay + charIndex * ABOUT_CHAR_STAGGER_MS;
-
-                    return (
-                      <span
-                        key={`${char}-${charIndex}-${aboutSeed}`}
-                        style={{
-                          opacity: 0,
-                          animationName: 'aboutCharFadeIn',
-                          animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
-                          animationTimingFunction: 'ease',
-                          animationFillMode: 'forwards',
-                          animationDelay: `${delay}ms`,
-                        }}
-                      >
-                        {char}
-                      </span>
-                    );
-                  })}
+                  {line}
                 </p>
               );
             })}
@@ -285,15 +273,12 @@ export default function StoryPlayer() {
                 fontSize: '0.85em',
                 fontWeight: 300,
                 opacity: 0,
-                animationName: 'aboutCharFadeIn',
-                animationDuration: `${ABOUT_CHAR_FADE_DURATION_MS}ms`,
+                animationName: 'aboutFadeIn',
+                animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
                 animationTimingFunction: 'ease',
-                animationFillMode: 'forwards',
+                animationFillMode: 'both',
                 animationDelay: `${
-                  ABOUT_INITIAL_DELAY_MS +
-                  ABOUT_LINES.join('').length * ABOUT_CHAR_STAGGER_MS +
-                  ABOUT_LINES.length * ABOUT_LINE_GAP_MS +
-                  ABOUT_REFERENCE_HINT_EXTRA_DELAY_MS
+                  ABOUT_INITIAL_DELAY_MS + 2 * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS)
                 }ms`,
               }}
             >
