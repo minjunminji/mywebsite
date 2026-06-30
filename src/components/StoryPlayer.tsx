@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ABOUT_FADE_DURATION_MS,
   ABOUT_GROUP_GAP_MS,
@@ -24,6 +24,7 @@ import { useFramePlayer } from '@/components/story/useFramePlayer';
 import StoryNav from '@/components/story/StoryNav';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
+import { useScrollFade } from '@/components/useScrollFade';
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -103,6 +104,14 @@ export default function StoryPlayer() {
   const jumpProjectCarousel = (key: ProjectContent['key'], index: number) => {
     setProjectCarouselIndex((previous) => ({ ...previous, [key]: index }));
   };
+
+  // The project pane scrolls independently — thin scrollbar + edge fade.
+  const {
+    scrollRef: projectScrollRef,
+    contentRef: projectContentRef,
+    onScroll: onProjectScroll,
+    maskImage: projectMask,
+  } = useScrollFade();
 
   // Preload frame images once.
   useEffect(() => {
@@ -366,8 +375,8 @@ export default function StoryPlayer() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'flex-end',
-            padding: '7vh 3vw 7vh 2vw',
-            transform: `translateY(5vh) translateX(${onProject ? '0px' : exitX})`,
+            padding: 'clamp(4.5rem, 9vh, 6.5rem) 3vw 0 2vw',
+            transform: `translateX(${onProject ? '0px' : exitX})`,
             opacity: onProject ? 1 : 0,
             // Slide+fade out while leaving; snap back instantly on arrival so the
             // article's own slide-in animation owns the entrance. Leaving for the
@@ -382,12 +391,18 @@ export default function StoryPlayer() {
           }}
         >
           <div
+            ref={projectScrollRef}
+            className="custom-scroll"
+            onScroll={onProjectScroll}
             style={{
               position: 'relative',
               width: '100%',
               maxWidth: '35rem',
-              height: 'min(82vh, 780px)',
-              overflow: 'hidden',
+              maxHeight: '100%',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              WebkitMaskImage: projectMask,
+              maskImage: projectMask,
             }}
           >
             {(() => {
@@ -402,14 +417,14 @@ export default function StoryPlayer() {
               return (
                 <article
                   key={project.key}
+                  ref={projectContentRef}
                   style={{
-                    height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '1.1rem',
                     color: '#1f1812',
                     fontFamily: "var(--font-geist-sans), sans-serif",
-                    paddingBottom: '2rem',
+                    paddingBottom: '0.5rem',
                     animation: 'projectSlideIn 460ms cubic-bezier(0.16, 1, 0.3, 1) both',
                     ...({ '--enter-x': enterX } as CSSProperties),
                   }}

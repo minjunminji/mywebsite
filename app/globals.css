@@ -137,6 +137,33 @@ main {
   height: 0;
 }
 
+/* Scrollable content panels (the project pane, the experience résumé list) get a
+   thin, custom scrollbar — the rest of the site hides scrollbars. The top/bottom
+   fade is a mask applied inline (see useScrollFade) so it reacts to scroll
+   position. */
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(31, 24, 18, 0.28) transparent;
+  scrollbar-gutter: stable;
+}
+
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(31, 24, 18, 0.28);
+  border-radius: 999px;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 24, 18, 0.45);
+}
+
 @media (max-width: 900px) and (orientation: portrait) {
   html,
   body {

@@ -66,6 +66,8 @@ export default function StoryNav({
   const connectorWidth = docked ? '1.5rem' : '2.25rem';
   // Project sub-nodes get very short connectors so they read as sub-pages.
   const childConnectorWidth = docked ? '0.375rem' : '0.5625rem';
+  // Those sub-page connectors render as a small dot rather than a line.
+  const childDotSize = docked ? '3.5px' : '5px';
 
   // Rough pixel widths so a step's fill is a single constant-speed sweep across
   // its pieces (line then text), proportioned by their actual on-screen size.
@@ -148,20 +150,52 @@ export default function StoryNav({
     onNavigate(stopIndex);
   };
 
-  const connector = (key: string, fraction: number, extra?: CSSProperties): ReactNode => (
-    <span
-      key={key}
-      aria-hidden
-      style={{
-        display: 'inline-block',
-        width: connectorWidth,
-        height: '1px',
-        background: lineFill(fraction),
-        transition: 'width 520ms ease',
-        ...extra,
-      }}
-    />
-  );
+  const connector = (
+    key: string,
+    fraction: number,
+    extra?: CSSProperties,
+    dot = false,
+  ): ReactNode =>
+    dot ? (
+      // A dot instead of a line. The outer span keeps the connector's footprint
+      // (so spacing/expansion are unchanged) and centers a small filled circle;
+      // the same gradient inks it in as the playhead sweeps past.
+      <span
+        key={key}
+        aria-hidden
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: childConnectorWidth,
+          height: childConnectorWidth,
+          transition: 'width 520ms ease',
+          ...extra,
+        }}
+      >
+        <span
+          style={{
+            width: childDotSize,
+            height: childDotSize,
+            borderRadius: '50%',
+            background: lineFill(fraction),
+          }}
+        />
+      </span>
+    ) : (
+      <span
+        key={key}
+        aria-hidden
+        style={{
+          display: 'inline-block',
+          width: connectorWidth,
+          height: '1px',
+          background: lineFill(fraction),
+          transition: 'width 520ms ease',
+          ...extra,
+        }}
+      />
+    );
 
   const node = (
     key: string,
@@ -215,10 +249,12 @@ export default function StoryNav({
           transition: `opacity 320ms ease ${delay}ms, transform 460ms ${EXPAND_EASE} ${delay}ms`,
         };
         childEls.push(
-          connector(`cconn-${child.stopId}`, fracById[`cconn-${child.stopId}`] ?? 0, {
-            ...reveal,
-            width: childConnectorWidth,
-          }),
+          connector(
+            `cconn-${child.stopId}`,
+            fracById[`cconn-${child.stopId}`] ?? 0,
+            { ...reveal, width: childConnectorWidth },
+            true,
+          ),
         );
         childEls.push(
           node(`cnode-${child.stopId}`, child.label, childStopIndex, fracById[`cnode-${child.stopId}`] ?? 0, {

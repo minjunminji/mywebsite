@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { EXPERIENCE, LENSES, type Lens } from '@/components/story/storyData';
+import { useScrollFade } from '@/components/useScrollFade';
 import { useDecrypt, type DecryptLine } from './useDecrypt';
 
 const INK = '#1f1812';
@@ -139,6 +140,9 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
   // How far the wave has advanced, in lines from the top. Each step inserts the
   // next line in normal flow (pushing the lower years apart) and decodes it.
   const [waveAt, setWaveAt] = useState(0);
+
+  // The résumé list scrolls on its own below the fixed headline.
+  const { scrollRef, contentRef, onScroll, maskImage } = useScrollFade();
 
   const wave = useMemo(() => buildWave(lens), [lens]);
   const totalLines = wave.lines.length;
@@ -290,10 +294,9 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
         inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'flex-start',
-        alignItems: 'safe center',
-        overflowY: 'auto',
-        padding: `${TOP_OFFSET} clamp(1.5rem, 8vw, 9rem) clamp(4rem, 10vh, 8rem)`,
+        alignItems: 'center',
+        overflow: 'hidden',
+        padding: `${TOP_OFFSET} clamp(1.5rem, 8vw, 9rem) clamp(2rem, 6vh, 5rem)`,
         fontFamily: FONT,
         color: INK,
         zIndex: 4,
@@ -305,6 +308,8 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
           flexDirection: 'column',
           gap: '2.4rem',
           width: `min(${CONTENT_MAX}, 100%)`,
+          flex: '1 1 auto',
+          minHeight: 0,
         }}
       >
         {/* headline — fades in (no decode) on arrival. The lens stack rests
@@ -318,6 +323,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
             letterSpacing: '0.02em',
             lineHeight: 1.4,
             minHeight: '1.4em',
+            flexShrink: 0,
             opacity: phase === 'pre' ? 0 : 1,
             transition: reduced
               ? 'none'
@@ -393,7 +399,31 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
           <span style={{ fontWeight: 500 }}>engineer:</span>
         </h2>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
+        {/* The résumé list scrolls on its own once it outgrows the space below
+            the fixed headline; the headline + lens toggle stay put. */}
+        <div
+          ref={scrollRef}
+          className="custom-scroll"
+          onScroll={onScroll}
+          style={{
+            flex: '1 1 auto',
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            paddingRight: '1.25rem',
+            WebkitMaskImage: maskImage,
+            maskImage,
+          }}
+        >
+          <div
+            ref={contentRef}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.4rem',
+              paddingBottom: '2.5rem',
+            }}
+          >
           {EXPERIENCE.map((entry, entryIndex) => {
             const count = bulletsShownFor(entryIndex);
             const titleI = wave.titleIndex[entryIndex];
@@ -465,6 +495,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
               </article>
             );
           })}
+          </div>
         </div>
       </div>
     </section>
