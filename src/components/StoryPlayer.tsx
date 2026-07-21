@@ -22,6 +22,7 @@ import {
 } from '@/components/story/storyData';
 import { useFramePlayer } from '@/components/story/useFramePlayer';
 import StoryNav from '@/components/story/StoryNav';
+import TldrOverlay from '@/components/story/TldrOverlay';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
@@ -72,6 +73,20 @@ export default function StoryPlayer() {
   const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
 
   const cornerVisible = introDone && player.position !== 0;
+
+  const [tldrOpen, setTldrOpen] = useState(false);
+  // The tldr button fades in with the nav on the landing; gate its click (and the
+  // whole corner cluster) on that fade finishing — mirrors the nav's interactive
+  // gate so the cursor doesn't blob a button that hasn't fully appeared yet.
+  const [cornerInteractive, setCornerInteractive] = useState(false);
+  useEffect(() => {
+    if (!introDone) {
+      setCornerInteractive(false);
+      return undefined;
+    }
+    const id = window.setTimeout(() => setCornerInteractive(true), 750 + 800);
+    return () => window.clearTimeout(id);
+  }, [introDone]);
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
     : null;
@@ -320,47 +335,109 @@ export default function StoryPlayer() {
         ryan kim
       </div>
 
-      {/* ===== Social links (top-right) — blobbable, same tight blob as the chevrons ===== */}
+      {/* ===== Top-right corner cluster: [ tldr ] [ social icons ] =====
+          One right-anchored flex row. tldr fades in with the nav on the landing
+          and sits alone in the corner; off-home the social wrapper expands and
+          the row grows leftward, sliding tldr aside. */}
       <div
         style={{
           position: 'fixed',
           top: '1.5rem',
           right: '1.5rem',
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
-          opacity: cornerVisible ? 0.9 : 0,
-          transition: 'opacity 360ms ease',
-          pointerEvents: cornerVisible ? 'auto' : 'none',
+          opacity: introDone ? 1 : 0,
+          // Match the nav's intro fade exactly so tldr blooms alongside it.
+          transition: 'opacity 800ms ease 750ms',
+          pointerEvents: cornerInteractive ? 'auto' : 'none',
           zIndex: 20,
         }}
       >
-        {SOCIAL_LINKS.map((link) => (
-          <a
-            key={link.key}
-            href={link.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={link.label}
-            data-cursor-pad="-4"
+        <button
+          type="button"
+          onClick={() => setTldrOpen(true)}
+          aria-haspopup="dialog"
+          data-cursor-pad="-4"
+          style={{
+            border: 'none',
+            background: 'transparent',
+            padding: '0.1rem 0.15rem',
+            margin: 0,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-geist-sans), sans-serif',
+            fontWeight: 450,
+            fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
+            letterSpacing: '0.03em',
+            textTransform: 'lowercase',
+            lineHeight: 1,
+            color: '#1f1812',
+            opacity: 0.9,
+            whiteSpace: 'nowrap',
+            // Lowercase "tldr" has no descenders, so it sits optically high next
+            // to the icon glyphs — nudge it down a hair to line them up.
+            transform: 'translateY(1px)',
+          }}
+        >
+          tldr
+        </button>
+
+        {/* Collapsible social wrapper — 0fr on the landing, 1fr elsewhere. The
+            negative margin swallows the flex gap when collapsed so tldr sits
+            flush; the same grid trick the nav uses for its projects sub-nodes
+            (StoryNav.tsx). One curve drives the whole reflow. */}
+        <div
+          aria-hidden={!cornerVisible}
+          style={{
+            display: 'inline-grid',
+            gridTemplateColumns: cornerVisible ? '1fr' : '0fr',
+            marginLeft: cornerVisible ? '0' : '-0.4rem',
+            transition:
+              'grid-template-columns 600ms cubic-bezier(0.65, 0, 0.35, 1), ' +
+              'margin-left 600ms cubic-bezier(0.65, 0, 0.35, 1)',
+          }}
+        >
+          <div
             style={{
-              display: 'inline-flex',
+              minWidth: 0,
+              overflow: 'hidden',
+              display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: '2rem',
-              height: '2rem',
-              color: '#1f1812',
+              gap: '0.4rem',
+              opacity: cornerVisible ? 0.9 : 0,
+              transition: `opacity 400ms ease ${cornerVisible ? '120ms' : '0ms'}`,
+              pointerEvents: cornerVisible ? 'auto' : 'none',
             }}
           >
-            <img
-              src={link.icon}
-              alt=""
-              width={18}
-              height={18}
-              style={{ display: 'block', width: '1.15rem', height: '1.15rem', objectFit: 'contain' }}
-            />
-          </a>
-        ))}
+            {SOCIAL_LINKS.map((link) => (
+              <a
+                key={link.key}
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={link.label}
+                data-cursor-pad="-4"
+                tabIndex={cornerVisible ? 0 : -1}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '2rem',
+                  height: '2rem',
+                  color: '#1f1812',
+                }}
+              >
+                <img
+                  src={link.icon}
+                  alt=""
+                  width={18}
+                  height={18}
+                  style={{ display: 'block', width: '1.15rem', height: '1.15rem', objectFit: 'contain' }}
+                />
+              </a>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ===== PORT BLOCK C: projects aside — single active project ===== */}
@@ -837,6 +914,8 @@ export default function StoryPlayer() {
         isTransitioning={player.isTransitioning}
         onNavigate={player.navigateTo}
       />
+
+      <TldrOverlay open={tldrOpen} onClose={() => setTldrOpen(false)} />
     </div>
   );
 }
