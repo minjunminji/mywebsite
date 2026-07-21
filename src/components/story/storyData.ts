@@ -301,6 +301,82 @@ export const SOCIAL_LINKS: readonly SocialLink[] = [
   },
 ];
 
+// ===== TLDR takeover =====
+// A run of text in a bullet; `href` (when present) makes that run an inline link.
+export type TldrSegment = { text: string; href?: string };
+
+export type TldrFooterLink = {
+  key: 'github' | 'linkedin' | 'email';
+  /** Accessible name for the icon link. */
+  label: string;
+  href: string;
+  /** Icon asset under /public; omitted for email, which renders an inline SVG. */
+  icon?: string;
+};
+
+export const TLDR_NAME = 'ryan kim';
+
+// First-person rundown, akylai.xyz-style. Each bullet is a list of segments so
+// inline links (the chopin concerto) live in data, not hardcoded JSX. The
+// favorite-artists line is static for now; when a Spotify top-artists feed lands
+// it swaps to "on repeat this month: …" — see 2026-07-21-tldr-takeover-design.md.
+export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
+  [
+    {
+      text:
+        'computer engineering at ubc (class of 2028) and a ubc presidential scholar. ' +
+        'currently a software engineer intern at shopify, doing mobile development on ' +
+        'the admin app used by millions of merchants.',
+    },
+  ],
+  [
+    {
+      text:
+        'leading a team of 7 — product, design, and engineering — at ubc sailbot; ' +
+        "most recently we're building an internal hiring portal.",
+    },
+  ],
+  [
+    { text: 'founded ' },
+    { text: 'rebase', href: 'https://www.tryrebase.io/' },
+    {
+      text:
+        ', an AI-native career dashboard — took a 3-person team from ' +
+        'concept to private beta with 20+ users.',
+    },
+  ],
+  [
+    {
+      text:
+        'i like building things that live between engineering and design. this whole ' +
+        'site is a hand-drawn, frame-by-frame world i illustrated and wrote a custom ' +
+        'scene engine for.',
+    },
+  ],
+  [{ text: 'i play valorant, peaked immortal top 0.5% NA in V26A3.' }],
+  [
+    { text: "i play piano; my favorite composer is chopin. here's me " },
+    {
+      text: 'performing his first piano concerto',
+      href: 'https://youtu.be/ueOshaElP9E?si=PRTsosLeGCpK43uT',
+    },
+    { text: ' with the VSO SOM orchestra.' },
+  ],
+  [{ text: 'some of my favorite artists are fujii kaze, wave to earth, and exo.' }],
+  [{ text: 'based in vancouver.' }],
+];
+
+export const TLDR_FOOTER_LINKS: readonly TldrFooterLink[] = [
+  { key: 'github', label: 'github', href: 'https://github.com/minjunminji/', icon: '/github.png' },
+  {
+    key: 'linkedin',
+    label: 'linkedin',
+    href: 'https://www.linkedin.com/in/ryankim373/',
+    icon: '/linkedin.png',
+  },
+  { key: 'email', label: 'email', href: 'mailto:ryankim373@gmail.com' },
+];
+
 // Image frames to preload on mount (videos load on demand).
 export const ALL_PRELOAD_FRAMES: readonly string[] = [
   ...landingFrames,
