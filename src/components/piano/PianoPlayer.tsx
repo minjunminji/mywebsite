@@ -368,6 +368,9 @@ export default function PianoPlayer({
           borderRadius: frame.radius,
           overflow: 'hidden',
           background: PAPER,
+          // Must out-rank the header: when collapsed the thumbnail moves *into*
+          // the header's band, and the header paints an opaque paper background.
+          zIndex: 2,
           // Safari drops the overflow clip on transformed descendants without
           // its own compositing layer, letting square corners poke out.
           transform: 'translateZ(0)',
