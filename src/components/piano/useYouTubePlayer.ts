@@ -22,6 +22,8 @@ type YTNamespace = {
     element: HTMLElement,
     options: {
       videoId: string;
+      width?: number;
+      height?: number;
       playerVars?: Record<string, string | number>;
       events?: {
         onReady?: () => void;
@@ -102,6 +104,7 @@ export type YouTubeController = {
 export function useYouTubePlayer(
   mountRef: React.RefObject<HTMLDivElement | null>,
   videoId: string,
+  size: { width: number; height: number },
 ): YouTubeController {
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
@@ -121,6 +124,9 @@ export function useYouTubePlayer(
 
       playerRef.current = new YT.Player(node, {
         videoId,
+        // Without these the API builds a 640x390 iframe, not our 16:9 box.
+        width: size.width,
+        height: size.height,
         playerVars: {
           controls: 0, // no bottom control bar; the header owns transport
           iv_load_policy: 3, // no annotations or cards
@@ -162,7 +168,9 @@ export function useYouTubePlayer(
     return () => {
       destroyed = true;
     };
-    // videoId is a module constant; the mount node is stable by contract.
+    // videoId is a module constant, the mount node is stable by contract, and
+    // `size` is read once at construction — the collapse scales the embed rather
+    // than resizing it, so a changed size must never rebuild the player.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 

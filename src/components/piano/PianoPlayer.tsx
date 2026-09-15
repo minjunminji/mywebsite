@@ -23,6 +23,8 @@ const THUMB_INSET = 8;
 /** Breathing room kept between the window and every viewport edge. */
 export const MARGIN = 12;
 export const WINDOW_SIZE = { width: WINDOW_W, height: EXPANDED_H };
+/** Intrinsic size of the embed. Constant — the collapse scales it, never resizes it. */
+const VIDEO_SIZE = { width: VIDEO_W, height: VIDEO_H };
 
 const INK = '#1f1812';
 const PAPER = '#f7f7f5';
@@ -50,30 +52,9 @@ export default function PianoPlayer({
   const [collapsed, setCollapsed] = useState(false);
 
   const { ready, playing, currentTime, duration, play, pause, toggle, seekToFraction } =
-    useYouTubePlayer(mountRef, PIANO_VIDEO_ID);
+    useYouTubePlayer(mountRef, PIANO_VIDEO_ID, VIDEO_SIZE);
 
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
-
-  /* ---------------------------------------------------------------- */
-  /*  Paused cover                                                     */
-  /* ---------------------------------------------------------------- */
-
-  // YouTube shows a title / share / watch-later card whenever an embed is
-  // paused. It's state-driven rather than hover-driven, so the shield can't stop
-  // it and no player parameter suppresses it — we cover it instead. Nothing is
-  // playing while it's up, so this hides a static card, never the performance.
-  const [covered, setCovered] = useState(true);
-  useEffect(() => {
-    if (!playing) {
-      // Beat their fade-in.
-      setCovered(true);
-      return undefined;
-    }
-    // Let their overlay finish fading out underneath before revealing the video,
-    // otherwise you catch a glimpse of it on the way through.
-    const id = window.setTimeout(() => setCovered(false), 260);
-    return () => window.clearTimeout(id);
-  }, [playing]);
 
   /* ---------------------------------------------------------------- */
   /*  Play on summon / pause on close                                  */
@@ -386,7 +367,7 @@ export default function PianoPlayer({
           border: frame.border,
           borderRadius: frame.radius,
           overflow: 'hidden',
-          background: '#000',
+          background: PAPER,
           // Safari drops the overflow clip on transformed descendants without
           // its own compositing layer, letting square corners poke out.
           transform: 'translateZ(0)',
@@ -398,6 +379,7 @@ export default function PianoPlayer({
       >
         <div
           style={{
+            position: 'relative',
             width: VIDEO_W,
             height: VIDEO_H,
             transformOrigin: '0 0',
@@ -405,51 +387,53 @@ export default function PianoPlayer({
             transition: `transform ${MOVE_MS}ms ${EASE}`,
           }}
         >
-          {/* The API replaces this node with the iframe. It must never move. */}
-          <div ref={mountRef} style={{ width: '100%', height: '100%', border: 0 }} />
+          {/* The fade lives on this wrapper rather than the mount node, because
+              the API replaces that node with its own iframe and any style set on
+              it goes away with it. */}
+          <div
+            className="piano-embed"
+            style={{
+              width: '100%',
+              height: '100%',
+              opacity: ready ? 1 : 0,
+              transition: 'opacity 420ms ease',
+            }}
+          >
+            {/* The API replaces this node with the iframe. It must never move. */}
+            <div ref={mountRef} />
+          </div>
+
+          {/* Covers the boot gap between mounting and the embed painting, so it
+              reads as page rather than a black void. */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              background: PAPER,
+              opacity: ready ? 0 : 1,
+              transition: 'opacity 420ms ease',
+              pointerEvents: 'none',
+            }}
+          >
+            <span
+              style={{
+                fontSize: '1.75rem',
+                color: INK,
+                animation: 'pianoPulse 1.6s ease-in-out infinite',
+              }}
+            >
+              ♪
+            </span>
+          </div>
         </div>
 
         {/* Shield: keeps the cursor off the embed so YouTube's hover chrome
             (title, share, "Watch on YouTube") never fires, and stops the iframe
             swallowing pointermove mid-drag. */}
         <div style={{ position: 'absolute', inset: 0, cursor: 'default' }} />
-
-        {/* Paused cover — hides YouTube's paused card. Outside the scaler so its
-            text stays legible instead of shrinking with the thumbnail. */}
-        <div
-          aria-hidden
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: collapsed ? 0 : '0.3rem',
-            background: PAPER,
-            color: INK,
-            opacity: covered ? 1 : 0,
-            transition: 'opacity 160ms ease',
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          <span style={{ fontSize: collapsed ? '0.8rem' : '1.3rem', lineHeight: 1, opacity: 0.55 }}>
-            ♪
-          </span>
-          {collapsed ? null : (
-            <span
-              style={{
-                fontSize: '0.72rem',
-                letterSpacing: '0.03em',
-                opacity: 0.45,
-                textTransform: 'lowercase',
-              }}
-            >
-              chopin · piano concerto no. 1
-            </span>
-          )}
-        </div>
       </div>
     </div>
   );
