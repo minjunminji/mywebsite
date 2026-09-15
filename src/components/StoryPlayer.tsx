@@ -3,7 +3,6 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ABOUT_FADE_DURATION_MS,
-  ABOUT_GROUP_GAP_MS,
   ABOUT_INITIAL_DELAY_MS,
   ABOUT_LINES,
   ABOUT_REFERENCE_IMAGE,
@@ -262,12 +261,8 @@ export default function StoryPlayer() {
             }}
           >
             {ABOUT_LINES.map((line, index) => {
-              // Fade groups: intro (line 0) first, then the body sentences (lines
-              // 1+2) together. Each group fades over ABOUT_FADE_DURATION_MS, then
-              // waits ABOUT_GROUP_GAP_MS before the next group begins.
-              const group = index === 0 ? 0 : 1;
-              const delay =
-                ABOUT_INITIAL_DELAY_MS + group * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS);
+              // All lines fade in together.
+              const delay = ABOUT_INITIAL_DELAY_MS;
 
               return (
                 <p
@@ -301,9 +296,7 @@ export default function StoryPlayer() {
                 animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
                 animationTimingFunction: 'ease',
                 animationFillMode: 'both',
-                animationDelay: `${
-                  ABOUT_INITIAL_DELAY_MS + 2 * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS)
-                }ms`,
+                animationDelay: `${ABOUT_INITIAL_DELAY_MS}ms`,
               }}
             >
               move your cursor over the drawing to reveal the reference
