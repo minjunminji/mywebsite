@@ -64,9 +64,6 @@ type PianoPlayerProps = {
   position: Point;
   onPositionChange: (position: Point) => void;
   onClose: () => void;
-  /** Whether the current open should start the recording. True when summoned
-   *  from the trigger word, false when restored from the corner ♪. */
-  autoplayOnOpen: boolean;
 };
 
 export default function PianoPlayer({
@@ -74,14 +71,13 @@ export default function PianoPlayer({
   position,
   onPositionChange,
   onClose,
-  autoplayOnOpen,
 }: PianoPlayerProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
-  // Transport belongs to the embed in this variant; the API is still needed to
-  // start on summon, pause on close, and say whether it loaded at all.
-  const { ready, failed, play, pause } = useYouTubePlayer(
+  // Transport belongs to the embed; the API is still needed to pause on close
+  // and to say whether it loaded at all.
+  const { ready, failed, pause } = useYouTubePlayer(
     mountRef,
     PIANO_VIDEO_ID,
     VIDEO_SIZE,
@@ -117,19 +113,16 @@ export default function PianoPlayer({
   const shown = visible && (ready || slow || failed);
 
   /* ---------------------------------------------------------------- */
-  /*  Play on summon / pause on close                                  */
+  /*  Pause on close                                                   */
   /* ---------------------------------------------------------------- */
 
+  // Opening never starts playback — from the word or the ♪, the window arrives
+  // paused and the listener presses play themselves, at which point `start`
+  // takes them to 4:01. Closing pauses so nothing plays while hidden, and the
+  // player keeps its position, so a reopen lands exactly where it was left.
   useEffect(() => {
-    if (!ready) return;
-    if (!visible) {
-      pause();
-      return;
-    }
-    // Restoring from the ♪ deliberately does nothing: closing already paused the
-    // player, so it comes back exactly where the listener left it.
-    if (autoplayOnOpen) play();
-  }, [ready, visible, autoplayOnOpen, play, pause]);
+    if (ready && !visible) pause();
+  }, [ready, visible, pause]);
 
   /* ---------------------------------------------------------------- */
   /*  Drag                                                             */

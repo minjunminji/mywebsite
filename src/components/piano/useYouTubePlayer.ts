@@ -6,10 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /*  Minimal IFrame Player API types                                    */
 /* ------------------------------------------------------------------ */
 
-// Only the handful of methods we actually call, rather than pulling in
-// @types/youtube for three signatures.
+// Only the methods we actually call, rather than pulling in @types/youtube
+// for two signatures.
 type YTPlayer = {
-  playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
 };
@@ -101,14 +100,12 @@ export type YouTubeController = {
    * message, so `ready` takes precedence for display.
    */
   failed: boolean;
-  play: () => void;
   pause: () => void;
 };
 
 /**
- * Wraps one YouTube embed in a play/pause interface. Transport itself belongs
- * to the embed; this exists to start on summon, pause on close, and report
- * whether the thing loaded at all.
+ * Wraps one YouTube embed. Transport belongs to the embed; this exists to pause
+ * on close and to report whether the thing loaded at all.
  *
  * The API *replaces* the element it is handed with an iframe, so `mountRef` must
  * point at a node that never unmounts and never moves in the tree — remounting
@@ -192,8 +189,7 @@ export function useYouTubePlayer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  const play = useCallback(() => playerRef.current?.playVideo(), []);
   const pause = useCallback(() => playerRef.current?.pauseVideo(), []);
 
-  return { ready, failed, play, pause };
+  return { ready, failed, pause };
 }

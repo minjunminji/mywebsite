@@ -294,11 +294,14 @@ arbitrary.
 
 ## Opening behaviour
 
-- **Summoned from `piano`:** expanded, and it starts playing — that click is the
-  browser gesture the audio needs.
-- **Restored from the ♪:** expanded, and deliberately *silent*. The ♪ is a "put it
-  back" control, not a play button; closing already paused the player, so it returns
-  exactly where the listener left it.
+- **Nothing autoplays.** From the word or from the ♪, the window arrives paused and the
+  listener presses play themselves — at which point `start` takes them to 4:01. This
+  was originally autoplay-on-summon (the summoning click is a valid audio gesture, so
+  it would have worked); it was dropped in favour of the listener choosing when the
+  music begins. A consequence: `play()` has no callers and no longer exists in the
+  hook, whose only remaining job is to pause on close and report load state.
+- **Reopening lands where you left it.** Closing pauses the player but never unmounts
+  it, so position is preserved for free.
 - **Always expanded on open.** `collapsed` is reset whenever the window closes. It has
   to be: the player never unmounts, so the flag would otherwise survive a close, and the
   provider clamps the spawn against the *expanded* height — a collapsed reopen would
