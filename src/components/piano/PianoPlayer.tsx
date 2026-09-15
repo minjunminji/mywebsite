@@ -56,8 +56,9 @@ type PianoPlayerProps = {
   position: Point;
   onPositionChange: (position: Point) => void;
   onClose: () => void;
-  /** Bumped by the provider each time the player is summoned, to (re)start play. */
-  playToken: number;
+  /** Whether the current open should start the recording. True when summoned
+   *  from the trigger word, false when restored from the corner ♪. */
+  autoplayOnOpen: boolean;
 };
 
 export default function PianoPlayer({
@@ -65,7 +66,7 @@ export default function PianoPlayer({
   position,
   onPositionChange,
   onClose,
-  playToken,
+  autoplayOnOpen,
 }: PianoPlayerProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -82,11 +83,14 @@ export default function PianoPlayer({
 
   useEffect(() => {
     if (!ready) return;
-    if (visible) play();
-    else pause();
-    // playToken changes on every summon so re-opening resumes playback even
-    // though `visible` may not have changed value in between.
-  }, [ready, visible, playToken, play, pause]);
+    if (!visible) {
+      pause();
+      return;
+    }
+    // Restoring from the ♪ deliberately does nothing: closing already paused the
+    // player, so it comes back exactly where the listener left it.
+    if (autoplayOnOpen) play();
+  }, [ready, visible, autoplayOnOpen, play, pause]);
 
   /* ---------------------------------------------------------------- */
   /*  Drag                                                             */

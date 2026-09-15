@@ -44,9 +44,11 @@ export function PianoProvider({ children }: { children: ReactNode }) {
   const [summoned, setSummoned] = useState(false);
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState<Point>({ x: MARGIN, y: MARGIN });
-  // Bumped on every summon so the player restarts playback even when `visible`
-  // was already true-then-false-then-true without a value change React sees.
-  const [playToken, setPlayToken] = useState(0);
+  // How the *next* open should behave. Summoning from the word starts the
+  // performance; reopening from the ♪ just brings the window back where the
+  // listener left it, still paused. Both entry points bail out when already
+  // visible, so a false -> true flip of `visible` is what the player reacts to.
+  const [autoplayOnOpen, setAutoplayOnOpen] = useState(true);
 
   const summonFrom = useCallback(
     (anchor: Rect) => {
@@ -62,16 +64,17 @@ export function PianoProvider({ children }: { children: ReactNode }) {
         ),
       );
       setSummoned(true);
+      setAutoplayOnOpen(true);
       setVisible(true);
-      setPlayToken((token) => token + 1);
     },
     [visible],
   );
 
   const restore = useCallback(() => {
     if (visible) return;
+    // Deliberately silent: the ♪ is a "put it back" control, not a play button.
+    setAutoplayOnOpen(false);
     setVisible(true);
-    setPlayToken((token) => token + 1);
   }, [visible]);
 
   const close = useCallback(() => setVisible(false), []);
@@ -90,7 +93,7 @@ export function PianoProvider({ children }: { children: ReactNode }) {
           position={position}
           onPositionChange={setPosition}
           onClose={close}
-          playToken={playToken}
+          autoplayOnOpen={autoplayOnOpen}
         />
       ) : null}
     </PianoContext.Provider>
