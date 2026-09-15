@@ -19,10 +19,11 @@ const HEADER_H = 40;
 const EXPANDED_H = HEADER_H + VIDEO_H;
 const BORDER = 1.5;
 const RADIUS = 12;
-/** Collapsed, the video fills the bar end completely: it spans the full inner
- *  height the border leaves and sits flush against the right inner edge, so its
- *  width simply follows from 16:9 rather than being picked. */
-const THUMB_H = HEADER_H - BORDER * 2;
+/** Collapsed, the video covers the bar end completely — it spans the bar's full
+ *  *outer* height and runs to its outer right edge, painting over the border
+ *  rather than sitting inside it (tucking it inside leaves a hairline of paper
+ *  between the two). Width simply follows from 16:9 rather than being picked. */
+const THUMB_H = HEADER_H;
 const THUMB_W = (THUMB_H * VIDEO_W) / VIDEO_H;
 /** Breathing room between the last control and the video. */
 const THUMB_GAP = 8;
@@ -172,14 +173,15 @@ export default function PianoPlayer({
   // and merely scaled, so YouTube never sees a resize and never relayouts.
   const frame = collapsed
     ? {
-        // Flush into the bar end: tucked just inside the border on the top,
-        // bottom, and right, with only the right corners rounded to follow the
-        // bar's own. No border of its own — the header's already wraps it.
-        left: WINDOW_W - BORDER - THUMB_W,
-        top: BORDER,
+        // Sits *over* the bar end rather than inside it, covering the border on
+        // the top, bottom, and right. Its right corners take the bar's full outer
+        // radius since they now land on the outer edge. The higher z-index below
+        // is what lets it paint over the header's border.
+        left: WINDOW_W - THUMB_W,
+        top: 0,
         width: THUMB_W,
         height: THUMB_H,
-        radius: `0 ${RADIUS - BORDER}px ${RADIUS - BORDER}px 0`,
+        radius: `0 ${RADIUS}px ${RADIUS}px 0`,
         border: `0 solid ${INK}`,
       }
     : {
@@ -240,7 +242,7 @@ export default function PianoPlayer({
           alignItems: 'center',
           gap: '0.5rem',
           paddingLeft: '0.5rem',
-          paddingRight: collapsed ? THUMB_W + BORDER + THUMB_GAP : '0.5rem',
+          paddingRight: collapsed ? THUMB_W + THUMB_GAP : '0.5rem',
           background: PAPER,
           border: `${BORDER}px solid ${INK}`,
           borderBottomWidth: collapsed ? BORDER : 0,
