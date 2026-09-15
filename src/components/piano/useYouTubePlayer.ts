@@ -132,6 +132,8 @@ export function useYouTubePlayer(
         height: size.height,
         playerVars: {
           controls: 1, // the embed owns transport; the bar only moves the window
+          fs: 0, // no fullscreen button — this is a 400px window by design
+          color: 'white', // progress bar in white rather than YouTube red
           iv_load_policy: 3, // no annotations or cards
           rel: 0, // keep end-screen suggestions on-channel
           start: startSeconds,
