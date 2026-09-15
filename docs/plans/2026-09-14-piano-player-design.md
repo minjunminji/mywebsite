@@ -314,6 +314,26 @@ arbitrary.
 - **Position persistence across reloads:** none. `localStorage` is a cheap later
   addition if it proves annoying.
 
+## First-open hint
+
+Nothing about the window signals that it is movable, collapsible, or persistent — the
+whole point of the feature — so the first time a working video is on screen, a strip
+grows upward out of the bar, holds a one-line explanation for ~5.5s, and retracts.
+
+- **Grows upward, so it briefly covers the word that summoned it.** Deliberate: the
+  hint visibly comes out of the thing just clicked. Growing downward would keep the
+  anchor clean but shove the video, which is worse.
+- **Retracts on first touch.** Starting a drag or clicking collapse dismisses it —
+  whoever does either has found out what it is.
+- **Once per page load**, tracked in a ref. `localStorage` would make it once per
+  visitor; not done, matching the site's no-persistence stance.
+- **Only when the video actually loaded.** Not during the slow or failed states, where
+  the hint would sit beside a loading line or an error.
+- Closing the window mid-hint retracts it (the effect's cleanup), so it can't be left
+  stuck open for the next reopen.
+- Near the top of the viewport the strip would grow off-screen; the window nudges down
+  by exactly the strip's height when the hint opens.
+
 ## The video
 
 **Video ID: `QSbZHTvbjR4`**

@@ -59,6 +59,14 @@ const PAPER = '#f7f7f5';
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const MOVE_MS = 340;
 
+/** First-open hint: a strip that grows up out of the bar, explains what this
+ *  thing is, and retracts. Once per page load. */
+const HINT_TEXT =
+  'you can drag this anywhere, collapse it, and keep listening as you explore the site';
+const HINT_H = 48; // two lines of the text below plus padding
+const HINT_DELAY_MS = 500; // let the window's own entrance land first
+const HINT_HOLD_MS = 5_500; // long enough to read twice, short enough to not nag
+
 type PianoPlayerProps = {
   visible: boolean;
   position: Point;
@@ -125,6 +133,44 @@ export default function PianoPlayer({
   }, [ready, visible, pause]);
 
   /* ---------------------------------------------------------------- */
+  /*  First-open hint                                                  */
+  /* ---------------------------------------------------------------- */
+
+  const [hintOpen, setHintOpen] = useState(false);
+  const hintShown = useRef(false);
+  const hintTimers = useRef<number[]>([]);
+
+  const dismissHint = useCallback(() => {
+    hintTimers.current.forEach((id) => window.clearTimeout(id));
+    hintTimers.current = [];
+    setHintOpen(false);
+  }, []);
+
+  // Fires once, the first time there's a working video on screen — not during
+  // the slow or failed states, where "drag this around" next to a loading line
+  // is just noise. Returning dismissHint as the cleanup means closing the window
+  // mid-hint retracts it rather than leaving it stuck open for the next reopen.
+  useEffect(() => {
+    if (hintShown.current || !ready || !visible) return undefined;
+    hintShown.current = true;
+    hintTimers.current = [
+      window.setTimeout(() => setHintOpen(true), HINT_DELAY_MS),
+      window.setTimeout(dismissHint, HINT_DELAY_MS + HINT_HOLD_MS),
+    ];
+    return dismissHint;
+  }, [ready, visible, dismissHint]);
+
+  // The strip grows *upward*, so a window sitting near the top edge would push
+  // it off-screen. Nudge down just enough, only when it actually opens.
+  useEffect(() => {
+    if (!hintOpen) return;
+    const minY = MARGIN + HINT_H;
+    if (position.y < minY) onPositionChange({ x: position.x, y: minY });
+    // Only on open — not on every drag tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hintOpen]);
+
+  /* ---------------------------------------------------------------- */
   /*  Drag                                                             */
   /* ---------------------------------------------------------------- */
 
@@ -147,6 +193,8 @@ export default function PianoPlayer({
   const onHeaderPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // The window controls own their own gestures.
     if ((event.target as Element).closest('button')) return;
+    // Touching the bar means they've found it; stop explaining.
+    dismissHint();
     event.currentTarget.setPointerCapture(event.pointerId);
     dragOffset.current = { dx: event.clientX - position.x, dy: event.clientY - position.y };
     setDragging(true);
@@ -265,13 +313,67 @@ export default function PianoPlayer({
           background: PAPER,
           border: `${BORDER}px solid ${INK}`,
           borderBottomWidth: collapsed ? BORDER : 0,
-          borderRadius: collapsed ? `${RADIUS}px` : `${RADIUS}px ${RADIUS}px 0 0`,
+          // Top corners flatten while the hint strip is attached above; bottom
+          // corners round only when collapsed (otherwise the video is below).
+          borderRadius: `${hintOpen ? 0 : RADIUS}px ${hintOpen ? 0 : RADIUS}px ${
+            collapsed ? RADIUS : 0
+          }px ${collapsed ? RADIUS : 0}px`,
           cursor: 'grab',
           touchAction: 'none',
           transition: `padding-right ${MOVE_MS}ms ${EASE}, border-radius ${MOVE_MS}ms ${EASE}`,
           zIndex: 1,
         }}
       >
+        {/* First-open hint. Anchored to the header's top edge and growing
+            upward out of it — absolutely positioned so the flex row below is
+            untouched. The header's own top border is the divider between them. */}
+        <div
+          aria-hidden={!hintOpen}
+          style={{
+            position: 'absolute',
+            left: -BORDER, // sit on the header's border, not inside it
+            right: -BORDER,
+            bottom: '100%',
+            height: hintOpen ? HINT_H : 0,
+            overflow: 'hidden',
+            background: PAPER,
+            border: `${BORDER}px solid ${INK}`,
+            borderBottom: 'none',
+            borderRadius: `${RADIUS}px ${RADIUS}px 0 0`,
+            transition: `height ${MOVE_MS}ms ${EASE}`,
+            pointerEvents: 'none',
+          }}
+        >
+          <p
+            role="status"
+            style={{
+              // Pinned to the strip's bottom, so the text stays put and the
+              // rising strip uncovers it rather than carrying it upward.
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              margin: 0,
+              height: HINT_H,
+              padding: `0 ${EDGE_PAD}px`,
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: '0.72rem',
+              lineHeight: 1.35,
+              letterSpacing: '0.02em',
+              textAlign: 'center',
+              color: INK,
+              // Text fades in after the strip has opened and out before it
+              // closes, so it's never seen half-clipped.
+              opacity: hintOpen ? 0.8 : 0,
+              transition: `opacity 200ms ease ${hintOpen ? '160ms' : '0ms'}`,
+              userSelect: 'none',
+            }}
+          >
+            {HINT_TEXT}
+          </p>
+        </div>
+
         {/* grip */}
         <svg width="8" height="14" viewBox="0 0 8 14" aria-hidden="true" style={{ flexShrink: 0, opacity: 0.5 }}>
           {[2, 7, 12].map((cy) =>
@@ -302,7 +404,10 @@ export default function PianoPlayer({
 
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => {
+            dismissHint();
+            setCollapsed((c) => !c);
+          }}
           data-cursor-pad="-4"
           aria-label={collapsed ? 'Expand player' : 'Collapse player'}
           aria-expanded={!collapsed}
