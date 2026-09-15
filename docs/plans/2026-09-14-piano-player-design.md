@@ -262,9 +262,13 @@ auto-generated YouTube radio mix, depending on where the link was copied from), 
 them — a `list` param turns the embed into a playlist and queues unrelated videos after
 the performance ends, which also defeats the `ENDED` handler above.
 
-`QSbZHTvbjR4` is the colour-graded upload of the same performance the TLDR copy in
-`storyData.ts` links to (`ueOshaElP9E`). Same concerto, same length — so the durations
-quoted throughout this document still hold. The two ids are just different uploads.
+This is the colour-graded upload of the concerto, replacing an earlier ungraded one
+(`ueOshaElP9E`). Same performance, same length, so the durations quoted throughout this
+document hold.
+
+The TLDR copy in `storyData.ts` links to the same recording, so both places now point at
+the graded upload. That link is a plain `youtu.be/<id>` — the `?si=…` share-tracking
+param the old URL carried was dropped rather than carried across.
 
 ## Open items
 

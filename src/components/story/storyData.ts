@@ -371,7 +371,7 @@ export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
     { text: "i play piano; my favorite composer is chopin. here's me " },
     {
       text: 'performing his first piano concerto',
-      href: 'https://youtu.be/ueOshaElP9E?si=PRTsosLeGCpK43uT',
+      href: 'https://youtu.be/QSbZHTvbjR4',
     },
     { text: ' with the VSO SOM orchestra.' },
   ],
