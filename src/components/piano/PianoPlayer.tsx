@@ -10,7 +10,7 @@ import {
 import { useYouTubePlayer } from './useYouTubePlayer';
 
 /** The recording. Bare id only — a `list` param would queue unrelated videos. */
-export const PIANO_VIDEO_ID = 'ueOshaElP9E';
+export const PIANO_VIDEO_ID = 'QSbZHTvbjR4';
 
 const WINDOW_W = 400;
 const VIDEO_W = 400;

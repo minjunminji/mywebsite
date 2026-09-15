@@ -255,15 +255,16 @@ word doesn't exist and snapping to a stale coordinate would be arbitrary.
 
 ## The video
 
-**Video ID: `ueOshaElP9E`**
+**Video ID: `QSbZHTvbjR4`**
 
-The source URL was `.../watch?v=ueOshaElP9E&list=RDueOshaElP9E&start_radio=1`. The
-`list=RD…` / `start_radio=1` params are an auto-generated YouTube radio mix, an artifact
-of where the link was copied from. **Do not carry them into the embed** — a `list`
-param turns the embed into a playlist and queues unrelated videos after the
-performance ends, which also defeats the `ENDED` handler above.
+Use the bare ID only. If a URL ever arrives carrying `list=…` / `start_radio=1` (an
+auto-generated YouTube radio mix, depending on where the link was copied from), strip
+them — a `list` param turns the embed into a playlist and queues unrelated videos after
+the performance ends, which also defeats the `ENDED` handler above.
 
-Use the bare ID only.
+Note that the TLDR copy in `storyData.ts` links to a *different* recording
+(`ueOshaElP9E`, the concerto with the VSO SOM orchestra). That link is deliberate and
+separate from what the player embeds.
 
 ## Open items
 
