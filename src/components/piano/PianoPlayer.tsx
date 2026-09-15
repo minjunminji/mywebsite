@@ -17,9 +17,15 @@ const VIDEO_W = 400;
 const VIDEO_H = 225; // 16:9 against VIDEO_W
 const HEADER_H = 40;
 const EXPANDED_H = HEADER_H + VIDEO_H;
-const THUMB_W = 64;
-const THUMB_H = 36; // 16:9, so one scale value drives the whole collapse
-const THUMB_INSET = 8;
+const BORDER = 1.5;
+const RADIUS = 12;
+/** Collapsed, the video fills the bar end completely: it spans the full inner
+ *  height the border leaves and sits flush against the right inner edge, so its
+ *  width simply follows from 16:9 rather than being picked. */
+const THUMB_H = HEADER_H - BORDER * 2;
+const THUMB_W = (THUMB_H * VIDEO_W) / VIDEO_H;
+/** Breathing room between the last control and the video. */
+const THUMB_GAP = 8;
 /** Breathing room kept between the window and every viewport edge. */
 export const MARGIN = 12;
 export const WINDOW_SIZE = { width: WINDOW_W, height: EXPANDED_H };
@@ -166,19 +172,22 @@ export default function PianoPlayer({
   // and merely scaled, so YouTube never sees a resize and never relayouts.
   const frame = collapsed
     ? {
-        left: WINDOW_W - THUMB_W - THUMB_INSET,
-        top: (HEADER_H - THUMB_H) / 2,
+        // Flush into the bar end: tucked just inside the border on the top,
+        // bottom, and right, with only the right corners rounded to follow the
+        // bar's own. No border of its own — the header's already wraps it.
+        left: WINDOW_W - BORDER - THUMB_W,
+        top: BORDER,
         width: THUMB_W,
         height: THUMB_H,
-        radius: '6px',
-        border: `1.5px solid ${INK}`,
+        radius: `0 ${RADIUS - BORDER}px ${RADIUS - BORDER}px 0`,
+        border: `0 solid ${INK}`,
       }
     : {
         left: 0,
         top: HEADER_H,
         width: VIDEO_W,
         height: VIDEO_H,
-        radius: '0 0 12px 12px',
+        radius: `0 0 ${RADIUS}px ${RADIUS}px`,
         border: `0 solid ${INK}`,
       };
 
@@ -231,11 +240,11 @@ export default function PianoPlayer({
           alignItems: 'center',
           gap: '0.5rem',
           paddingLeft: '0.5rem',
-          paddingRight: collapsed ? THUMB_W + THUMB_INSET * 2 : '0.5rem',
+          paddingRight: collapsed ? THUMB_W + BORDER + THUMB_GAP : '0.5rem',
           background: PAPER,
-          border: `1.5px solid ${INK}`,
-          borderBottomWidth: collapsed ? '1.5px' : 0,
-          borderRadius: collapsed ? '12px' : '12px 12px 0 0',
+          border: `${BORDER}px solid ${INK}`,
+          borderBottomWidth: collapsed ? BORDER : 0,
+          borderRadius: collapsed ? `${RADIUS}px` : `${RADIUS}px ${RADIUS}px 0 0`,
           cursor: 'grab',
           touchAction: 'none',
           transition: `padding-right ${MOVE_MS}ms ${EASE}, border-radius ${MOVE_MS}ms ${EASE}`,
