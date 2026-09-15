@@ -3,9 +3,10 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ABOUT_FADE_DURATION_MS,
-  ABOUT_GROUP_GAP_MS,
   ABOUT_INITIAL_DELAY_MS,
   ABOUT_LINES,
+  ABOUT_PIANO_LINE,
+  ABOUT_PIANO_LINE_INDEX,
   ABOUT_REFERENCE_IMAGE,
   ALL_PRELOAD_FRAMES,
   SOCIAL_LINKS,
@@ -26,6 +27,7 @@ import TldrOverlay from '@/components/story/TldrOverlay';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
+import { usePiano } from '@/components/piano/PianoContext';
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -73,6 +75,12 @@ export default function StoryPlayer() {
   const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
 
   const cornerVisible = introDone && player.position !== 0;
+
+  const { summoned: pianoSummoned, visible: pianoVisible, summonFrom, restore: restorePiano } =
+    usePiano();
+  // The ♪ is the way back to a closed player from stops where the trigger word
+  // isn't on screen, so it only earns its spot once the player exists and is hidden.
+  const showPianoNote = pianoSummoned && !pianoVisible;
 
   const [tldrOpen, setTldrOpen] = useState(false);
   // The tldr button fades in with the nav on the landing; gate its click (and the
@@ -262,12 +270,8 @@ export default function StoryPlayer() {
             }}
           >
             {ABOUT_LINES.map((line, index) => {
-              // Fade groups: intro (line 0) first, then the body sentences (lines
-              // 1+2) together. Each group fades over ABOUT_FADE_DURATION_MS, then
-              // waits ABOUT_GROUP_GAP_MS before the next group begins.
-              const group = index === 0 ? 0 : 1;
-              const delay =
-                ABOUT_INITIAL_DELAY_MS + group * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS);
+              // All lines fade in together.
+              const delay = ABOUT_INITIAL_DELAY_MS;
 
               return (
                 <p
@@ -286,7 +290,43 @@ export default function StoryPlayer() {
                     animationDelay: `${delay}ms`,
                   }}
                 >
-                  {line}
+                  {index === ABOUT_PIANO_LINE_INDEX ? (
+                    <>
+                      {ABOUT_PIANO_LINE.before}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          summonFrom({
+                            left: rect.left,
+                            top: rect.top,
+                            width: rect.width,
+                            height: rect.height,
+                          });
+                        }}
+                        style={{
+                          font: 'inherit',
+                          color: 'inherit',
+                          border: 'none',
+                          background: 'transparent',
+                          padding: 0,
+                          margin: 0,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textDecorationThickness: '1.5px',
+                          textUnderlineOffset: '0.2em',
+                          // The about <section> turns pointer events off wholesale;
+                          // this is the one thing inside it that must stay clickable.
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {ABOUT_PIANO_LINE.trigger}
+                      </button>
+                      {ABOUT_PIANO_LINE.after}
+                    </>
+                  ) : (
+                    line
+                  )}
                 </p>
               );
             })}
@@ -301,9 +341,7 @@ export default function StoryPlayer() {
                 animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
                 animationTimingFunction: 'ease',
                 animationFillMode: 'both',
-                animationDelay: `${
-                  ABOUT_INITIAL_DELAY_MS + 2 * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS)
-                }ms`,
+                animationDelay: `${ABOUT_INITIAL_DELAY_MS}ms`,
               }}
             >
               move your cursor over the drawing to reveal the reference
@@ -354,6 +392,47 @@ export default function StoryPlayer() {
           zIndex: 20,
         }}
       >
+        {/* ♪ — the way back to a closed player from stops where the trigger word
+            isn't on screen. Collapses to zero width with the same grid trick the
+            socials use below, so the row doesn't jump when it appears. */}
+        <div
+          aria-hidden={!showPianoNote}
+          style={{
+            display: 'inline-grid',
+            gridTemplateColumns: showPianoNote ? '1fr' : '0fr',
+            marginRight: showPianoNote ? 0 : '-0.4rem',
+            transition:
+              'grid-template-columns 500ms cubic-bezier(0.65, 0, 0.35, 1), ' +
+              'margin-right 500ms cubic-bezier(0.65, 0, 0.35, 1)',
+          }}
+        >
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              onClick={restorePiano}
+              data-cursor-pad="-4"
+              aria-label="Show piano player"
+              tabIndex={showPianoNote ? 0 : -1}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: '0.1rem 0.15rem',
+                margin: 0,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-geist-sans), sans-serif',
+                fontSize: 'clamp(1rem, 1.3vw, 1.35rem)',
+                lineHeight: 1,
+                color: '#1f1812',
+                opacity: showPianoNote ? 0.9 : 0,
+                transition: `opacity 360ms ease ${showPianoNote ? '120ms' : '0ms'}`,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ♪
+            </button>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={() => setTldrOpen(true)}
