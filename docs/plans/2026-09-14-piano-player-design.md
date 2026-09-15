@@ -65,30 +65,33 @@ never use the feature.
 ```
 HIDDEN        Not yet summoned, or closed. Wrapper hidden, video paused.
 
-EXPANDED  (~400px wide)
+EXPANDED  (400px wide)
 ┌────────────────────────────────────────┐
-│ ⠿  ▶   ━━━━━━━●──────────  4:32   ▭ ✕ │
+│ ⠿   me playing chopin piano co…   ▭ ✕ │
 ├────────────────────────────────────────┤
 │                                        │
-│          [ video, no UI ]              │
+│     [ video, YouTube's controls ]      │
 │                                        │
 └────────────────────────────────────────┘
 
-COLLAPSED  (same width, iframe scaled into a slot on the right)
-┌────────────────────────────────────────┐
-│ ⠿ ▶  ━━━━●────────  4:32  ▭ ✕ ┌──────┐│
-└───────────────────────────────└──────┘─┘
+COLLAPSED  (same width, video scaled over the bar's right end)
+┌───────────────────────────────────────┬──────┐
+│ ⠿  me playing chopin pia…    ▭ ✕     │ ▓▓▓▓ │
+└───────────────────────────────────────┴──────┘
 ```
 
 The collapsed bar keeps the **same width** as the expanded window, so nothing reflows
-horizontally. The iframe scales into a reserved slot on the right; the scrub bar gives
-up ~70px. The slot is a flex spacer animating `0 → 64px`, with the absolutely
-positioned iframe landing on top of it.
+horizontally. The video scales down over a reserved slot at the right; the title gives
+up that width.
+
+The bar carries only window controls — drag, collapse, close — plus a scrolling title
+where transport would otherwise sit. Playback belongs to the embed.
 
 ## Geometry: scale, don't resize
 
-The iframe has a **fixed intrinsic size** (400×225) and the collapse animates
-`transform: scale()` on its wrapper — `scale(1)` expanded, `scale(0.16)` collapsed.
+The iframe has a **fixed intrinsic size** (400×225, passed explicitly — without it the
+API builds a 640×390 iframe) and the collapse animates `transform: scale()` on its
+wrapper: `scale(1)` expanded, about `scale(0.178)` collapsed.
 
 Two reasons this beats animating width/height:
 
@@ -100,6 +103,12 @@ Two reasons this beats animating width/height:
 
 Both states are 16:9, so one scale value covers the entire animation.
 
+**The collapsed size is derived, never picked.** Its height is the bar's full *outer*
+height and its width follows from 16:9, so it lands flush by construction and keeps
+following `HEADER_H` if that ever changes. It sits *over* the bar's border rather than
+inside it — tucking it inside leaves a hairline of paper between the two — which means
+it must out-rank the header in z-order, since the header paints an opaque background.
+
 **Rounded bottom corners:** apply `overflow: hidden` + `border-radius` to a wrapper
 around the iframe, never to the iframe itself, and add `transform: translateZ(0)` to
 that wrapper. Safari drops the clip on transformed descendants otherwise, and square
@@ -107,16 +116,18 @@ corners poke out mid-animation.
 
 ## YouTube embed configuration
 
-Use the **IFrame Player API** (`YT.Player`), not a bare `<iframe src>` — programmatic
-control is required for custom transport and for play-on-summon.
+Use the **IFrame Player API** (`YT.Player`), not a bare `<iframe src>` — the API is
+still needed to start on summon and pause on close even though the embed owns transport.
 
 Parameters:
 
 ```
-controls=0          Removes the entire bottom control bar
+controls=1          The embed owns transport
+fs=0                No fullscreen button — this is a 400px window by design
+color=white         Progress bar in white rather than YouTube red
 iv_load_policy=3    No annotations or cards
-disablekb=1         No keyboard shortcuts stealing arrow keys
 rel=0               Limits end-screen suggestions to the same channel
+start=241           Opens at 4:01, skipping the orchestral introduction
 playsinline=1       Prevents iOS fullscreen hijack
 enablejsapi=1       Required for API control
 ```
@@ -124,43 +135,51 @@ enablejsapi=1       Required for API control
 **Do not bother with** `modestbranding` (deprecated, now a no-op) or `showinfo`
 (removed in 2018).
 
-### The hover-chrome problem
+### How much of YouTube's UI can actually go
 
-Even with `controls=0`, hovering the video fades in YouTube's title, channel, share,
-and "Watch on YouTube" overlay. No supported parameter removes it.
+`controls` is binary — the bar can't be cherry-picked — and the iframe is cross-origin,
+so CSS cannot reach inside it either. Only `fs=0` and `color=white` give genuine
+per-piece control. The settings gear, captions button, YouTube wordmark, and the
+title/share overlay on hover are all unreachable.
 
-**Solution:** a transparent shield div over the iframe with `pointer-events: auto`. The
-cursor never reaches the player, so the hover chrome never fires — no title bar, no
-share buttons, no context menu. The video remains fully visible at full size; input is
-simply routed to our own controls.
+Masking individual regions with absolutely-positioned covers is possible in principle
+but was rejected: YouTube's control bar auto-hides after a few seconds, so a static
+cover sits over video content whenever the bar is hidden, and the positions are
+hardcoded offsets against a layout that is not a contract.
 
-The shield does double duty: iframes swallow `pointermove`, so dragging would stutter
-the instant the cursor crossed the video without it.
+The alternative — `controls=0` with transport built by hand — was implemented and
+explored on the `piano-player` branch, then set aside in favour of this one.
+
+### The shield
+
+A transparent div over the iframe, present in exactly two situations:
+
+- **While collapsed.** The video is ~71×40 there; YouTube's controls would be both
+  unreadable and easy to hit by accident, so the whole thumbnail goes inert.
+- **During a drag.** Iframes swallow `pointermove`, so a drag would stutter the instant
+  the cursor crossed the video.
+
+It must *not* be present while expanded and idle, or the native controls can't be
+clicked. It also carries the header's drag handlers, so the collapsed bar moves as one
+object rather than having a dead patch at its end.
 
 ### End screen
 
 At the end of 18 minutes the related-video grid appears regardless of `rel=0`. Listen
 for `onStateChange === ENDED`, then `seekTo(0)` and pause — the end screen never gets a
-chance to render.
+chance to render. (Rewind goes to 0, not back to `start`.)
 
-## Transport controls
+## The title
 
-All through the IFrame API:
+A marquee sits where transport would otherwise be: two identical copies of the text
+translated by exactly `-50%`, so the second lands where the first began and the loop has
+no seam. The trailing gap lives on each copy, which is what keeps that halfway point
+honest. Edges are masked so the text dissolves instead of clipping against the bar, and
+the animation is parked under `prefers-reduced-motion` — continuously moving text is a
+common accessibility complaint.
 
-- **Play/pause** — driven by `onStateChange`, *not* purely by the click handler.
-  YouTube changes state on its own (buffering, ads) and a button tracking only local
-  clicks will desync from reality.
-- **Progress** — poll `getCurrentTime()` / `getDuration()` on a 250ms interval while
-  playing. **The interval must stop when paused** so a timer isn't spinning forever in
-  the background.
-- **Scrub** — `seekTo(seconds, true)`, with pointer capture on the track so the drag
-  survives the cursor leaving the bar.
-
-At ~150px of track for 18 minutes, each pixel is roughly 7 seconds. Coarse, but
-appropriate for background listening.
-
-**Volume is deliberately out of scope.** People use system volume, and every added
-control squeezes an already-coarse scrub bar.
+**Volume is deliberately out of scope** — people use their system volume, and the embed
+supplies its own control anyway.
 
 ## Close and the ♪ affordance
 
@@ -218,10 +237,10 @@ the player's top-left corner, so the window unfolds down-and-right from the word
   piano, cook, and play soccer
   │
   └─┬──────────────────────────────┐
-    │ ⠿  ▶  ━━━●────────  0:04  ▭ ✕│
+    │ ⠿  me playing chopin…   ▭ ✕ │
     ├──────────────────────────────┤
     │                              │
-    │      [ video, no UI ]        │
+    │           [ video ]          │
     │                              │
     └──────────────────────────────┘
 ```
@@ -247,9 +266,16 @@ Three things this implies:
 ♪ restores the last position instead, since the ♪ is reachable from stops where the
 word doesn't exist and snapping to a stale coordinate would be arbitrary.
 
-## Defaults chosen (override freely)
+## Opening behaviour
 
-- **Spawn state:** expanded, playing.
+- **Summoned from `piano`:** expanded, and it starts playing — that click is the
+  browser gesture the audio needs.
+- **Restored from the ♪:** expanded, and deliberately *silent*. The ♪ is a "put it
+  back" control, not a play button; closing already paused the player, so it returns
+  exactly where the listener left it.
+- **Nothing renders until the embed is ready.** A chrome-first shell around a loading
+  hole looked worse than a short pause, so the window is withheld until `onReady`.
+  `ready` latches on for good, so only the very first open waits.
 - **Position persistence across reloads:** none. `localStorage` is a cheap later
   addition if it proves annoying.
 
@@ -258,9 +284,7 @@ word doesn't exist and snapping to a stale coordinate would be arbitrary.
 **Video ID: `QSbZHTvbjR4`**
 
 It opens at **4:01** via the `start` playerVar, skipping the orchestral introduction.
-That applies to the initial load only — finishing rewinds to 0, and the scrub track
-still spans the whole recording, so the thumb starts partway along rather than at the
-left edge.
+That applies to the initial load only — finishing rewinds to 0.
 
 Use the bare ID only. If a URL ever arrives carrying `list=…` / `start_radio=1` (an
 auto-generated YouTube radio mix, depending on where the link was copied from), strip
@@ -277,6 +301,10 @@ param the old URL carried was dropped rather than carried across.
 
 ## Open items
 
-- `public/song/arigato.mp3` (2.9MB) is committed but referenced nowhere in `src/` or
-  `app/`. It appears to be a leftover from an earlier music idea and should be deleted
-  unless it has a purpose.
+- **The orchestra's name is inconsistent between two user-visible strings.** The
+  marquee says "the VAM symphony orchestra"; the TLDR copy in `storyData.ts` says "the
+  VSO SOM orchestra". Those are different institutions (Vancouver Academy of Music vs.
+  Vancouver Symphony Orchestra / School of Music). Both are now on the page; one needs
+  correcting.
+- **`MOVE_MS` (340ms) has never been judged by eye** — it was picked before the collapse
+  animation had ever run.

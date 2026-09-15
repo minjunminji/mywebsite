@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   clampToViewport,
-  formatTime,
-  scrubFraction,
   spawnPosition,
   type Rect,
   type Size,
@@ -69,42 +67,3 @@ describe('spawnPosition', () => {
   });
 });
 
-describe('formatTime', () => {
-  it('pads seconds to two digits', () => {
-    expect(formatTime(4)).toBe('0:04');
-  });
-
-  it('formats a whole-minute boundary', () => {
-    expect(formatTime(60)).toBe('1:00');
-  });
-
-  it('formats the concerto length without an hours field', () => {
-    expect(formatTime(1087)).toBe('18:07');
-  });
-
-  it('floors fractional seconds rather than rounding up past the duration', () => {
-    expect(formatTime(59.9)).toBe('0:59');
-  });
-
-  it('renders zero, negatives, and NaN as 0:00 so the header never shows junk', () => {
-    // getCurrentTime() can return NaN before the player is ready.
-    expect(formatTime(0)).toBe('0:00');
-    expect(formatTime(-5)).toBe('0:00');
-    expect(formatTime(Number.NaN)).toBe('0:00');
-  });
-});
-
-describe('scrubFraction', () => {
-  it('maps a pointer at the track midpoint to one half', () => {
-    expect(scrubFraction(300, 200, 200)).toBeCloseTo(0.5);
-  });
-
-  it('clamps a pointer dragged past either end of the track', () => {
-    expect(scrubFraction(50, 200, 200)).toBe(0);
-    expect(scrubFraction(900, 200, 200)).toBe(1);
-  });
-
-  it('returns 0 for a zero-width track instead of dividing by zero', () => {
-    expect(scrubFraction(300, 200, 0)).toBe(0);
-  });
-});

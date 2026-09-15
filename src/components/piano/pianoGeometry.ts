@@ -57,25 +57,3 @@ export function spawnPosition(
   );
 }
 
-/**
- * Seconds to `m:ss`. No hours field — the recording is ~18 minutes.
- *
- * getCurrentTime() returns NaN before the player is ready, so anything that
- * isn't a positive finite number renders as 0:00 rather than leaking junk into
- * the header.
- */
-export function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return '0:00';
-  const total = Math.floor(seconds);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
-/** Pointer x over the scrub track, as a 0..1 fraction of the track's width. */
-export function scrubFraction(
-  clientX: number,
-  trackLeft: number,
-  trackWidth: number,
-): number {
-  if (trackWidth <= 0) return 0;
-  return clamp((clientX - trackLeft) / trackWidth, 0, 1);
-}
