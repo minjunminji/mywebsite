@@ -203,3 +203,41 @@ main {
     opacity: 0.42;
   }
 }
+
+/* Scrolling title in the piano player's bar. Two identical copies sit side by
+   side, so translating the pair by exactly -50% lands the second copy where the
+   first began and the loop has no visible seam. The trailing padding lives on
+   each copy, which keeps that halfway point honest. */
+.piano-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation-name: pianoMarquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  color: #1f1812;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.piano-marquee > span {
+  padding-right: 3rem;
+}
+
+@keyframes pianoMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Continuously moving text is a common accessibility complaint; park it. */
+@media (prefers-reduced-motion: reduce) {
+  .piano-marquee {
+    animation: none;
+  }
+}

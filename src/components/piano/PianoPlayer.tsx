@@ -1,12 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  clampToViewport,
-  formatTime,
-  scrubFraction,
-  type Point,
-} from './pianoGeometry';
+import { clampToViewport, type Point } from './pianoGeometry';
 import { useYouTubePlayer } from './useYouTubePlayer';
 
 /** The recording. Bare id only — a `list` param would queue unrelated videos. */
@@ -46,6 +41,14 @@ const VIDEO_SIZE = { width: VIDEO_W, height: VIDEO_H };
 /** Where the recording opens: 4:01. Initial load only — finishing rewinds to 0. */
 const START_SECONDS = 4 * 60 + 1;
 
+const PIANO_TITLE =
+  'me playing chopin piano concerto no 1 with the VAM symphony orchestra at the orpheum theatre';
+/** Seconds for one full pass of the title. Longer = slower. */
+const TITLE_SCROLL_S = 22;
+/** Dissolves the title at both ends instead of clipping it against the bar. */
+const TITLE_EDGE_FADE =
+  'linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%)';
+
 const INK = '#1f1812';
 const PAPER = '#f7f7f5';
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
@@ -69,11 +72,16 @@ export default function PianoPlayer({
   autoplayOnOpen,
 }: PianoPlayerProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
-  const trackRef = useRef<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
-  const { ready, playing, currentTime, duration, play, pause, toggle, seekToFraction } =
-    useYouTubePlayer(mountRef, PIANO_VIDEO_ID, VIDEO_SIZE, START_SECONDS);
+  // Transport belongs to the embed in this variant; the API is still needed to
+  // start on summon and pause on close.
+  const { ready, play, pause } = useYouTubePlayer(
+    mountRef,
+    PIANO_VIDEO_ID,
+    VIDEO_SIZE,
+    START_SECONDS,
+  );
 
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
 
@@ -114,7 +122,8 @@ export default function PianoPlayer({
 
   const onHeaderPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Controls and the scrub track own their own gestures.
-    if ((event.target as Element).closest('button, [data-piano-scrub]')) return;
+    // The window controls own their own gestures.
+    if ((event.target as Element).closest('button')) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     dragOffset.current = { dx: event.clientX - position.x, dy: event.clientY - position.y };
     setDragging(true);
@@ -151,36 +160,6 @@ export default function PianoPlayer({
     // Only when the height itself changes, not on every drag tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed]);
-
-  /* ---------------------------------------------------------------- */
-  /*  Scrub                                                            */
-  /* ---------------------------------------------------------------- */
-
-  const scrubbing = useRef(false);
-  const progress = duration > 0 ? Math.min(currentTime / duration, 1) : 0;
-
-  const seekFromPointer = (clientX: number) => {
-    const rect = trackRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    seekToFraction(scrubFraction(clientX, rect.left, rect.width));
-  };
-
-  const onTrackPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    scrubbing.current = true;
-    seekFromPointer(event.clientX);
-  };
-
-  const onTrackPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (scrubbing.current) seekFromPointer(event.clientX);
-  };
-
-  const onTrackPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    scrubbing.current = false;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  };
 
   /* ---------------------------------------------------------------- */
   /*  Frame geometry                                                   */
@@ -277,79 +256,26 @@ export default function PianoPlayer({
           )}
         </svg>
 
-        <button
-          type="button"
-          onClick={toggle}
-          data-cursor-pad="-4"
-          aria-label={playing ? 'Pause' : 'Play'}
-          style={iconButton}
-        >
-          {playing ? (
-            <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
-              <path d="M8 5v14M16 5v14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
-              <path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" strokeLinejoin="round" strokeWidth="2" stroke="currentColor" />
-            </svg>
-          )}
-        </button>
-
-        {/* scrub */}
+        {/* Scrolling title, where the transport controls used to be. Two
+            identical copies translated by -50% loop seamlessly; the edges are
+            masked so the text dissolves instead of clipping against the bar. */}
         <div
-          ref={trackRef}
-          data-piano-scrub
-          data-cursor-skip
-          role="slider"
-          aria-label="Seek"
-          aria-valuemin={0}
-          aria-valuemax={Math.round(duration)}
-          aria-valuenow={Math.round(currentTime)}
-          tabIndex={0}
-          onPointerDown={onTrackPointerDown}
-          onPointerMove={onTrackPointerMove}
-          onPointerUp={onTrackPointerUp}
-          onPointerCancel={onTrackPointerUp}
           style={{
-            position: 'relative',
             flex: 1,
             minWidth: 0,
-            height: '0.75rem',
-            display: 'flex',
-            alignItems: 'center',
-            cursor: 'pointer',
-            touchAction: 'none',
+            overflow: 'hidden',
+            WebkitMaskImage: TITLE_EDGE_FADE,
+            maskImage: TITLE_EDGE_FADE,
           }}
         >
-          <div style={{ position: 'absolute', inset: 'auto 0', height: 2, background: 'rgba(31, 24, 18, 0.22)', borderRadius: 999 }} />
-          <div style={{ position: 'absolute', left: 0, width: `${progress * 100}%`, height: 2, background: INK, borderRadius: 999 }} />
           <div
-            style={{
-              position: 'absolute',
-              left: `${progress * 100}%`,
-              width: '0.45rem',
-              height: '0.45rem',
-              marginLeft: '-0.225rem',
-              borderRadius: 999,
-              background: INK,
-            }}
-          />
+            className="piano-marquee"
+            style={{ animationDuration: `${TITLE_SCROLL_S}s` }}
+          >
+            <span>{PIANO_TITLE}</span>
+            <span aria-hidden>{PIANO_TITLE}</span>
+          </div>
         </div>
-
-        <span
-          style={{
-            flexShrink: 0,
-            fontSize: '0.68rem',
-            fontWeight: 400,
-            letterSpacing: '0.02em',
-            color: INK,
-            opacity: 0.75,
-            fontVariantNumeric: 'tabular-nums',
-            userSelect: 'none',
-          }}
-        >
-          {formatTime(currentTime)}
-        </span>
 
         <button
           type="button"
@@ -461,10 +387,13 @@ export default function PianoPlayer({
           </div>
         </div>
 
-        {/* Shield: keeps the cursor off the embed so YouTube's hover chrome
-            (title, share, "Watch on YouTube") never fires, and stops the iframe
-            swallowing pointermove mid-drag. */}
-        <div style={{ position: 'absolute', inset: 0, cursor: 'default' }} />
+        {/* Shield, but only while dragging. The embed owns transport here, so the
+            cursor has to reach it the rest of the time — yet an iframe swallows
+            pointermove, which would stutter a drag the moment the cursor crossed
+            the video. Present only for the duration of the gesture. */}
+        {dragging ? (
+          <div style={{ position: 'absolute', inset: 0, cursor: 'grabbing' }} />
+        ) : null}
       </div>
     </div>
   );

@@ -131,9 +131,8 @@ export function useYouTubePlayer(
         width: size.width,
         height: size.height,
         playerVars: {
-          controls: 0, // no bottom control bar; the header owns transport
+          controls: 1, // the embed owns transport; the bar only moves the window
           iv_load_policy: 3, // no annotations or cards
-          disablekb: 1, // don't let the embed eat arrow keys
           rel: 0, // keep end-screen suggestions on-channel
           start: startSeconds,
           playsinline: 1,
