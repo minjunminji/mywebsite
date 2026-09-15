@@ -25,8 +25,19 @@ const RADIUS = 12;
  *  between the two). Width simply follows from 16:9 rather than being picked. */
 const THUMB_H = HEADER_H;
 const THUMB_W = (THUMB_H * VIDEO_W) / VIDEO_H;
+const ROW_GAP = 8;
 /** Breathing room between the last control and the video. */
-const THUMB_GAP = 8;
+const THUMB_GAP = ROW_GAP;
+
+const CONTROL_BOX = 24; // icon button hit area
+const CONTROL_GLYPH = 13; // the glyph centred inside it
+/** Icon buttons centre a small glyph in a larger box, so every one of them
+ *  carries this much invisible slack on each side. */
+const CONTROL_SLACK = (CONTROL_BOX - CONTROL_GLYPH) / 2;
+/** Optical inset at the bar's ends. A button against the edge already supplies
+ *  its own slack, so the padding there is just ROW_GAP — but the grip is a bare
+ *  svg with none, and needs the slack added by hand or the row reads lopsided. */
+const EDGE_PAD = ROW_GAP + CONTROL_SLACK;
 /** Breathing room kept between the window and every viewport edge. */
 export const MARGIN = 12;
 export const WINDOW_SIZE = { width: WINDOW_W, height: EXPANDED_H };
@@ -196,8 +207,8 @@ export default function PianoPlayer({
   const iconButton: React.CSSProperties = {
     display: 'grid',
     placeItems: 'center',
-    width: '1.5rem',
-    height: '1.5rem',
+    width: CONTROL_BOX,
+    height: CONTROL_BOX,
     padding: 0,
     border: 'none',
     background: 'transparent',
@@ -240,9 +251,9 @@ export default function PianoPlayer({
           height: HEADER_H,
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem',
-          paddingLeft: '0.5rem',
-          paddingRight: collapsed ? THUMB_W + THUMB_GAP : '0.5rem',
+          gap: ROW_GAP,
+          paddingLeft: EDGE_PAD,
+          paddingRight: collapsed ? THUMB_W + THUMB_GAP : ROW_GAP,
           background: PAPER,
           border: `${BORDER}px solid ${INK}`,
           borderBottomWidth: collapsed ? BORDER : 0,
@@ -268,11 +279,11 @@ export default function PianoPlayer({
           style={iconButton}
         >
           {playing ? (
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
               <path d="M8 5v14M16 5v14" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
               <path d="M7 4.5l12 7.5-12 7.5z" fill="currentColor" strokeLinejoin="round" strokeWidth="2" stroke="currentColor" />
             </svg>
           )}
@@ -342,7 +353,7 @@ export default function PianoPlayer({
           aria-expanded={!collapsed}
           style={iconButton}
         >
-          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
             <path
               d={collapsed ? 'M5 15l7-7 7 7' : 'M5 9l7 7 7-7'}
               fill="none"
@@ -361,7 +372,7 @@ export default function PianoPlayer({
           aria-label="Close player"
           style={iconButton}
         >
-          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width={CONTROL_GLYPH} height={CONTROL_GLYPH} aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
           </svg>
         </button>
