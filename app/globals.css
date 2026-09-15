@@ -193,17 +193,6 @@ main {
   border: 0;
 }
 
-/* Placeholder shown while the embed boots. */
-@keyframes pianoPulse {
-  0%,
-  100% {
-    opacity: 0.16;
-  }
-  50% {
-    opacity: 0.42;
-  }
-}
-
 /* Scrolling title in the piano player's bar. Two identical copies sit side by
    side, so translating the pair by exactly -50% lands the second copy where the
    first began and the loop has no visible seam. The trailing padding lives on

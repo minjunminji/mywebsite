@@ -85,6 +85,12 @@ export default function PianoPlayer({
 
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
 
+  // Nothing is drawn until the embed is ready, so the window arrives whole with
+  // a video in it rather than as a chrome-first shell around a loading hole.
+  // `ready` latches on for good, so this only delays the very first open —
+  // restoring from the ♪ later is instant.
+  const shown = visible && ready;
+
   /* ---------------------------------------------------------------- */
   /*  Play on summon / pause on close                                  */
   /* ---------------------------------------------------------------- */
@@ -205,16 +211,16 @@ export default function PianoPlayer({
   return (
     <div
       data-piano-player
-      aria-hidden={!visible}
+      aria-hidden={!shown}
       style={{
         position: 'fixed',
         left: 0,
         top: 0,
         width: WINDOW_W,
         transform: `translate(${position.x}px, ${position.y}px)`,
-        opacity: visible ? 1 : 0,
-        visibility: visible ? 'visible' : 'hidden',
-        pointerEvents: visible ? 'auto' : 'none',
+        opacity: shown ? 1 : 0,
+        visibility: shown ? 'visible' : 'hidden',
+        pointerEvents: shown ? 'auto' : 'none',
         zIndex: 30,
         fontFamily: 'var(--font-geist-sans), sans-serif',
         // Transform must not ease while dragging or the window lags the cursor.
@@ -222,7 +228,7 @@ export default function PianoPlayer({
         transitionProperty: 'transform, opacity, visibility',
         transitionTimingFunction: `${EASE}, ease, linear`,
         transitionDuration: `${dragging ? 0 : MOVE_MS}ms, 220ms, 0ms`,
-        transitionDelay: visible ? '0ms, 0ms, 0ms' : '0ms, 0ms, 220ms',
+        transitionDelay: shown ? '0ms, 0ms, 0ms' : '0ms, 0ms, 220ms',
       }}
     >
       {/* ---- header: drag surface + our transport controls ---- */}
@@ -344,46 +350,12 @@ export default function PianoPlayer({
             transition: `transform ${MOVE_MS}ms ${EASE}`,
           }}
         >
-          {/* The fade lives on this wrapper rather than the mount node, because
-              the API replaces that node with its own iframe and any style set on
-              it goes away with it. */}
-          <div
-            className="piano-embed"
-            style={{
-              width: '100%',
-              height: '100%',
-              opacity: ready ? 1 : 0,
-              transition: 'opacity 420ms ease',
-            }}
-          >
+          {/* No fade or placeholder here any more — the whole window is withheld
+              until `ready`, so by the time any of this is on screen the embed has
+              something to show. */}
+          <div className="piano-embed" style={{ width: '100%', height: '100%' }}>
             {/* The API replaces this node with the iframe. It must never move. */}
             <div ref={mountRef} />
-          </div>
-
-          {/* Covers the boot gap between mounting and the embed painting, so it
-              reads as page rather than a black void. */}
-          <div
-            aria-hidden
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'grid',
-              placeItems: 'center',
-              background: PAPER,
-              opacity: ready ? 0 : 1,
-              transition: 'opacity 420ms ease',
-              pointerEvents: 'none',
-            }}
-          >
-            <span
-              style={{
-                fontSize: '1.75rem',
-                color: INK,
-                animation: 'pianoPulse 1.6s ease-in-out infinite',
-              }}
-            >
-              ♪
-            </span>
           </div>
         </div>
 
