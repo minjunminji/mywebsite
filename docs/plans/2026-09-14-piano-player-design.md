@@ -1,7 +1,7 @@
 # Persistent Piano Player — Design
 
 **Date:** 2026-09-14
-**Status:** Design validated, not yet implemented
+**Status:** Implemented on `piano-player-marquee`; this document describes what shipped
 
 ## Intent
 
@@ -20,7 +20,7 @@ player. The copy does the work; no new chrome is introduced on the about screen.
 
 Two notes:
 
-- The about `<section>` is currently `pointerEvents: 'none'` (`StoryPlayer.tsx:249`).
+- The about `<section>` is currently `pointerEvents: 'none'` (`StoryPlayer.tsx`).
   Pointer events must be re-enabled on the trigger span only, not the whole section.
 - `ABOUT_LINES` is a flat string array. The line needs to become segmented (or parsed)
   so `piano` can be wrapped in its own element.
@@ -130,6 +130,7 @@ rel=0               Limits end-screen suggestions to the same channel
 start=241           Opens at 4:01, skipping the orchestral introduction
 playsinline=1       Prevents iOS fullscreen hijack
 enablejsapi=1       Required for API control
+origin=<page>       Pairs with enablejsapi; the API warns without it
 ```
 
 **Do not bother with** `modestbranding` (deprecated, now a no-op) or `showinfo`
@@ -163,6 +164,23 @@ It must *not* be present while expanded and idle, or the native controls can't b
 clicked. It also carries the header's drag handlers, so the collapsed bar moves as one
 object rather than having a dead patch at its end.
 
+### When it doesn't load
+
+Without this, a blocked `youtube.com` — a corporate proxy, a privacy extension, a
+region-locked or removed video — was a permanent silent dead-end: `ready` never came,
+so nothing rendered; `visible` was true, so the ♪ was suppressed; and the word's
+already-visible guard made every further click a no-op. Nothing happened, forever, with
+no way out short of a reload.
+
+Three layers now cover it:
+
+- The API script has an `onerror` handler and the player registers `onError`, so a
+  blocked host or an unembeddable video reports rather than hangs.
+- A 15s ceiling on the whole boot catches the case where neither fires.
+- Failure renders the window with a fallback panel — a one-line message and a link to
+  the video on YouTube — so it is visible, closable, and offers an escape. There is no
+  in-place retry; the link is the retry.
+
 ### End screen
 
 At the end of 18 minutes the related-video grid appears regardless of `rel=0`. Listen
@@ -189,7 +207,7 @@ nothing plays while hidden. Reopening restores exactly where the listener left o
 Because the summoning affordance (`piano`) exists only on the about screen, closing the
 player from, say, the experience stop would otherwise strand the listener with no way
 back. So: **once summoned even once, a small ♪ joins the top-right corner cluster** —
-the flex row at `StoryPlayer.tsx:342` that already holds `tldr` and the social icons.
+the top-right flex row in `StoryPlayer.tsx` that already holds `tldr` and the social icons.
 It is the site's established global-controls location, and it keeps the player one
 click away from anywhere.
 
@@ -200,7 +218,7 @@ The ♪ does not appear before the first summon.
 - Pointer events on the header; `transform: translate()` on the window wrapper.
 - Clamp to the viewport so the window cannot be dragged off-screen.
 - The shield div (above) keeps the drag smooth across the iframe.
-- `RevealFluid` listens on `window` pointermove (`RevealFluid.tsx:348`), so dragging
+- `RevealFluid` listens on `window` pointermove (`RevealFluid.tsx`), so dragging
   across the about screen will smear the reference reveal open. Events originating
   inside the player must be ignored by that handler.
 
@@ -212,7 +230,7 @@ Match existing tokens rather than inventing new ones:
 |---|---|---|
 | Ink | `#1f1812` | About copy, nav, corner name |
 | Paper | `#f7f7f5` | `globals.css` body |
-| Border | `1.5px solid #1f1812` | Project figures (`StoryPlayer.tsx:623`) |
+| Border | `1.5px solid #1f1812` | Project figures (`StoryPlayer.tsx`) |
 | Radius | `12px` | Project figures |
 | Font | `var(--font-geist-sans)` | Everywhere |
 | Case | lowercase | `tldr`, nav labels |
@@ -224,8 +242,15 @@ controls.
 
 - Volume control
 - Playlist / multiple tracks
-- Mobile — `layout.tsx:42` gates the site to desktop
+- Mobile — the desktop gate in `layout.tsx` turns mobile away
 - Resizing the window (drag to move only)
+- **The custom cursor over the expanded video.** `CustomCursor` tracks `window`
+  pointermove, and the shield is deliberately absent while expanded so YouTube's
+  controls can be clicked — which means the bare iframe swallows those events and the
+  site's cursor freezes at the video's edge until the pointer re-emerges. This is the
+  same class of problem fixed for `RevealFluid`, and it is not fixable here without a
+  shield, which would defeat the point of native controls. Accepted cost of this
+  variant, not an oversight.
 
 ## Spawn position
 
@@ -252,7 +277,7 @@ Three things this implies:
 
 - **The anchor is captured once, not tracked.** The coordinates are read at click time
   and become plain viewport position. The about copy unmounts on navigation
-  (`StoryPlayer.tsx:237`); the player must not follow it or care.
+  (`StoryPlayer.tsx`); the player must not follow it or care.
 - **Spawn must be clamped like a drag.** The about copy is vertically centred and
   `piano` is on the last line, so on a short viewport the word sits low enough that a
   ~265px-tall window would hang off the bottom. Clamp to viewport on spawn using the
@@ -262,9 +287,10 @@ Three things this implies:
   listener just chose the player over the hint — but it is a deliberate tradeoff, not
   an oversight.
 
-**Anchoring applies only to the first summon from `piano`.** Reopening from the corner
-♪ restores the last position instead, since the ♪ is reachable from stops where the
-word doesn't exist and snapping to a stale coordinate would be arbitrary.
+**Every summon from `piano` re-anchors to the word.** Reopening from the corner ♪ is
+the exception: it restores the last position instead, since the ♪ is reachable from
+stops where the word doesn't exist and snapping to a stale coordinate would be
+arbitrary.
 
 ## Opening behaviour
 
@@ -273,9 +299,15 @@ word doesn't exist and snapping to a stale coordinate would be arbitrary.
 - **Restored from the ♪:** expanded, and deliberately *silent*. The ♪ is a "put it
   back" control, not a play button; closing already paused the player, so it returns
   exactly where the listener left it.
-- **Nothing renders until the embed is ready.** A chrome-first shell around a loading
-  hole looked worse than a short pause, so the window is withheld until `onReady`.
-  `ready` latches on for good, so only the very first open waits.
+- **Always expanded on open.** `collapsed` is reset whenever the window closes. It has
+  to be: the player never unmounts, so the flag would otherwise survive a close, and the
+  provider clamps the spawn against the *expanded* height — a collapsed reopen would
+  land a 40px bar where a 265px window was expected.
+- **Nothing renders until the embed is ready — with a floor.** A chrome-first shell
+  around a loading hole looked worse than a short pause, so the window is withheld until
+  `onReady`. But "nothing" must not become "nothing, forever": past 2.5s the window
+  appears anyway with a quiet loading line, and a hard failure shows a way out (see
+  below). `ready` latches on for good, so only the very first open ever waits.
 - **Position persistence across reloads:** none. `localStorage` is a cheap later
   addition if it proves annoying.
 

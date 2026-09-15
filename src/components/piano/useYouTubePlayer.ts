@@ -7,14 +7,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 /* ------------------------------------------------------------------ */
 
 // Only the handful of methods we actually call, rather than pulling in
-// @types/youtube for six signatures.
+// @types/youtube for three signatures.
 type YTPlayer = {
   playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
-  getCurrentTime(): number;
-  getDuration(): number;
-  destroy(): void;
 };
 
 type YTNamespace = {
@@ -28,6 +25,7 @@ type YTNamespace = {
       events?: {
         onReady?: () => void;
         onStateChange?: (event: { data: number }) => void;
+        onError?: (event: { data: number }) => void;
       };
     },
   ) => YTPlayer;
@@ -40,12 +38,15 @@ declare global {
   }
 }
 
-/** Player states as reported by onStateChange. */
+/** Player state as reported by onStateChange. */
 const ENDED = 0;
-const PLAYING = 1;
-const BUFFERING = 3;
 
-const POLL_INTERVAL_MS = 250;
+/**
+ * Ceiling on the whole boot, from mount to onReady. Generous, because a slow
+ * connection is not a broken one — but without some ceiling a blocked
+ * youtube.com leaves the player waiting forever with nothing to report.
+ */
+const READY_TIMEOUT_MS = 15_000;
 
 /* ------------------------------------------------------------------ */
 /*  Script loader                                                      */
@@ -61,7 +62,7 @@ let apiPromise: Promise<YTNamespace> | null = null;
 function loadYouTubeApi(): Promise<YTNamespace> {
   if (apiPromise) return apiPromise;
 
-  apiPromise = new Promise<YTNamespace>((resolve) => {
+  apiPromise = new Promise<YTNamespace>((resolve, reject) => {
     if (window.YT?.Player) {
       resolve(window.YT);
       return;
@@ -73,6 +74,13 @@ function loadYouTubeApi(): Promise<YTNamespace> {
     };
     const script = document.createElement('script');
     script.src = 'https://www.youtube.com/iframe_api';
+    // A blocked or unreachable youtube.com must reject, not hang. Drop the
+    // cached promise so a later attempt can try again instead of inheriting
+    // this failure.
+    script.onerror = () => {
+      apiPromise = null;
+      reject(new Error('YouTube IFrame API failed to load'));
+    };
     document.head.appendChild(script);
   });
 
@@ -84,18 +92,23 @@ function loadYouTubeApi(): Promise<YTNamespace> {
 /* ------------------------------------------------------------------ */
 
 export type YouTubeController = {
+  /** The embed has loaded and can be driven. Latches on for good. */
   ready: boolean;
-  playing: boolean;
-  currentTime: number;
-  duration: number;
+  /**
+   * The API script or the video failed to load, or onReady never arrived
+   * within READY_TIMEOUT_MS. Can also flip after `ready` if playback errors
+   * later — in that case the embed is still on screen showing YouTube's own
+   * message, so `ready` takes precedence for display.
+   */
+  failed: boolean;
   play: () => void;
   pause: () => void;
-  toggle: () => void;
-  seekToFraction: (fraction: number) => void;
 };
 
 /**
- * Wraps one YouTube embed in a play/pause/seek interface.
+ * Wraps one YouTube embed in a play/pause interface. Transport itself belongs
+ * to the embed; this exists to start on summon, pause on close, and report
+ * whether the thing loaded at all.
  *
  * The API *replaces* the element it is handed with an iframe, so `mountRef` must
  * point at a node that never unmounts and never moves in the tree — remounting
@@ -111,9 +124,7 @@ export function useYouTubePlayer(
 ): YouTubeController {
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [failed, setFailed] = useState(false);
 
   // Create the player once the API and the mount node are both available.
   useEffect(() => {
@@ -122,56 +133,58 @@ export function useYouTubePlayer(
 
     let destroyed = false;
 
-    loadYouTubeApi().then((YT) => {
-      if (destroyed || playerRef.current) return;
+    const giveUp = () => {
+      if (destroyed) return;
+      window.clearTimeout(timeout);
+      setFailed(true);
+    };
+    const timeout = window.setTimeout(giveUp, READY_TIMEOUT_MS);
 
-      playerRef.current = new YT.Player(node, {
-        videoId,
-        // Without these the API builds a 640x390 iframe, not our 16:9 box.
-        width: size.width,
-        height: size.height,
-        playerVars: {
-          controls: 1, // the embed owns transport; the bar only moves the window
-          fs: 0, // no fullscreen button — this is a 400px window by design
-          color: 'white', // progress bar in white rather than YouTube red
-          iv_load_policy: 3, // no annotations or cards
-          rel: 0, // keep end-screen suggestions on-channel
-          start: startSeconds,
-          playsinline: 1,
-          enablejsapi: 1,
-          origin: window.location.origin,
-        },
-        events: {
-          onReady: () => {
-            if (destroyed) return;
-            setReady(true);
-            setDuration(playerRef.current?.getDuration() ?? 0);
+    loadYouTubeApi()
+      .then((YT) => {
+        if (destroyed || playerRef.current) return;
+
+        playerRef.current = new YT.Player(node, {
+          videoId,
+          // Without these the API builds a 640x390 iframe, not our 16:9 box.
+          width: size.width,
+          height: size.height,
+          playerVars: {
+            controls: 1, // the embed owns transport; the bar only moves the window
+            fs: 0, // no fullscreen button — this is a 400px window by design
+            color: 'white', // progress bar in white rather than YouTube red
+            iv_load_policy: 3, // no annotations or cards
+            rel: 0, // keep end-screen suggestions on-channel
+            start: startSeconds,
+            playsinline: 1,
+            enablejsapi: 1,
+            origin: window.location.origin,
           },
-          onStateChange: (event) => {
-            if (destroyed) return;
-            // Drive the glyph from the player's own state, not from our click
-            // handler — YouTube changes state on its own (buffering, ads) and a
-            // locally-tracked button would desync from what's actually happening.
-            setPlaying(event.data === PLAYING || event.data === BUFFERING);
-
-            if (event.data === PLAYING) {
-              setDuration(playerRef.current?.getDuration() ?? 0);
-            }
-
-            // Rewind on finish so YouTube's related-video end screen never gets
-            // a chance to render over the video.
-            if (event.data === ENDED) {
-              playerRef.current?.seekTo(0, true);
-              playerRef.current?.pauseVideo();
-              setCurrentTime(0);
-            }
+          events: {
+            onReady: () => {
+              if (destroyed) return;
+              window.clearTimeout(timeout);
+              setReady(true);
+            },
+            onStateChange: (event) => {
+              if (destroyed) return;
+              // Rewind on finish so YouTube's related-video end screen never
+              // gets a chance to render over the video.
+              if (event.data === ENDED) {
+                playerRef.current?.seekTo(0, true);
+                playerRef.current?.pauseVideo();
+              }
+            },
+            // Removed, private, region-blocked, or embedding disallowed.
+            onError: giveUp,
           },
-        },
-      });
-    });
+        });
+      })
+      .catch(giveUp);
 
     return () => {
       destroyed = true;
+      window.clearTimeout(timeout);
     };
     // videoId is a module constant, the mount node is stable by contract, and
     // `size` / `startSeconds` are read once at construction — the collapse scales
@@ -179,35 +192,8 @@ export function useYouTubePlayer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 
-  // Poll the clock only while playing, so a paused player isn't spinning a timer
-  // for the rest of the session.
-  useEffect(() => {
-    if (!playing) return undefined;
-    const id = window.setInterval(() => {
-      const player = playerRef.current;
-      if (!player) return;
-      setCurrentTime(player.getCurrentTime());
-    }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [playing]);
-
   const play = useCallback(() => playerRef.current?.playVideo(), []);
   const pause = useCallback(() => playerRef.current?.pauseVideo(), []);
-  const toggle = useCallback(() => {
-    if (playing) playerRef.current?.pauseVideo();
-    else playerRef.current?.playVideo();
-  }, [playing]);
 
-  const seekToFraction = useCallback((fraction: number) => {
-    const player = playerRef.current;
-    if (!player) return;
-    const total = player.getDuration();
-    if (!total) return;
-    const seconds = total * fraction;
-    player.seekTo(seconds, true);
-    // Move the thumb immediately rather than waiting up to 250ms for the poll.
-    setCurrentTime(seconds);
-  }, []);
-
-  return { ready, playing, currentTime, duration, play, pause, toggle, seekToFraction };
+  return { ready, failed, play, pause };
 }

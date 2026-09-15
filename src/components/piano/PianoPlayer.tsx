@@ -40,6 +40,11 @@ export const WINDOW_SIZE = { width: WINDOW_W, height: EXPANDED_H };
 const VIDEO_SIZE = { width: VIDEO_W, height: VIDEO_H };
 /** Where the recording opens: 4:01. Initial load only — finishing rewinds to 0. */
 const START_SECONDS = 4 * 60 + 1;
+/** How long a summon may show nothing before the window appears with a loading
+ *  line instead. Past this, "nothing happened" reads as broken. */
+const SLOW_MS = 2_500;
+/** Where the fallback sends people when the embed can't load. */
+const WATCH_URL = `https://www.youtube.com/watch?v=${PIANO_VIDEO_ID}`;
 
 const PIANO_TITLE =
   'me playing chopin piano concerto no 1 with the VAM symphony orchestra at the orpheum theatre';
@@ -75,8 +80,8 @@ export default function PianoPlayer({
   const [collapsed, setCollapsed] = useState(false);
 
   // Transport belongs to the embed in this variant; the API is still needed to
-  // start on summon and pause on close.
-  const { ready, play, pause } = useYouTubePlayer(
+  // start on summon, pause on close, and say whether it loaded at all.
+  const { ready, failed, play, pause } = useYouTubePlayer(
     mountRef,
     PIANO_VIDEO_ID,
     VIDEO_SIZE,
@@ -85,11 +90,31 @@ export default function PianoPlayer({
 
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
 
-  // Nothing is drawn until the embed is ready, so the window arrives whole with
-  // a video in it rather than as a chrome-first shell around a loading hole.
-  // `ready` latches on for good, so this only delays the very first open —
-  // restoring from the ♪ later is instant.
-  const shown = visible && ready;
+  // The window always comes back expanded. `collapsed` would otherwise survive a
+  // close — this component never unmounts — and the provider clamps the spawn
+  // against the *expanded* height, so a collapsed reopen would land a 40px bar
+  // where a 265px window was expected.
+  useEffect(() => {
+    if (!visible) setCollapsed(false);
+  }, [visible]);
+
+  // Normally nothing is drawn until the embed is ready, so the window arrives
+  // whole with a video in it rather than as a chrome-first shell around a
+  // loading hole. But "nothing" must not become "nothing, forever": past
+  // SLOW_MS the window appears anyway with a quiet loading line, and a hard
+  // failure shows a way out. `ready` latches on for good, so only the very
+  // first open ever waits — restoring from the ♪ later is instant.
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!visible || ready || failed) {
+      setSlow(false);
+      return undefined;
+    }
+    const id = window.setTimeout(() => setSlow(true), SLOW_MS);
+    return () => window.clearTimeout(id);
+  }, [visible, ready, failed]);
+
+  const shown = visible && (ready || slow || failed);
 
   /* ---------------------------------------------------------------- */
   /*  Play on summon / pause on close                                  */
@@ -127,7 +152,6 @@ export default function PianoPlayer({
   );
 
   const onHeaderPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    // Controls and the scrub track own their own gestures.
     // The window controls own their own gestures.
     if ((event.target as Element).closest('button')) return;
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -350,14 +374,57 @@ export default function PianoPlayer({
             transition: `transform ${MOVE_MS}ms ${EASE}`,
           }}
         >
-          {/* No fade or placeholder here any more — the whole window is withheld
-              until `ready`, so by the time any of this is on screen the embed has
-              something to show. */}
           <div className="piano-embed" style={{ width: '100%', height: '100%' }}>
             {/* The API replaces this node with the iframe. It must never move. */}
             <div ref={mountRef} />
           </div>
         </div>
+
+        {/* Fallback, over the (unscaled) frame so its text stays legible. The
+            window is withheld until `ready` in the normal case, so this is only
+            ever seen when the boot is slow or has failed — the two cases where
+            showing nothing would be worse. Text is dropped when collapsed; it
+            has nowhere to go at 71x40.
+
+            Ordering matters for the children of this frame: the scaled wrapper
+            holding the iframe is child[0] and must stay there. Anything
+            conditional goes *after* it, so mounting and unmounting never shifts
+            the iframe's position in the tree. */}
+        {!ready ? (
+          <div
+            aria-live="polite"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'grid',
+              placeItems: 'center',
+              padding: '1rem',
+              background: PAPER,
+              color: INK,
+              fontSize: '0.78rem',
+              letterSpacing: '0.02em',
+              textAlign: 'center',
+              pointerEvents: failed ? 'auto' : 'none',
+              userSelect: 'none',
+            }}
+          >
+            {collapsed ? null : failed ? (
+              <span>
+                couldn&apos;t load the video —{' '}
+                <a
+                  href={WATCH_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: INK, textUnderlineOffset: '0.2em' }}
+                >
+                  watch on youtube
+                </a>
+              </span>
+            ) : (
+              <span style={{ opacity: 0.55 }}>loading…</span>
+            )}
+          </div>
+        ) : null}
 
         {/* Shield. The embed owns transport in this variant, so the cursor has to
             reach it — but only while expanded. Collapsed, the video is 71x40 and

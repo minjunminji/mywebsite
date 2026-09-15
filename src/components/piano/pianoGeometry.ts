@@ -1,5 +1,5 @@
-// Pure geometry and formatting for the floating piano player. No React, no DOM
-// reads — callers pass in measured rects so all of this stays testable.
+// Pure geometry for the floating piano player. No React, no DOM reads —
+// callers pass in measured rects so all of this stays testable.
 
 export type Point = { x: number; y: number };
 export type Size = { width: number; height: number };
