@@ -43,6 +43,8 @@ export const MARGIN = 12;
 export const WINDOW_SIZE = { width: WINDOW_W, height: EXPANDED_H };
 /** Intrinsic size of the embed. Constant — the collapse scales it, never resizes it. */
 const VIDEO_SIZE = { width: VIDEO_W, height: VIDEO_H };
+/** Where the recording opens: 4:01. Initial load only — finishing rewinds to 0. */
+const START_SECONDS = 4 * 60 + 1;
 
 const INK = '#1f1812';
 const PAPER = '#f7f7f5';
@@ -70,7 +72,7 @@ export default function PianoPlayer({
   const [collapsed, setCollapsed] = useState(false);
 
   const { ready, playing, currentTime, duration, play, pause, toggle, seekToFraction } =
-    useYouTubePlayer(mountRef, PIANO_VIDEO_ID, VIDEO_SIZE);
+    useYouTubePlayer(mountRef, PIANO_VIDEO_ID, VIDEO_SIZE, START_SECONDS);
 
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
 

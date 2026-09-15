@@ -105,6 +105,9 @@ export function useYouTubePlayer(
   mountRef: React.RefObject<HTMLDivElement | null>,
   videoId: string,
   size: { width: number; height: number },
+  /** Offset the recording opens at, in seconds. Applies to the initial load
+   *  only — finishing rewinds to 0, not back to here. */
+  startSeconds: number,
 ): YouTubeController {
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
@@ -132,6 +135,7 @@ export function useYouTubePlayer(
           iv_load_policy: 3, // no annotations or cards
           disablekb: 1, // don't let the embed eat arrow keys
           rel: 0, // keep end-screen suggestions on-channel
+          start: startSeconds,
           playsinline: 1,
           enablejsapi: 1,
           origin: window.location.origin,
@@ -169,8 +173,8 @@ export function useYouTubePlayer(
       destroyed = true;
     };
     // videoId is a module constant, the mount node is stable by contract, and
-    // `size` is read once at construction — the collapse scales the embed rather
-    // than resizing it, so a changed size must never rebuild the player.
+    // `size` / `startSeconds` are read once at construction — the collapse scales
+    // the embed rather than resizing it, so neither must ever rebuild the player.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId]);
 

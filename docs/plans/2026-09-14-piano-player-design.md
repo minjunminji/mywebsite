@@ -257,6 +257,11 @@ word doesn't exist and snapping to a stale coordinate would be arbitrary.
 
 **Video ID: `QSbZHTvbjR4`**
 
+It opens at **4:01** via the `start` playerVar, skipping the orchestral introduction.
+That applies to the initial load only — finishing rewinds to 0, and the scrub track
+still spans the whole recording, so the thumb starts partway along rather than at the
+left edge.
+
 Use the bare ID only. If a URL ever arrives carrying `list=…` / `start_radio=1` (an
 auto-generated YouTube radio mix, depending on where the link was copied from), strip
 them — a `list` param turns the embed into a playlist and queues unrelated videos after
