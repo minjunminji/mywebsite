@@ -97,10 +97,23 @@ export const NAV: readonly NavEntry[] = [
 ];
 
 // --- About text + timing (consumed by StoryPlayer) ---
+
+/** The hobbies line, split around the word that summons the piano player.
+ *  Kept as parts so the trigger can be its own element without the renderer
+ *  string-searching the copy. */
+export const ABOUT_PIANO_LINE = {
+  before: 'in my spare time, i like to play ',
+  trigger: 'piano',
+  after: ', cook, and play soccer',
+} as const;
+
+/** Which ABOUT_LINES entry carries the trigger. */
+export const ABOUT_PIANO_LINE_INDEX = 2;
+
 export const ABOUT_LINES = [
   "hi, i'm ryan",
   "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy",
-  'in my spare time, i like to play piano, cook, and play soccer',
+  `${ABOUT_PIANO_LINE.before}${ABOUT_PIANO_LINE.trigger}${ABOUT_PIANO_LINE.after}`,
 ] as const;
 
 // About reveal: three fade groups (intro, body, hint). Each fades over
