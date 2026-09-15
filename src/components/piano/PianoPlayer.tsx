@@ -387,12 +387,30 @@ export default function PianoPlayer({
           </div>
         </div>
 
-        {/* Shield, but only while dragging. The embed owns transport here, so the
-            cursor has to reach it the rest of the time — yet an iframe swallows
-            pointermove, which would stutter a drag the moment the cursor crossed
-            the video. Present only for the duration of the gesture. */}
-        {dragging ? (
-          <div style={{ position: 'absolute', inset: 0, cursor: 'grabbing' }} />
+        {/* Shield. The embed owns transport in this variant, so the cursor has to
+            reach it — but only while expanded. Collapsed, the video is 71x40 and
+            YouTube's controls would be both unreadable and easy to hit by
+            accident, so the whole thumbnail goes inert. It also covers any drag,
+            since an iframe swallows pointermove and would otherwise stutter the
+            gesture the moment the cursor crossed the video.
+
+            It carries the header's own drag handlers so the collapsed bar moves
+            as one object rather than having a dead patch at its end. While a drag
+            started on the header is in flight that element holds pointer capture,
+            so these never fire. */}
+        {dragging || collapsed ? (
+          <div
+            onPointerDown={onHeaderPointerDown}
+            onPointerMove={onHeaderPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              cursor: dragging ? 'grabbing' : 'grab',
+              touchAction: 'none',
+            }}
+          />
         ) : null}
       </div>
     </div>
