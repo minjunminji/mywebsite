@@ -262,9 +262,9 @@ auto-generated YouTube radio mix, depending on where the link was copied from), 
 them — a `list` param turns the embed into a playlist and queues unrelated videos after
 the performance ends, which also defeats the `ENDED` handler above.
 
-Note that the TLDR copy in `storyData.ts` links to a *different* recording
-(`ueOshaElP9E`, the concerto with the VSO SOM orchestra). That link is deliberate and
-separate from what the player embeds.
+`QSbZHTvbjR4` is the colour-graded upload of the same performance the TLDR copy in
+`storyData.ts` links to (`ueOshaElP9E`). Same concerto, same length — so the durations
+quoted throughout this document still hold. The two ids are just different uploads.
 
 ## Open items
 
