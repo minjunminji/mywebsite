@@ -55,6 +55,27 @@ export default function PianoPlayer({
   const windowHeight = collapsed ? HEADER_H : EXPANDED_H;
 
   /* ---------------------------------------------------------------- */
+  /*  Paused cover                                                     */
+  /* ---------------------------------------------------------------- */
+
+  // YouTube shows a title / share / watch-later card whenever an embed is
+  // paused. It's state-driven rather than hover-driven, so the shield can't stop
+  // it and no player parameter suppresses it — we cover it instead. Nothing is
+  // playing while it's up, so this hides a static card, never the performance.
+  const [covered, setCovered] = useState(true);
+  useEffect(() => {
+    if (!playing) {
+      // Beat their fade-in.
+      setCovered(true);
+      return undefined;
+    }
+    // Let their overlay finish fading out underneath before revealing the video,
+    // otherwise you catch a glimpse of it on the way through.
+    const id = window.setTimeout(() => setCovered(false), 260);
+    return () => window.clearTimeout(id);
+  }, [playing]);
+
+  /* ---------------------------------------------------------------- */
   /*  Play on summon / pause on close                                  */
   /* ---------------------------------------------------------------- */
 
@@ -392,6 +413,43 @@ export default function PianoPlayer({
             (title, share, "Watch on YouTube") never fires, and stops the iframe
             swallowing pointermove mid-drag. */}
         <div style={{ position: 'absolute', inset: 0, cursor: 'default' }} />
+
+        {/* Paused cover — hides YouTube's paused card. Outside the scaler so its
+            text stays legible instead of shrinking with the thumbnail. */}
+        <div
+          aria-hidden
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: collapsed ? 0 : '0.3rem',
+            background: PAPER,
+            color: INK,
+            opacity: covered ? 1 : 0,
+            transition: 'opacity 160ms ease',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        >
+          <span style={{ fontSize: collapsed ? '0.8rem' : '1.3rem', lineHeight: 1, opacity: 0.55 }}>
+            ♪
+          </span>
+          {collapsed ? null : (
+            <span
+              style={{
+                fontSize: '0.72rem',
+                letterSpacing: '0.03em',
+                opacity: 0.45,
+                textTransform: 'lowercase',
+              }}
+            >
+              chopin · piano concerto no. 1
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
