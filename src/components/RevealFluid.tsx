@@ -136,7 +136,9 @@ export default function RevealFluid({
           vec2 closest = pointerPrev + segment * t;
           float d = distance(uv, closest);
           float f = 1.0 - smoothstep(u_radius * 0.1, u_radius, d);
-          prev += f * u_strength;
+          // Strength is tuned per 60Hz frame; scale by dt so build-up speed
+          // is the same on every refresh rate.
+          prev += f * u_strength * u_dTime * 60.0;
           prev = clamp(prev, 0.0, 1.0);
         }
 
@@ -173,9 +175,57 @@ export default function RevealFluid({
       uniform float u_refLoaded;
       uniform float u_canvasAspect;
       uniform float u_refAspect;
+      uniform float u_time;
+
+      // Mask value where the reveal edge sits, and how far the noise pushes
+      // that edge in/out. th - amp/2 must stay > 0 so empty mask stays hidden.
+      const float EDGE_THRESHOLD = 0.15;
+      const float EDGE_NOISE_AMP = 0.14;
+      // Edge antialias width, in multiples of a screen pixel's mask change.
+      const float EDGE_SOFTNESS = 1.5;
+
+      float hash(vec2 p) {
+        p = fract(p * vec2(123.34, 456.21));
+        p += dot(p, p + 45.32);
+        return fract(p.x * p.y);
+      }
+
+      float valueNoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        vec2 u = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+          mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+          u.y
+        );
+      }
+
+      float fbm(vec2 p) {
+        float sum = 0.0;
+        float amp = 0.5;
+        for (int i = 0; i < 4; i++) {
+          sum += amp * valueNoise(p);
+          p = p * 2.03 + vec2(17.1, 9.2);
+          amp *= 0.5;
+        }
+        return sum / 0.9375;
+      }
 
       void main() {
         float mask = texture(u_mask, vUv).r;
+
+        // Page-anchored noise (aspect-corrected so blotches aren't stretched)
+        // wobbles the edge like ink bleeding into paper. It drifts slowly
+        // rather than following the cursor.
+        vec2 noiseUv = vUv * vec2(u_canvasAspect, 1.0) * 6.0;
+        float n = fbm(noiseUv + vec2(u_time * 0.04, -u_time * 0.03));
+        float field = mask + (n - 0.5) * EDGE_NOISE_AMP;
+
+        // Screen-space AA: a constant ~1.5px edge regardless of how steep the
+        // mask is at that point (fading blobs, overlapping strokes, etc).
+        float w = max(fwidth(field) * EDGE_SOFTNESS, 1e-4);
+        float edge = smoothstep(EDGE_THRESHOLD - w, EDGE_THRESHOLD + w, field);
         vec2 fitUv = vUv;
         if (u_canvasAspect > u_refAspect) {
           float fitWidth = u_refAspect / u_canvasAspect;
@@ -193,7 +243,7 @@ export default function RevealFluid({
           step(0.0, fitUv.y) *
           step(fitUv.y, 1.0);
 
-        float reveal = smoothstep(0.01, 0.04, mask) * inBounds * u_refLoaded;
+        float reveal = edge * inBounds * u_refLoaded;
 
         // Flip Y for image (WebGL UV origin is bottom-left, image is top-left)
         vec2 refUv = vec2(clamp(fitUv.x, 0.0, 1.0), 1.0 - clamp(fitUv.y, 0.0, 1.0));
@@ -205,7 +255,7 @@ export default function RevealFluid({
         // transparent gradients.
         vec3 bg = vec3(0.969, 0.969, 0.961); // #f7f7f5
         vec3 refOverBg = ref.rgb + bg * (1.0 - ref.a);
-        // Alpha follows the same smooth ramp as the reveal so the blob edge
+        // Alpha follows the same ramp as the reveal so the blob edge
         // cross-fades straight into the drawing underneath. (A binary alpha
         // here painted a ring of flat bg wherever the mask was above the
         // alpha cutoff but below the reveal ramp.)
@@ -222,11 +272,22 @@ export default function RevealFluid({
       u_refLoaded: gl.getUniformLocation(displayProgram, 'u_refLoaded'),
       u_canvasAspect: gl.getUniformLocation(displayProgram, 'u_canvasAspect'),
       u_refAspect: gl.getUniformLocation(displayProgram, 'u_refAspect'),
+      u_time: gl.getUniformLocation(displayProgram, 'u_time'),
     };
 
     /* ------------------------------------------------------------------ */
     /*  Framebuffer ping-pong (stores the mask)                            */
     /* ------------------------------------------------------------------ */
+
+    // Store the mask as half-float when we can render to it. With RGBA8 each
+    // value is rounded to 1/255 per frame, so the per-frame decay rounds to
+    // zero on high-refresh displays (the blob never fades on 240Hz) and the
+    // reveal edge bands. R16F is filterable in core WebGL2.
+    const floatMask = !!gl.getExtension('EXT_color_buffer_float');
+
+    // The mask is a smooth field, so it looks the same at half resolution
+    // (bilinear upsampling) and costs a quarter of the fill rate.
+    const MASK_SCALE = 0.5;
 
     function createFBO(w: number, h: number) {
       const tex = gl!.createTexture()!;
@@ -235,15 +296,19 @@ export default function RevealFluid({
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_MAG_FILTER, gl!.LINEAR);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_S, gl!.CLAMP_TO_EDGE);
       gl!.texParameteri(gl!.TEXTURE_2D, gl!.TEXTURE_WRAP_T, gl!.CLAMP_TO_EDGE);
-      gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA8, w, h, 0, gl!.RGBA, gl!.UNSIGNED_BYTE, null);
+      if (floatMask) {
+        gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.R16F, w, h, 0, gl!.RED, gl!.HALF_FLOAT, null);
+      } else {
+        gl!.texImage2D(gl!.TEXTURE_2D, 0, gl!.RGBA8, w, h, 0, gl!.RGBA, gl!.UNSIGNED_BYTE, null);
+      }
       const fbo = gl!.createFramebuffer()!;
       gl!.bindFramebuffer(gl!.FRAMEBUFFER, fbo);
       gl!.framebufferTexture2D(gl!.FRAMEBUFFER, gl!.COLOR_ATTACHMENT0, gl!.TEXTURE_2D, tex, 0);
       return { tex, fbo, w, h };
     }
 
-    let fbW = canvas.width || 512;
-    let fbH = canvas.height || 512;
+    let fbW = Math.max(1, Math.floor((canvas.width || 512) * MASK_SCALE));
+    let fbH = Math.max(1, Math.floor((canvas.height || 512) * MASK_SCALE));
     let fbA = createFBO(fbW, fbH);
     let fbB = createFBO(fbW, fbH);
 
@@ -292,9 +357,15 @@ export default function RevealFluid({
     let pointerX = 10;
     let pointerY = 10;
     let pointerActive = false;
-    let lastPaintPointerX = 10;
-    let lastPaintPointerY = 10;
-    let hasLastPaintPointer = false;
+
+    // The brush chases the raw pointer with a little lag, so the painted
+    // path is a smooth curve instead of straight per-frame segments.
+    let paintX = 10;
+    let paintY = 10;
+    let lastPaintX = 10;
+    let lastPaintY = 10;
+    let hasPaint = false;
+    let brushRadius = pointerRadius;
 
     function getCanvasUV(clientX: number, clientY: number) {
       const rect = canvas!.getBoundingClientRect();
@@ -314,7 +385,7 @@ export default function RevealFluid({
       pointerX = 10;
       pointerY = 10;
       pointerActive = false;
-      hasLastPaintPointer = false;
+      hasPaint = false;
     }
 
     function onTouchMove(e: TouchEvent) {
@@ -328,7 +399,7 @@ export default function RevealFluid({
 
     function onTouchEnd() {
       pointerActive = false;
-      hasLastPaintPointer = false;
+      hasPaint = false;
     }
 
     window.addEventListener('pointermove', onPointerMove);
@@ -341,6 +412,19 @@ export default function RevealFluid({
     /* ------------------------------------------------------------------ */
 
     let lastTime = performance.now();
+    const startTime = lastTime;
+
+    // Brush follow rate (1/s): higher = tighter to the cursor, lower = more lag.
+    const POINTER_FOLLOW = 25;
+    // Brush shrinks toward this fraction of pointerRadius at high speed and
+    // swells back when the cursor slows or rests.
+    const FAST_RADIUS_SCALE = 0.7;
+    const SLOW_SPEED = 0.5; // aspect-corrected UV units per second
+    const FAST_SPEED = 5.0;
+    const RADIUS_FOLLOW = 8;
+
+    // Freeze the edge noise drift for reduced-motion users.
+    const reducedMotionMq = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function scaleByPixelRatio(v: number) {
       return Math.floor(v * (window.devicePixelRatio || 1));
@@ -358,7 +442,10 @@ export default function RevealFluid({
       if (canvas!.width !== cw || canvas!.height !== ch) {
         canvas!.width = cw;
         canvas!.height = ch;
-        resizeFBOs(cw, ch);
+        resizeFBOs(
+          Math.max(1, Math.floor(cw * MASK_SCALE)),
+          Math.max(1, Math.floor(ch * MASK_SCALE)),
+        );
       }
 
       const aspect = canvas!.width / canvas!.height;
@@ -372,26 +459,42 @@ export default function RevealFluid({
       gl!.bindTexture(gl!.TEXTURE_2D, fbA.tex);
       gl!.uniform1i(blobUniforms.u_prev, 0);
 
-      const prevPointerX = hasLastPaintPointer ? lastPaintPointerX : pointerX;
-      const prevPointerY = hasLastPaintPointer ? lastPaintPointerY : pointerY;
-      gl!.uniform2f(blobUniforms.u_pointer, pointerX, pointerY);
-      gl!.uniform2f(blobUniforms.u_prevPointer, prevPointerX, prevPointerY);
-      gl!.uniform1f(blobUniforms.u_pointerDown, pointerActive ? 1.0 : 0.0);
-      gl!.uniform1f(blobUniforms.u_radius, pointerRadius);
+      if (pointerActive) {
+        if (!hasPaint) {
+          // Fresh stroke: start the brush on the cursor rather than
+          // sweeping in from wherever it last was.
+          paintX = lastPaintX = pointerX;
+          paintY = lastPaintY = pointerY;
+          brushRadius = pointerRadius;
+          hasPaint = true;
+        } else {
+          lastPaintX = paintX;
+          lastPaintY = paintY;
+          const k = 1 - Math.exp(-dt * POINTER_FOLLOW);
+          paintX += (pointerX - paintX) * k;
+          paintY += (pointerY - paintY) * k;
+        }
+
+        const speed =
+          Math.hypot((paintX - lastPaintX) * aspect, paintY - lastPaintY) / Math.max(dt, 1e-3);
+        const t = Math.min(Math.max((speed - SLOW_SPEED) / (FAST_SPEED - SLOW_SPEED), 0), 1);
+        const speedT = t * t * (3 - 2 * t);
+        const targetRadius = pointerRadius * (1 - (1 - FAST_RADIUS_SCALE) * speedT);
+        brushRadius += (targetRadius - brushRadius) * (1 - Math.exp(-dt * RADIUS_FOLLOW));
+      } else {
+        hasPaint = false;
+      }
+
+      gl!.uniform2f(blobUniforms.u_pointer, paintX, paintY);
+      gl!.uniform2f(blobUniforms.u_prevPointer, lastPaintX, lastPaintY);
+      gl!.uniform1f(blobUniforms.u_pointerDown, hasPaint ? 1.0 : 0.0);
+      gl!.uniform1f(blobUniforms.u_radius, brushRadius);
       gl!.uniform1f(blobUniforms.u_strength, blobStrength);
       gl!.uniform1f(blobUniforms.u_dTime, dt);
       gl!.uniform1f(blobUniforms.u_duration, fadeDuration);
       gl!.uniform1f(blobUniforms.u_aspect, aspect);
 
       drawQuad(blobProgram!);
-
-      if (pointerActive) {
-        lastPaintPointerX = pointerX;
-        lastPaintPointerY = pointerY;
-        hasLastPaintPointer = true;
-      } else {
-        hasLastPaintPointer = false;
-      }
 
       // Swap
       const tmp = fbA;
@@ -417,6 +520,10 @@ export default function RevealFluid({
       gl!.uniform1f(displayUniforms.u_refLoaded, refImageLoaded ? 1.0 : 0.0);
       gl!.uniform1f(displayUniforms.u_canvasAspect, aspect);
       gl!.uniform1f(displayUniforms.u_refAspect, refAspect);
+      gl!.uniform1f(
+        displayUniforms.u_time,
+        reducedMotionMq.matches ? 0 : (now - startTime) / 1000,
+      );
 
       drawQuad(displayProgram!);
 
