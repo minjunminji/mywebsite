@@ -5,7 +5,9 @@ import { NAV_ASSEMBLY_MS, NAV_DRAW_MS, NAV_GLIDE_MS } from '@/components/story/n
 import { NAV, isProjectStop, stopIndexById } from '@/components/story/storyData';
 
 const INK = '#1f1812';
-const PALE = 'rgba(31, 24, 18, 0.28)';
+const PALE_DOCKED = 'rgba(31, 24, 18, 0.28)';
+// Every fill reads the pale ink through this variable (see globals.css).
+const PALE = 'var(--nav-pale)';
 const EXPAND_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const CHILD_STAGGER_MS = 70;
 const NODE_PAD_PX = 5;
@@ -357,7 +359,9 @@ export default function StoryNav({
         textTransform: 'lowercase',
         fontSize: docked ? 'clamp(0.78rem, 1vw, 0.95rem)' : 'clamp(1.05rem, 1.8vw, 1.6rem)',
         opacity: visible ? 1 : 0,
+        ...({ '--nav-pale': docked ? PALE_DOCKED : INK } as CSSProperties),
         transition: [
+          glide('--nav-pale'),
           glide('left'),
           glide('top'),
           glide('transform'),
