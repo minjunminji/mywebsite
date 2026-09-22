@@ -79,18 +79,19 @@ The ink for stop 1 (`ryan kim → about` connector, then `about`) starts sweepin
 at the start of `trans1`, and the first connector occupies roughly the first
 third of that sweep (~0.7s) — before the lines draw at 0.6–0.9s.
 
-Fix: remap `fillProgress` in `[0, 1]` so ink holds at 0 until the assembly
-finishes, then sweeps the rest of the leg:
+Fix: hold the ink in *time*, in the player's fill loop. Leaving the landing
+(stop 0), the sweep starts `NAV_ASSEMBLY_MS` (900ms) late and covers the rest
+of the transition; returning to it, the sweep ends `NAV_ASSEMBLY_MS` early:
 
 ```
-holdFraction = ASSEMBLY_MS / trans1DurationMs   // 900 / (25 / 12 * 1000) ≈ 0.43
-effective    = f <= 1 ? clamp01((f - holdFraction) / (1 - holdFraction)) : f
+t = fillWindowT(elapsed, total, from === 0 ? NAV_ASSEMBLY_MS : 0, to === 0 ? NAV_ASSEMBLY_MS : 0)
 ```
 
-`holdFraction` is derived from `trans1Frames.length` and `PLAYBACK_FPS`, so it
-stays correct if the frames change. Applied in both directions: going home,
-ink finishes draining ~0.9s before arrival, the pale bar rests a beat, then the
-lines retract — a symmetric mirror, with no direction check.
+`fillWindowT` and the timing constants live in `navTiming.ts`, shared with
+`StoryNav`'s CSS delays. A stop-space fraction was rejected: the fill is eased
+for single steps and linear at 2× for skips, so no fixed fraction equals a
+fixed 0.9s. Going home, ink finishes draining ~0.9s before arrival, the pale
+bar rests a beat, then the lines retract — a symmetric mirror.
 
 ## Accessibility
 
@@ -102,9 +103,9 @@ lines retract — a symmetric mirror, with no direction check.
 ## Testing
 
 **Unit:**
-- Extract the remap as a pure `holdFirstLeg(fill, holdFraction)` and test it
-  like `frameQueue` / `storyData`: `0 → 0`, below hold → 0, at hold → 0,
-  end of leg 1 → 1, values > 1 pass through.
+- `fillWindowT` in `navTiming.test.ts`: linear with no holds, holds at 0
+  through the start hold, reaches 1 early by the end hold, clamps, and never
+  divides by zero when holds exceed the window.
 - Update `storyData.test.ts` for the relabeled entry.
 
 **Browser** (1024px and wide):
