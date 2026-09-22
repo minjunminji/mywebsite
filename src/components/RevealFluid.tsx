@@ -115,10 +115,7 @@ export default function RevealFluid({
       uniform float u_dTime;
       uniform float u_duration;
       uniform float u_aspect;
-
-      // Mask value one brush pass leaves at its center, regardless of speed.
-      // Must sit well above the display shader's EDGE_THRESHOLD.
-      const float MIN_PASS_COVERAGE = 0.7;
+      uniform float u_dwell;
 
       void main() {
         float prev = texture(u_prev, vUv).r;
@@ -140,14 +137,15 @@ export default function RevealFluid({
           vec2 closest = pointerPrev + segment * t;
           float d = distance(uv, closest);
           float f = 1.0 - smoothstep(u_radius * 0.1, u_radius, d);
-          // Strength is tuned per 60Hz frame; scale by dt so build-up speed
-          // is the same on every refresh rate.
-          prev += f * u_strength * u_dTime * 60.0;
-          // A fast cursor covers each point for only ~1 frame, so the
-          // accumulated deposit alone stays under the display edge threshold
-          // and only the overlapping joints between frames show (a trail of
-          // disjoint dots). Guarantee a single pass is visible.
-          prev = max(prev, f * MIN_PASS_COVERAGE);
+          // One pass fully reveals the brush footprint. Max (not add) so the
+          // overlapping caps between consecutive frame segments don't stack:
+          // stacked joints outlive the segment middles and a fading fast
+          // trail breaks apart into a row of dots.
+          prev = max(prev, f);
+          // Extra build-up only while the cursor dwells (slow/resting), so
+          // hovering still spreads the reveal outward. Strength is tuned per
+          // 60Hz frame; scale by dt so it's refresh-rate independent.
+          prev += f * u_strength * u_dTime * 60.0 * u_dwell;
           prev = clamp(prev, 0.0, 1.0);
         }
 
@@ -168,6 +166,7 @@ export default function RevealFluid({
       u_dTime: gl.getUniformLocation(blobProgram, 'u_dTime'),
       u_duration: gl.getUniformLocation(blobProgram, 'u_duration'),
       u_aspect: gl.getUniformLocation(blobProgram, 'u_aspect'),
+      u_dwell: gl.getUniformLocation(blobProgram, 'u_dwell'),
     };
 
     /* ------------------------------------------------------------------ */
@@ -468,6 +467,7 @@ export default function RevealFluid({
       gl!.bindTexture(gl!.TEXTURE_2D, fbA.tex);
       gl!.uniform1i(blobUniforms.u_prev, 0);
 
+      let speedT = 0;
       if (pointerActive) {
         if (!hasPaint) {
           // Fresh stroke: start the brush on the cursor rather than
@@ -487,7 +487,7 @@ export default function RevealFluid({
         const speed =
           Math.hypot((paintX - lastPaintX) * aspect, paintY - lastPaintY) / Math.max(dt, 1e-3);
         const t = Math.min(Math.max((speed - SLOW_SPEED) / (FAST_SPEED - SLOW_SPEED), 0), 1);
-        const speedT = t * t * (3 - 2 * t);
+        speedT = t * t * (3 - 2 * t);
         const targetRadius = pointerRadius * (1 - (1 - FAST_RADIUS_SCALE) * speedT);
         brushRadius += (targetRadius - brushRadius) * (1 - Math.exp(-dt * RADIUS_FOLLOW));
       } else {
@@ -502,6 +502,7 @@ export default function RevealFluid({
       gl!.uniform1f(blobUniforms.u_dTime, dt);
       gl!.uniform1f(blobUniforms.u_duration, fadeDuration);
       gl!.uniform1f(blobUniforms.u_aspect, aspect);
+      gl!.uniform1f(blobUniforms.u_dwell, 1 - speedT);
 
       drawQuad(blobProgram!);
 
