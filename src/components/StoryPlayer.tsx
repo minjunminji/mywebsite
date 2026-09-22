@@ -312,29 +312,6 @@ export default function StoryPlayer() {
         </section>
       ) : null}
 
-      {/* ===== PORT BLOCK B: corner name (top-left) ===== */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '1.5rem',
-          left: '1.5rem',
-          fontFamily: "var(--font-geist-sans), sans-serif",
-          fontWeight: 400,
-          fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
-          lineHeight: 1,
-          letterSpacing: '0.03em',
-          color: '#1f1812',
-          opacity: cornerVisible ? 0.9 : 0,
-          transition: 'opacity 360ms ease',
-          pointerEvents: cornerVisible ? 'auto' : 'none',
-          userSelect: 'none',
-          textTransform: 'lowercase',
-          zIndex: 20,
-        }}
-      >
-        ryan kim
-      </div>
-
       {/* ===== Top-right corner cluster: [ tldr ] [ social icons ] =====
           One right-anchored flex row. tldr fades in with the nav on the landing
           and sits alone in the corner; off-home the social wrapper expands and
