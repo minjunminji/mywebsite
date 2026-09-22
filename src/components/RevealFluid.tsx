@@ -116,6 +116,10 @@ export default function RevealFluid({
       uniform float u_duration;
       uniform float u_aspect;
 
+      // Mask value one brush pass leaves at its center, regardless of speed.
+      // Must sit well above the display shader's EDGE_THRESHOLD.
+      const float MIN_PASS_COVERAGE = 0.7;
+
       void main() {
         float prev = texture(u_prev, vUv).r;
 
@@ -139,6 +143,11 @@ export default function RevealFluid({
           // Strength is tuned per 60Hz frame; scale by dt so build-up speed
           // is the same on every refresh rate.
           prev += f * u_strength * u_dTime * 60.0;
+          // A fast cursor covers each point for only ~1 frame, so the
+          // accumulated deposit alone stays under the display edge threshold
+          // and only the overlapping joints between frames show (a trail of
+          // disjoint dots). Guarantee a single pass is visible.
+          prev = max(prev, f * MIN_PASS_COVERAGE);
           prev = clamp(prev, 0.0, 1.0);
         }
 
