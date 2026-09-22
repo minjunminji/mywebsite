@@ -101,6 +101,12 @@ export type YouTubeController = {
    */
   failed: boolean;
   pause: () => void;
+  /**
+   * Boot again after the API script failed to load. A no-op once a player has
+   * been constructed: a failure past that point is YouTube's answer about the
+   * video (removed, blocked), not the network's, and won't change on a retry.
+   */
+  retry: () => void;
 };
 
 /**
@@ -122,6 +128,8 @@ export function useYouTubePlayer(
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Bumped by `retry` to run the boot effect again.
+  const [attempt, setAttempt] = useState(0);
 
   // Create the player once the API and the mount node are both available.
   useEffect(() => {
@@ -187,9 +195,15 @@ export function useYouTubePlayer(
     // `size` / `startSeconds` are read once at construction — the collapse scales
     // the embed rather than resizing it, so neither must ever rebuild the player.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [videoId]);
+  }, [videoId, attempt]);
 
   const pause = useCallback(() => playerRef.current?.pauseVideo(), []);
 
-  return { ready, failed, pause };
+  const retry = useCallback(() => {
+    if (playerRef.current) return;
+    setFailed(false);
+    setAttempt((n) => n + 1);
+  }, []);
+
+  return { ready, failed, pause, retry };
 }

@@ -65,27 +65,28 @@ never use the feature.
 ```
 HIDDEN        Not yet summoned, or closed. Wrapper hidden, video paused.
 
-EXPANDED  (400px wide)
-┌────────────────────────────────────────┐
-│ ⠿   me playing chopin piano co…   ▭ ✕ │
-├────────────────────────────────────────┤
+EXPANDED  (400px wide; a ~92px tab on the video's top-left corner)
+╭──────────╮
+│ ⠿   ▭  ✕ │
+├──────────┴─────────────────────────────╮
 │                                        │
 │     [ video, YouTube's controls ]      │
 │                                        │
-└────────────────────────────────────────┘
+╰────────────────────────────────────────╯
 
-COLLAPSED  (same width, video scaled over the bar's right end)
-┌───────────────────────────────────────┬──────┐
-│ ⠿  me playing chopin pia…    ▭ ✕     │ ▓▓▓▓ │
-└───────────────────────────────────────┴──────┘
+COLLAPSED  (video scaled down and tucked beside the tab; ~162px wide)
+╭──────────┬──────╮
+│ ⠿   ▭  ✕ │ ▓▓▓▓ │
+╰──────────┴──────╯
 ```
 
-The collapsed bar keeps the **same width** as the expanded window, so nothing reflows
-horizontally. The video scales down over a reserved slot at the right; the title gives
-up that width.
+The tab carries only window controls — drag, collapse, close. Playback belongs to the
+embed. There is no title: the video is its own caption, and the bar it used to justify
+was 400px of chrome for three small controls.
 
-The bar carries only window controls — drag, collapse, close — plus a scrolling title
-where transport would otherwise sit. Playback belongs to the embed.
+Collapsing changes the window's width, so the viewport clamp is fed the real collapsed
+width (tab + thumbnail) rather than `WINDOW_W` — otherwise the pill stops 240px short of
+the right edge.
 
 ## Geometry: scale, don't resize
 
@@ -103,11 +104,13 @@ Two reasons this beats animating width/height:
 
 Both states are 16:9, so one scale value covers the entire animation.
 
-**The collapsed size is derived, never picked.** Its height is the bar's full *outer*
+**The collapsed size is derived, never picked.** Its height is the tab's full *outer*
 height and its width follows from 16:9, so it lands flush by construction and keeps
-following `HEADER_H` if that ever changes. It sits *over* the bar's border rather than
-inside it — tucking it inside leaves a hairline of paper between the two — which means
-it must out-rank the header in z-order, since the header paints an opaque background.
+following `HEADER_H` if that ever changes. It sits *over* the tab's right border rather
+than beside it — butting up leaves a hairline of paper between the two — which means it
+must out-rank the tab in z-order, since the tab paints an opaque background. `TAB_W` is
+likewise derived from the tab's contents rather than picked, because the thumbnail and
+the hint panel both need to know where the tab ends.
 
 **Rounded bottom corners:** apply `overflow: hidden` + `border-radius` to a wrapper
 around the iframe, never to the iframe itself, and add `transform: translateZ(0)` to
@@ -189,12 +192,9 @@ chance to render. (Rewind goes to 0, not back to `start`.)
 
 ## The title
 
-A marquee sits where transport would otherwise be: two identical copies of the text
-translated by exactly `-50%`, so the second lands where the first began and the loop has
-no seam. The trailing gap lives on each copy, which is what keeps that halfway point
-honest. Edges are masked so the text dissolves instead of clipping against the bar, and
-the animation is parked under `prefers-reduced-motion` — continuously moving text is a
-common accessibility complaint.
+There isn't one. An earlier variant scrolled the recording's title as a marquee across a
+full-width bar; the bar went, and the title with it. The word that summons the player
+already says what it is.
 
 **Volume is deliberately out of scope** — people use their system volume, and the embed
 supplies its own control anyway.
@@ -317,12 +317,31 @@ arbitrary.
 ## First-open hint
 
 Nothing about the window signals that it is movable, collapsible, or persistent — the
-whole point of the feature — so the first time a working video is on screen, a strip
-grows upward out of the bar, holds a one-line explanation for ~5.5s, and retracts.
+whole point of the feature — so the first time a working video is on screen, the tab's
+right edge slides out to the window's full width, holds a one-line explanation for
+~5.5s, and slides back.
 
-- **Grows upward, so it briefly covers the word that summoned it.** Deliberate: the
-  hint visibly comes out of the thing just clicked. Growing downward would keep the
-  anchor clean but shove the video, which is worse.
+```
+╭──────────┬─────────────────────────────╮
+│ ⠿   ▭  ✕ │ you can drag this anywhere… │
+├──────────┴─────────────────────────────┤
+│                video                   │
+```
+
+- **Tab height, rightward only.** The element that already draws the tab's right wall
+  and top-right corner (in place of a border) is simply widened: its right edge, wall
+  and corner travel out together, and its paper fills the space behind them,
+  continuing the tab's own. It never rises above the tab, so it never goes off-screen
+  and never shoves the video. The text is pinned at its final size so the widening box
+  uncovers it rather than reflowing it.
+- **One shape, one outline.** Because the corner is carried rather than redrawn, there
+  is no divider between tab and hint and no moment where the outline breaks. The
+  element sits at `z-index: -1` inside the tab: above the tab's paper, below its
+  controls. One registered custom property (`--piano-hint-w`, how far the edge has
+  moved) transitions on the root, with the same easing as the window's own moves.
+- **Requires `@property`** (Safari 16.4+, Firefox 128+, Chrome 85+). Without it the
+  custom property is a string and can't transition: the hint would snap open and shut
+  rather than grow. Acceptable degradation.
 - **Retracts on first touch.** Starting a drag or clicking collapse dismisses it —
   whoever does either has found out what it is.
 - **Once per page load**, tracked in a ref. `localStorage` would make it once per
@@ -331,8 +350,6 @@ grows upward out of the bar, holds a one-line explanation for ~5.5s, and retract
   the hint would sit beside a loading line or an error.
 - Closing the window mid-hint retracts it (the effect's cleanup), so it can't be left
   stuck open for the next reopen.
-- Near the top of the viewport the strip would grow off-screen; the window nudges down
-  by exactly the strip's height when the hint opens.
 
 ## The video
 
