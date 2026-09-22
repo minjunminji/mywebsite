@@ -175,20 +175,7 @@ export default function RevealFluid({
       uniform float u_refAspect;
 
       void main() {
-        float rawMask = texture(u_mask, vUv).r;
-        vec2 texel = 1.0 / vec2(textureSize(u_mask, 0));
-
-        // Expand the occlusion mask by ~1px so the drawing below cannot peek
-        // through at antialiased/resampled blob edges.
-        float occlusionMask = rawMask;
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, 0.0)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(texel.x, 0.0)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(0.0, texel.y)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(0.0, texel.y)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, texel.y)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(texel.x, -texel.y)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv + vec2(-texel.x, texel.y)).r);
-        occlusionMask = max(occlusionMask, texture(u_mask, vUv - vec2(texel.x, texel.y)).r);
+        float mask = texture(u_mask, vUv).r;
         vec2 fitUv = vUv;
         if (u_canvasAspect > u_refAspect) {
           float fitWidth = u_refAspect / u_canvasAspect;
@@ -206,7 +193,7 @@ export default function RevealFluid({
           step(0.0, fitUv.y) *
           step(fitUv.y, 1.0);
 
-        float reveal = smoothstep(0.01, 0.04, occlusionMask) * inBounds;
+        float reveal = smoothstep(0.01, 0.04, mask) * inBounds * u_refLoaded;
 
         // Flip Y for image (WebGL UV origin is bottom-left, image is top-left)
         vec2 refUv = vec2(clamp(fitUv.x, 0.0, 1.0), 1.0 - clamp(fitUv.y, 0.0, 1.0));
@@ -218,12 +205,11 @@ export default function RevealFluid({
         // transparent gradients.
         vec3 bg = vec3(0.969, 0.969, 0.961); // #f7f7f5
         vec3 refOverBg = ref.rgb + bg * (1.0 - ref.a);
-        vec3 color = mix(bg, refOverBg, reveal);
-
-        // Use binary alpha for occlusion. This avoids semi-transparent blob
-        // edges that allow the underlying drawing layer to bleed through.
-        float a = step(0.01, occlusionMask) * u_refLoaded * inBounds;
-        fragColor = vec4(color * a, a);
+        // Alpha follows the same smooth ramp as the reveal so the blob edge
+        // cross-fades straight into the drawing underneath. (A binary alpha
+        // here painted a ring of flat bg wherever the mask was above the
+        // alpha cutoff but below the reveal ramp.)
+        fragColor = vec4(refOverBg * reveal, reveal);
       }
     `;
 
