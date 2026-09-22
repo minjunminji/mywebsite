@@ -65,6 +65,23 @@ export default function StoryNav({
 
   const docked = position !== 0;
   const projectsExpanded = isProjectStop(expandPosition);
+  // True for NAV_ASSEMBLY_MS after the bar docks, so anything that expands on
+  // the same click (the projects sub-nodes) waits for the bar to form. Updated
+  // during render so the hold lands in the same commit that flips `docked`.
+  const [prevDocked, setPrevDocked] = useState(docked);
+  const [assembling, setAssembling] = useState(false);
+  if (docked !== prevDocked) {
+    setPrevDocked(docked);
+    setAssembling(docked);
+  }
+  useEffect(() => {
+    if (!assembling) {
+      return;
+    }
+    const id = window.setTimeout(() => setAssembling(false), NAV_ASSEMBLY_MS);
+    return () => window.clearTimeout(id);
+  }, [assembling]);
+  const expandHold = assembling && projectsExpanded ? NAV_ASSEMBLY_MS : 0;
   // Docking glides first and draws the lines after; undocking retracts the
   // lines first and glides after. Every layout property shares this timing.
   const glideDelay = docked ? 0 : NAV_DRAW_MS;
@@ -293,7 +310,7 @@ export default function StoryNav({
       const childEls: ReactNode[] = [];
       entry.children.forEach((child, childIndex) => {
         const childStopIndex = stopIndexById(child.stopId);
-        const delay = projectsExpanded ? childIndex * CHILD_STAGGER_MS : 0;
+        const delay = projectsExpanded ? expandHold + childIndex * CHILD_STAGGER_MS : 0;
         const reveal: CSSProperties = {
           opacity: projectsExpanded ? 1 : 0,
           transform: projectsExpanded ? 'translateX(0)' : 'translateX(-10px)',
@@ -323,7 +340,9 @@ export default function StoryNav({
             display: 'inline-grid',
             gridTemplateColumns: projectsExpanded ? '1fr' : '0fr',
             marginLeft: projectsExpanded ? '0' : `-${gapValue}`,
-            transition: `grid-template-columns ${EXPAND_MS}ms ${EXPAND_EASE}, margin-left ${EXPAND_MS}ms ${EXPAND_EASE}`,
+            transition:
+              `grid-template-columns ${EXPAND_MS}ms ${EXPAND_EASE} ${expandHold}ms, ` +
+              `margin-left ${EXPAND_MS}ms ${EXPAND_EASE} ${expandHold}ms`,
           }}
         >
           <div
