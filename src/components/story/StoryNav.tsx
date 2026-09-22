@@ -199,7 +199,13 @@ export default function StoryNav({
           width: connectorWidth,
           height: '1px',
           background: lineFill(fraction),
-          transition: 'width 520ms ease',
+          // Hidden on the landing; drawn left to right once the glide lands,
+          // and retracted toward the left before the bar glides home.
+          transform: docked ? 'scaleX(1)' : 'scaleX(0)',
+          transformOrigin: 'left center',
+          transition:
+            `${glide('width')}, ` +
+            `transform ${NAV_DRAW_MS}ms ${docked ? 'ease-out' : 'ease-in'} ${docked ? NAV_GLIDE_MS : 0}ms`,
           ...extra,
         }}
       />
