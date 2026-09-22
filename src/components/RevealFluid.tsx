@@ -335,6 +335,14 @@ export default function RevealFluid({
       pointerActive = true;
     }
 
+    // Crossing into the embed's iframe hands every later pointermove to the
+    // iframe's own document, so the move guard above never sees it. The parent
+    // does get one pointerover, targeted at the iframe, on the way in — lift
+    // the pointer there instead.
+    function onPointerOver(e: PointerEvent) {
+      if (isOverPlayer(e.target)) onPointerLeave();
+    }
+
     function onPointerLeave() {
       pointerX = 10;
       pointerY = 10;
@@ -361,6 +369,7 @@ export default function RevealFluid({
     }
 
     window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerover', onPointerOver);
     window.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('touchmove', onTouchMove, { passive: true } as AddEventListenerOptions);
     window.addEventListener('touchend', onTouchEnd);
@@ -462,6 +471,7 @@ export default function RevealFluid({
       destroyed = true;
       if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerover', onPointerOver);
       window.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);

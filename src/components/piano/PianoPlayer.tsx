@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { clampToViewport, type Point } from './pianoGeometry';
 import { useYouTubePlayer } from './useYouTubePlayer';
 
@@ -114,9 +114,13 @@ export default function PianoPlayer({
   // against the *expanded* height, so a collapsed reopen would land a 40px bar
   // where a 265px window was expected. The reset waits for the fade-out: done
   // in the same commit, the thumbnail would visibly bloom back into a full
-  // window while the bar was still fading.
+  // window while the bar was still fading. A reopen inside that wait cancels
+  // the timer, so it resets on the way back in instead.
   useEffect(() => {
-    if (visible) return undefined;
+    if (visible) {
+      setCollapsed(false);
+      return undefined;
+    }
     const id = window.setTimeout(() => setCollapsed(false), FADE_MS);
     return () => window.clearTimeout(id);
   }, [visible]);
@@ -127,12 +131,15 @@ export default function PianoPlayer({
   // SLOW_MS the window appears anyway with a quiet loading line, and a hard
   // failure shows a way out. `ready` latches on for good, so only the very
   // first open ever waits — restoring from the ♪ later is instant.
+  // A failure leaves `slow` as it was rather than clearing it, so the retry
+  // below can hold the window up through the reboot.
   const [slow, setSlow] = useState(false);
   useEffect(() => {
-    if (!visible || ready || failed) {
+    if (!visible || ready) {
       setSlow(false);
       return undefined;
     }
+    if (failed) return undefined;
     const id = window.setTimeout(() => setSlow(true), SLOW_MS);
     return () => window.clearTimeout(id);
   }, [visible, ready, failed]);
@@ -142,9 +149,14 @@ export default function PianoPlayer({
   // A boot that failed gets another go each time the window is reopened: the
   // script that didn't load on the first summon may well load on the second.
   // Keyed on `visible` alone — reacting to `failed` itself would retry the
-  // instant it flipped, in a loop.
-  useEffect(() => {
-    if (visible && failed && !ready) retry();
+  // instant it flipped, in a loop. The retry clears `failed`, which would drop
+  // the window for SLOW_MS right after revealing it, so it counts as slow from
+  // the start: the window stays up and shows the loading line. A layout effect
+  // so the stale "couldn't load" never paints on the way.
+  useLayoutEffect(() => {
+    if (!visible || !failed || ready) return;
+    setSlow(true);
+    retry();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
@@ -188,17 +200,18 @@ export default function PianoPlayer({
 
   // Fires once, the first time there's a working video on screen — not during
   // the slow or failed states, where "drag this around" next to a loading line
-  // is just noise. Returning dismissHint as the cleanup means closing the window
+  // is just noise, and not while collapsed, where the panel would slide out
+  // from a bar sized for the full window and could run off-screen. Returning dismissHint as the cleanup means closing the window
   // mid-hint retracts it rather than leaving it stuck open for the next reopen.
   useEffect(() => {
-    if (hintShown.current || !ready || !visible) return undefined;
+    if (hintShown.current || !ready || !visible || collapsed) return undefined;
     hintShown.current = true;
     hintTimers.current = [
       window.setTimeout(() => setHintOpen(true), HINT_DELAY_MS),
       window.setTimeout(dismissHint, HINT_DELAY_MS + HINT_HOLD_MS),
     ];
     return dismissHint;
-  }, [ready, visible, dismissHint]);
+  }, [ready, visible, collapsed, dismissHint]);
 
   /* ---------------------------------------------------------------- */
   /*  Drag                                                             */
