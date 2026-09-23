@@ -77,12 +77,12 @@ export const isProjectStop = (index: number): boolean => STOPS[index]?.isProject
 export const isExperienceStop = (index: number): boolean =>
   STOPS[index]?.isExperience === true;
 
-// --- Nav: home (landing) + about + projects (expands into its 3 children) ---
+// --- Nav: the name (home/landing) + about + projects (expands into its 3 children) ---
 export type NavChild = { stopId: StopId; label: string };
 export type NavEntry = { label: string; stopId: StopId; children?: readonly NavChild[] };
 
 export const NAV: readonly NavEntry[] = [
-  { label: 'home', stopId: 'landing' },
+  { label: 'ryan kim', stopId: 'landing' },
   { label: 'about', stopId: 'about' },
   {
     label: 'projects',

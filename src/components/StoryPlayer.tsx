@@ -22,7 +22,8 @@ import {
   type ProjectContent,
 } from '@/components/story/storyData';
 import { useFramePlayer } from '@/components/story/useFramePlayer';
-import StoryNav from '@/components/story/StoryNav';
+import StoryNav, { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
+import { NAV_DRAW_MS, NAV_GLIDE_MS } from '@/components/story/navTiming';
 import TldrOverlay from '@/components/story/TldrOverlay';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
@@ -75,6 +76,9 @@ export default function StoryPlayer() {
   const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
 
   const cornerVisible = introDone && player.position !== 0;
+  // Collapsing (going home), hold the social icons until the nav lines have
+  // retracted so they move with the nav's glide instead of ahead of it.
+  const clusterDelay = cornerVisible ? 0 : NAV_DRAW_MS;
 
   const { summoned: pianoSummoned, visible: pianoVisible, summonFrom, restore: restorePiano } =
     usePiano();
@@ -350,29 +354,6 @@ export default function StoryPlayer() {
         </section>
       ) : null}
 
-      {/* ===== PORT BLOCK B: corner name (top-left) ===== */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '1.5rem',
-          left: '1.5rem',
-          fontFamily: "var(--font-geist-sans), sans-serif",
-          fontWeight: 400,
-          fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
-          lineHeight: 1,
-          letterSpacing: '0.03em',
-          color: '#1f1812',
-          opacity: cornerVisible ? 0.9 : 0,
-          transition: 'opacity 360ms ease',
-          pointerEvents: cornerVisible ? 'auto' : 'none',
-          userSelect: 'none',
-          textTransform: 'lowercase',
-          zIndex: 20,
-        }}
-      >
-        ryan kim
-      </div>
-
       {/* ===== Top-right corner cluster: [ tldr ] [ social icons ] =====
           One right-anchored flex row. tldr fades in with the nav on the landing
           and sits alone in the corner; off-home the social wrapper expands and
@@ -380,8 +361,10 @@ export default function StoryPlayer() {
       <div
         style={{
           position: 'fixed',
-          top: '1.5rem',
+          // Centered on the docked nav bar's midline so the two corners line up.
+          top: DOCKED_CENTER_Y,
           right: '1.5rem',
+          transform: 'translateY(-50%)',
           display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
@@ -464,7 +447,8 @@ export default function StoryPlayer() {
         {/* Collapsible social wrapper — 0fr on the landing, 1fr elsewhere. The
             negative margin swallows the flex gap when collapsed so tldr sits
             flush; the same grid trick the nav uses for its projects sub-nodes
-            (StoryNav.tsx). One curve drives the whole reflow. */}
+            (StoryNav.tsx). One curve drives the whole reflow, on the nav's
+            glide timing: going home it waits for the nav lines to retract. */}
         <div
           aria-hidden={!cornerVisible}
           style={{
@@ -472,8 +456,8 @@ export default function StoryPlayer() {
             gridTemplateColumns: cornerVisible ? '1fr' : '0fr',
             marginLeft: cornerVisible ? '0' : '-0.4rem',
             transition:
-              'grid-template-columns 600ms cubic-bezier(0.65, 0, 0.35, 1), ' +
-              'margin-left 600ms cubic-bezier(0.65, 0, 0.35, 1)',
+              `grid-template-columns ${NAV_GLIDE_MS}ms cubic-bezier(0.65, 0, 0.35, 1) ${clusterDelay}ms, ` +
+              `margin-left ${NAV_GLIDE_MS}ms cubic-bezier(0.65, 0, 0.35, 1) ${clusterDelay}ms`,
           }}
         >
           <div
@@ -484,7 +468,7 @@ export default function StoryPlayer() {
               alignItems: 'center',
               gap: '0.4rem',
               opacity: cornerVisible ? 0.9 : 0,
-              transition: `opacity 400ms ease ${cornerVisible ? '120ms' : '0ms'}`,
+              transition: `opacity 400ms ease ${cornerVisible ? 120 : clusterDelay}ms`,
               pointerEvents: cornerVisible ? 'auto' : 'none',
             }}
           >

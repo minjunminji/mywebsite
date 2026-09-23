@@ -183,6 +183,15 @@ main {
   }
 }
 
+/* StoryNav's "ahead of the playhead" ink. Registered so it can transition: on
+   the landing it equals full ink (a solid menu); docked it fades to pale.
+   An unregistered custom property is a string and would snap. */
+@property --nav-pale {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: rgba(31, 24, 18, 0.28);
+}
+
 /* The piano player's first-open hint animates this one value: how far the
    tab's right edge slides out (see HINT_VAR in PianoPlayer.tsx).
    Registering it is what lets it transition — an unregistered custom property

@@ -4,6 +4,7 @@ import {
   SEGMENTS,
   EXPERIENCE,
   LENSES,
+  NAV,
   stopIndexById,
   isExperienceStop,
 } from './storyData';
@@ -47,5 +48,12 @@ describe('experience content', () => {
         expect(entry.bullets[lens].length).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe('nav', () => {
+  it('leads with the name as the home entry', () => {
+    expect(NAV[0]).toEqual({ label: 'ryan kim', stopId: 'landing' });
+    expect(NAV.some((entry) => entry.label === 'home')).toBe(false);
   });
 });
