@@ -3,9 +3,10 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ABOUT_FADE_DURATION_MS,
-  ABOUT_GROUP_GAP_MS,
   ABOUT_INITIAL_DELAY_MS,
   ABOUT_LINES,
+  ABOUT_PIANO_LINE,
+  ABOUT_PIANO_LINE_INDEX,
   ABOUT_REFERENCE_IMAGE,
   ALL_PRELOAD_FRAMES,
   SOCIAL_LINKS,
@@ -21,11 +22,13 @@ import {
   type ProjectContent,
 } from '@/components/story/storyData';
 import { useFramePlayer } from '@/components/story/useFramePlayer';
-import StoryNav from '@/components/story/StoryNav';
+import StoryNav, { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
+import { NAV_DRAW_MS, NAV_GLIDE_MS } from '@/components/story/navTiming';
 import TldrOverlay from '@/components/story/TldrOverlay';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
+import { usePiano } from '@/components/piano/PianoContext';
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -73,6 +76,15 @@ export default function StoryPlayer() {
   const goingToExperience = player.target === experienceIndex || player.currentStop === experienceIndex;
 
   const cornerVisible = introDone && player.position !== 0;
+  // Collapsing (going home), hold the social icons until the nav lines have
+  // retracted so they move with the nav's glide instead of ahead of it.
+  const clusterDelay = cornerVisible ? 0 : NAV_DRAW_MS;
+
+  const { summoned: pianoSummoned, visible: pianoVisible, summonFrom, restore: restorePiano } =
+    usePiano();
+  // The ♪ is the way back to a closed player from stops where the trigger word
+  // isn't on screen, so it only earns its spot once the player exists and is hidden.
+  const showPianoNote = pianoSummoned && !pianoVisible;
 
   const [tldrOpen, setTldrOpen] = useState(false);
   // The tldr button fades in with the nav on the landing; gate its click (and the
@@ -262,12 +274,8 @@ export default function StoryPlayer() {
             }}
           >
             {ABOUT_LINES.map((line, index) => {
-              // Fade groups: intro (line 0) first, then the body sentences (lines
-              // 1+2) together. Each group fades over ABOUT_FADE_DURATION_MS, then
-              // waits ABOUT_GROUP_GAP_MS before the next group begins.
-              const group = index === 0 ? 0 : 1;
-              const delay =
-                ABOUT_INITIAL_DELAY_MS + group * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS);
+              // All lines fade in together.
+              const delay = ABOUT_INITIAL_DELAY_MS;
 
               return (
                 <p
@@ -286,7 +294,43 @@ export default function StoryPlayer() {
                     animationDelay: `${delay}ms`,
                   }}
                 >
-                  {line}
+                  {index === ABOUT_PIANO_LINE_INDEX ? (
+                    <>
+                      {ABOUT_PIANO_LINE.before}
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          const rect = event.currentTarget.getBoundingClientRect();
+                          summonFrom({
+                            left: rect.left,
+                            top: rect.top,
+                            width: rect.width,
+                            height: rect.height,
+                          });
+                        }}
+                        style={{
+                          font: 'inherit',
+                          color: 'inherit',
+                          border: 'none',
+                          background: 'transparent',
+                          padding: 0,
+                          margin: 0,
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textDecorationThickness: '1.5px',
+                          textUnderlineOffset: '0.2em',
+                          // The about <section> turns pointer events off wholesale;
+                          // this is the one thing inside it that must stay clickable.
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {ABOUT_PIANO_LINE.trigger}
+                      </button>
+                      {ABOUT_PIANO_LINE.after}
+                    </>
+                  ) : (
+                    line
+                  )}
                 </p>
               );
             })}
@@ -301,9 +345,7 @@ export default function StoryPlayer() {
                 animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
                 animationTimingFunction: 'ease',
                 animationFillMode: 'both',
-                animationDelay: `${
-                  ABOUT_INITIAL_DELAY_MS + 2 * (ABOUT_FADE_DURATION_MS + ABOUT_GROUP_GAP_MS)
-                }ms`,
+                animationDelay: `${ABOUT_INITIAL_DELAY_MS}ms`,
               }}
             >
               move your cursor over the drawing to reveal the reference
@@ -312,29 +354,6 @@ export default function StoryPlayer() {
         </section>
       ) : null}
 
-      {/* ===== PORT BLOCK B: corner name (top-left) ===== */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '1.5rem',
-          left: '1.5rem',
-          fontFamily: "var(--font-geist-sans), sans-serif",
-          fontWeight: 400,
-          fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
-          lineHeight: 1,
-          letterSpacing: '0.03em',
-          color: '#1f1812',
-          opacity: cornerVisible ? 0.9 : 0,
-          transition: 'opacity 360ms ease',
-          pointerEvents: cornerVisible ? 'auto' : 'none',
-          userSelect: 'none',
-          textTransform: 'lowercase',
-          zIndex: 20,
-        }}
-      >
-        ryan kim
-      </div>
-
       {/* ===== Top-right corner cluster: [ tldr ] [ social icons ] =====
           One right-anchored flex row. tldr fades in with the nav on the landing
           and sits alone in the corner; off-home the social wrapper expands and
@@ -342,8 +361,10 @@ export default function StoryPlayer() {
       <div
         style={{
           position: 'fixed',
-          top: '1.5rem',
+          // Centered on the docked nav bar's midline so the two corners line up.
+          top: DOCKED_CENTER_Y,
           right: '1.5rem',
+          transform: 'translateY(-50%)',
           display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
@@ -354,6 +375,47 @@ export default function StoryPlayer() {
           zIndex: 20,
         }}
       >
+        {/* ♪ — the way back to a closed player from stops where the trigger word
+            isn't on screen. Collapses to zero width with the same grid trick the
+            socials use below, so the row doesn't jump when it appears. */}
+        <div
+          aria-hidden={!showPianoNote}
+          style={{
+            display: 'inline-grid',
+            gridTemplateColumns: showPianoNote ? '1fr' : '0fr',
+            marginRight: showPianoNote ? 0 : '-0.4rem',
+            transition:
+              'grid-template-columns 500ms cubic-bezier(0.65, 0, 0.35, 1), ' +
+              'margin-right 500ms cubic-bezier(0.65, 0, 0.35, 1)',
+          }}
+        >
+          <div style={{ minWidth: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              onClick={restorePiano}
+              data-cursor-pad="-4"
+              aria-label="Show piano player"
+              tabIndex={showPianoNote ? 0 : -1}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                padding: '0.1rem 0.15rem',
+                margin: 0,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-geist-sans), sans-serif',
+                fontSize: 'clamp(1rem, 1.3vw, 1.35rem)',
+                lineHeight: 1,
+                color: '#1f1812',
+                opacity: showPianoNote ? 0.9 : 0,
+                transition: `opacity 360ms ease ${showPianoNote ? '120ms' : '0ms'}`,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ♪
+            </button>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={() => setTldrOpen(true)}
@@ -385,7 +447,8 @@ export default function StoryPlayer() {
         {/* Collapsible social wrapper — 0fr on the landing, 1fr elsewhere. The
             negative margin swallows the flex gap when collapsed so tldr sits
             flush; the same grid trick the nav uses for its projects sub-nodes
-            (StoryNav.tsx). One curve drives the whole reflow. */}
+            (StoryNav.tsx). One curve drives the whole reflow, on the nav's
+            glide timing: going home it waits for the nav lines to retract. */}
         <div
           aria-hidden={!cornerVisible}
           style={{
@@ -393,8 +456,8 @@ export default function StoryPlayer() {
             gridTemplateColumns: cornerVisible ? '1fr' : '0fr',
             marginLeft: cornerVisible ? '0' : '-0.4rem',
             transition:
-              'grid-template-columns 600ms cubic-bezier(0.65, 0, 0.35, 1), ' +
-              'margin-left 600ms cubic-bezier(0.65, 0, 0.35, 1)',
+              `grid-template-columns ${NAV_GLIDE_MS}ms cubic-bezier(0.65, 0, 0.35, 1) ${clusterDelay}ms, ` +
+              `margin-left ${NAV_GLIDE_MS}ms cubic-bezier(0.65, 0, 0.35, 1) ${clusterDelay}ms`,
           }}
         >
           <div
@@ -405,7 +468,7 @@ export default function StoryPlayer() {
               alignItems: 'center',
               gap: '0.4rem',
               opacity: cornerVisible ? 0.9 : 0,
-              transition: `opacity 400ms ease ${cornerVisible ? '120ms' : '0ms'}`,
+              transition: `opacity 400ms ease ${cornerVisible ? 120 : clusterDelay}ms`,
               pointerEvents: cornerVisible ? 'auto' : 'none',
             }}
           >

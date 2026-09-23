@@ -6,6 +6,7 @@ import {
   TLDR_FOOTER_LINKS,
   TLDR_NAME,
 } from '@/components/story/storyData';
+import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
 
 const INK = '#1f1812';
@@ -88,8 +89,10 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
         data-cursor-pad="-4"
         style={{
           position: 'absolute',
-          top: '1.5rem',
+          // Same spot as the top-right cluster's icons (StoryPlayer.tsx).
+          top: DOCKED_CENTER_Y,
           right: '1.5rem',
+          transform: 'translateY(-50%)',
           zIndex: 1,
           width: '2rem',
           height: '2rem',

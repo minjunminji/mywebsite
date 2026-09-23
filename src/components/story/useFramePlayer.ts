@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEGMENTS, STOPS } from '@/components/story/storyData';
 import { buildFrameQueue } from '@/components/story/frameQueue';
+import { NAV_ASSEMBLY_MS, fillWindowT } from '@/components/story/navTiming';
 
 const LOOP_INTERVAL_MS = 180;
 const PLAYBACK_FPS = 12;
@@ -101,6 +102,11 @@ export function useFramePlayer(active: boolean): FramePlayer {
     const isSkip = Math.abs(to - from) >= 2;
     const totalDuration = Math.max(transitionMsRef.current, 1);
     const frameDuration = totalDuration / Math.max(queueRef.current.length, 1);
+    // Stop 0 is the landing, where the nav is undocked. Leaving it, hold the
+    // ink until the bar has glided into the corner and drawn its lines;
+    // returning, finish draining before arrival so the lines can retract.
+    const holdStartMs = from === 0 ? NAV_ASSEMBLY_MS : 0;
+    const holdEndMs = to === 0 ? NAV_ASSEMBLY_MS : 0;
 
     const tick = (timestamp: number) => {
       if (startTime === 0) {
@@ -108,8 +114,9 @@ export function useFramePlayer(active: boolean): FramePlayer {
         frameClock = timestamp;
       }
 
-      // Fill across the whole transition window (linear for skips, eased otherwise).
-      const t = Math.min((timestamp - startTime) / totalDuration, 1);
+      // Fill across the transition window (linear for skips, eased otherwise),
+      // minus any assembly hold at the landing end.
+      const t = fillWindowT(timestamp - startTime, totalDuration, holdStartMs, holdEndMs);
       const progress = isSkip ? t : easeInOut(t);
       setFillProgress(from + (to - from) * progress);
 

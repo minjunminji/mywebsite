@@ -77,12 +77,12 @@ export const isProjectStop = (index: number): boolean => STOPS[index]?.isProject
 export const isExperienceStop = (index: number): boolean =>
   STOPS[index]?.isExperience === true;
 
-// --- Nav: home (landing) + about + projects (expands into its 3 children) ---
+// --- Nav: the name (home/landing) + about + projects (expands into its 3 children) ---
 export type NavChild = { stopId: StopId; label: string };
 export type NavEntry = { label: string; stopId: StopId; children?: readonly NavChild[] };
 
 export const NAV: readonly NavEntry[] = [
-  { label: 'home', stopId: 'landing' },
+  { label: 'ryan kim', stopId: 'landing' },
   { label: 'about', stopId: 'about' },
   {
     label: 'projects',
@@ -97,10 +97,23 @@ export const NAV: readonly NavEntry[] = [
 ];
 
 // --- About text + timing (consumed by StoryPlayer) ---
+
+/** The hobbies line, split around the word that summons the piano player.
+ *  Kept as parts so the trigger can be its own element without the renderer
+ *  string-searching the copy. */
+export const ABOUT_PIANO_LINE = {
+  before: 'in my spare time, i like to play ',
+  trigger: 'piano',
+  after: ', cook, and play soccer',
+} as const;
+
+/** Which ABOUT_LINES entry carries the trigger. */
+export const ABOUT_PIANO_LINE_INDEX = 2;
+
 export const ABOUT_LINES = [
   "hi, i'm ryan",
   "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy",
-  'in my spare time, i like to produce music, cook, and play soccer',
+  `${ABOUT_PIANO_LINE.before}${ABOUT_PIANO_LINE.trigger}${ABOUT_PIANO_LINE.after}`,
 ] as const;
 
 // About reveal: three fade groups (intro, body, hint). Each fades over
@@ -358,7 +371,7 @@ export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
     { text: "i play piano; my favorite composer is chopin. here's me " },
     {
       text: 'performing his first piano concerto',
-      href: 'https://youtu.be/ueOshaElP9E?si=PRTsosLeGCpK43uT',
+      href: 'https://youtu.be/QSbZHTvbjR4',
     },
     { text: ' with the VSO SOM orchestra.' },
   ],
