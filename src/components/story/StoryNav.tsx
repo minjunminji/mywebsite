@@ -16,8 +16,13 @@ const NODE_PAD_PX = 5;
 // of sync.
 const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const EXPAND_MS = 560;
-// Docked, the bar sits in the top-left corner, level with the right cluster.
+// Docked, the bar sits in the top-left corner.
 const DOCK_INSET = '1.5rem';
+const DOCKED_FONT_SIZE = 'clamp(0.78rem, 1vw, 0.95rem)';
+// Vertical center of the docked bar: the inset plus half a button (the font
+// size at line-height 1, plus its 0.1rem top and bottom padding). The top-right
+// cluster and the tldr close button center on this so they sit level with it.
+export const DOCKED_CENTER_Y = `calc(${DOCK_INSET} + (${DOCKED_FONT_SIZE} + 0.2rem) / 2)`;
 // The nav fades in once (the intro reveal) via the `opacity 800ms ease 750ms`
 // transition below. `visible` flips true at the START of that delayed fade, so
 // the buttons stay invisible for ~1.55s after it; gate interactivity on the
@@ -376,7 +381,7 @@ export default function StoryNav({
         fontWeight: 450,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
-        fontSize: docked ? 'clamp(0.78rem, 1vw, 0.95rem)' : 'clamp(1.05rem, 1.8vw, 1.6rem)',
+        fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.05rem, 1.8vw, 1.6rem)',
         opacity: visible ? 1 : 0,
         ...({ '--nav-pale': docked ? PALE_DOCKED : INK } as CSSProperties),
         transition: [
