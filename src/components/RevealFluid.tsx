@@ -317,11 +317,30 @@ export default function RevealFluid({
       return { x, y };
     }
 
+    // The floating piano player sits above this canvas and these listeners are on
+    // `window`, so without this guard using (or dragging) the player would smear
+    // the reference reveal open underneath it.
+    function isOverPlayer(target: EventTarget | null) {
+      return target instanceof Element && target.closest('[data-piano-player]') !== null;
+    }
+
     function onPointerMove(e: MouseEvent | PointerEvent) {
+      if (isOverPlayer(e.target)) {
+        onPointerLeave();
+        return;
+      }
       const uv = getCanvasUV(e.clientX, e.clientY);
       pointerX = uv.x;
       pointerY = uv.y;
       pointerActive = true;
+    }
+
+    // Crossing into the embed's iframe hands every later pointermove to the
+    // iframe's own document, so the move guard above never sees it. The parent
+    // does get one pointerover, targeted at the iframe, on the way in — lift
+    // the pointer there instead.
+    function onPointerOver(e: PointerEvent) {
+      if (isOverPlayer(e.target)) onPointerLeave();
     }
 
     function onPointerLeave() {
@@ -332,6 +351,10 @@ export default function RevealFluid({
     }
 
     function onTouchMove(e: TouchEvent) {
+      if (isOverPlayer(e.target)) {
+        onTouchEnd();
+        return;
+      }
       if (e.touches.length > 0) {
         const uv = getCanvasUV(e.touches[0].clientX, e.touches[0].clientY);
         pointerX = uv.x;
@@ -346,6 +369,7 @@ export default function RevealFluid({
     }
 
     window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerover', onPointerOver);
     window.addEventListener('pointerleave', onPointerLeave);
     window.addEventListener('touchmove', onTouchMove, { passive: true } as AddEventListenerOptions);
     window.addEventListener('touchend', onTouchEnd);
@@ -447,6 +471,7 @@ export default function RevealFluid({
       destroyed = true;
       if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerover', onPointerOver);
       window.removeEventListener('pointerleave', onPointerLeave);
       window.removeEventListener('touchmove', onTouchMove);
       window.removeEventListener('touchend', onTouchEnd);
