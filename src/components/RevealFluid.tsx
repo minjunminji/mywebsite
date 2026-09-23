@@ -372,7 +372,11 @@ export default function RevealFluid({
 
     let pointerX = 10;
     let pointerY = 10;
+    // True while the mouse is over the page or a finger is down.
     let pointerActive = false;
+    // Set when the pointer comes back after a release, so the next stroke
+    // starts on the cursor instead of sweeping in from the old one.
+    let newStroke = false;
 
     // The brush chases the raw pointer with a little lag, so the painted
     // path is a smooth curve instead of straight per-frame segments.
@@ -383,10 +387,10 @@ export default function RevealFluid({
     let hasPaint = false;
     let brushRadius = pointerRadius;
     let lastBrushRadius = pointerRadius;
-    // Direction the previous frame's curve ended with (UV units per frame).
+    // Brush velocity at the end of the previous frame (UV units per second).
     // Each new segment starts with it, so segments join without corners.
-    let tangentX = 0;
-    let tangentY = 0;
+    let velX = 0;
+    let velY = 0;
     const pathPoints = new Float32Array((PATH_SUBDIV + 1) * 2);
     const pathRadii = new Float32Array(PATH_SUBDIV + 1);
 
@@ -397,38 +401,40 @@ export default function RevealFluid({
       return { x, y };
     }
 
-    function onPointerMove(e: MouseEvent | PointerEvent) {
-      const uv = getCanvasUV(e.clientX, e.clientY);
+    function setPointer(clientX: number, clientY: number) {
+      const uv = getCanvasUV(clientX, clientY);
       pointerX = uv.x;
       pointerY = uv.y;
+      if (!pointerActive) newStroke = true;
       pointerActive = true;
     }
 
+    function onPointerMove(e: MouseEvent | PointerEvent) {
+      setPointer(e.clientX, e.clientY);
+    }
+
+    // The pointer position is kept so the lagging brush can finish the
+    // stroke up to where the pointer was released.
     function onPointerLeave() {
-      pointerX = 10;
-      pointerY = 10;
       pointerActive = false;
-      hasPaint = false;
+    }
+
+    // Browsers don't reliably send pointerleave to window; a mouseout with
+    // no relatedTarget is the pointer leaving the page.
+    function onMouseOut(e: MouseEvent) {
+      if (!e.relatedTarget) onPointerLeave();
     }
 
     function onTouchMove(e: TouchEvent) {
       if (e.touches.length > 0) {
-        const uv = getCanvasUV(e.touches[0].clientX, e.touches[0].clientY);
-        pointerX = uv.x;
-        pointerY = uv.y;
-        pointerActive = true;
+        setPointer(e.touches[0].clientX, e.touches[0].clientY);
       }
     }
 
-    function onTouchEnd() {
-      pointerActive = false;
-      hasPaint = false;
-    }
-
     window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerleave', onPointerLeave);
+    document.addEventListener('mouseout', onMouseOut);
     window.addEventListener('touchmove', onTouchMove, { passive: true } as AddEventListenerOptions);
-    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchend', onPointerLeave);
 
     /* ------------------------------------------------------------------ */
     /*  Animation loop                                                     */
@@ -445,6 +451,9 @@ export default function RevealFluid({
     const SLOW_SPEED = 0.5; // aspect-corrected UV units per second
     const FAST_SPEED = 5.0;
     const RADIUS_FOLLOW = 8;
+    // After release, the stroke ends once the brush is this close to the
+    // last pointer position (aspect-corrected UV units).
+    const CATCH_UP_EPS = 0.002;
 
     // Freeze the edge noise drift for reduced-motion users.
     const reducedMotionMq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -482,15 +491,23 @@ export default function RevealFluid({
       gl!.bindTexture(gl!.TEXTURE_2D, fbA.tex);
       gl!.uniform1i(blobUniforms.u_prev, 0);
 
+      if (newStroke) {
+        hasPaint = false;
+        newStroke = false;
+      }
+
+      // After release the brush keeps painting until it catches up with the
+      // last pointer position, so the end of the stroke isn't cut short.
+      const painting = pointerActive || hasPaint;
       let speedT = 0;
-      if (pointerActive) {
+      if (painting) {
         if (!hasPaint) {
           // Fresh stroke: start the brush on the cursor rather than
           // sweeping in from wherever it last was.
           paintX = lastPaintX = pointerX;
           paintY = lastPaintY = pointerY;
           brushRadius = lastBrushRadius = pointerRadius;
-          tangentX = tangentY = 0;
+          velX = velY = 0;
           hasPaint = true;
         } else {
           lastBrushRadius = brushRadius;
@@ -507,34 +524,45 @@ export default function RevealFluid({
         speedT = t * t * (3 - 2 * t);
         const targetRadius = pointerRadius * (1 - (1 - FAST_RADIUS_SCALE) * speedT);
         brushRadius += (targetRadius - brushRadius) * (1 - Math.exp(-dt * RADIUS_FOLLOW));
+
+        // Cubic Hermite from last brush position to the current one. The
+        // tangents are the brush's velocity at each end times this frame's
+        // dt: it starts with the velocity the previous segment ended with
+        // (C1 joins, no lookahead so no added latency), and scaling by the
+        // current dt keeps a long frame followed by a short one from
+        // producing an oversized tangent that loops.
+        const startTX = velX * dt;
+        const startTY = velY * dt;
+        velX = (pointerX - paintX) * POINTER_FOLLOW;
+        velY = (pointerY - paintY) * POINTER_FOLLOW;
+        const endTX = velX * dt;
+        const endTY = velY * dt;
+        for (let i = 0; i <= PATH_SUBDIV; i++) {
+          const u = i / PATH_SUBDIV;
+          const u2 = u * u;
+          const u3 = u2 * u;
+          const h00 = 2 * u3 - 3 * u2 + 1;
+          const h10 = u3 - 2 * u2 + u;
+          const h01 = -2 * u3 + 3 * u2;
+          const h11 = u3 - u2;
+          pathPoints[i * 2] = h00 * lastPaintX + h10 * startTX + h01 * paintX + h11 * endTX;
+          pathPoints[i * 2 + 1] = h00 * lastPaintY + h10 * startTY + h01 * paintY + h11 * endTY;
+          pathRadii[i] = lastBrushRadius + (brushRadius - lastBrushRadius) * u;
+        }
+
+        if (
+          !pointerActive &&
+          Math.hypot((pointerX - paintX) * aspect, pointerY - paintY) < CATCH_UP_EPS
+        ) {
+          hasPaint = false;
+        }
       } else {
         hasPaint = false;
       }
 
-      // Cubic Hermite from last brush position to the current one. It starts
-      // along the previous segment's end tangent and ends along this frame's
-      // chord, which becomes the next segment's start tangent (C1 joins, no
-      // lookahead so no added latency).
-      const endTangentX = paintX - lastPaintX;
-      const endTangentY = paintY - lastPaintY;
-      for (let i = 0; i <= PATH_SUBDIV; i++) {
-        const u = i / PATH_SUBDIV;
-        const u2 = u * u;
-        const u3 = u2 * u;
-        const h00 = 2 * u3 - 3 * u2 + 1;
-        const h10 = u3 - 2 * u2 + u;
-        const h01 = -2 * u3 + 3 * u2;
-        const h11 = u3 - u2;
-        pathPoints[i * 2] = h00 * lastPaintX + h10 * tangentX + h01 * paintX + h11 * endTangentX;
-        pathPoints[i * 2 + 1] = h00 * lastPaintY + h10 * tangentY + h01 * paintY + h11 * endTangentY;
-        pathRadii[i] = lastBrushRadius + (brushRadius - lastBrushRadius) * u;
-      }
-      tangentX = endTangentX;
-      tangentY = endTangentY;
-
       gl!.uniform2fv(blobUniforms.u_path, pathPoints);
       gl!.uniform1fv(blobUniforms.u_pathRadius, pathRadii);
-      gl!.uniform1f(blobUniforms.u_pointerDown, hasPaint ? 1.0 : 0.0);
+      gl!.uniform1f(blobUniforms.u_pointerDown, painting ? 1.0 : 0.0);
       gl!.uniform1f(blobUniforms.u_strength, blobStrength);
       gl!.uniform1f(blobUniforms.u_dTime, dt);
       gl!.uniform1f(blobUniforms.u_duration, fadeDuration);
@@ -587,9 +615,9 @@ export default function RevealFluid({
       destroyed = true;
       if (animFrameId !== null) cancelAnimationFrame(animFrameId);
       window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerleave', onPointerLeave);
+      document.removeEventListener('mouseout', onMouseOut);
       window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchend', onPointerLeave);
     };
   }, [referenceImage, pointerRadius, fadeDuration, blobStrength]);
 
