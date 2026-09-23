@@ -6,6 +6,7 @@ import { GeistSans } from 'geist/font/sans';
 import { Inconsolata } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/react';
 import CustomCursor from '@/components/CustomCursor';
+import { PianoProvider } from '@/components/piano/PianoContext';
 
 const inconsolata = Inconsolata({
   subsets: ['latin'],
@@ -36,7 +37,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${inconsolata.variable}`}>
       <body>
-        {children}
+        {/* The player lives outside the story so it survives every navigation.
+            There is no routing here, but this also keeps it out of the story's
+            conditional rendering, where a remount would reload the embed. */}
+        <PianoProvider>{children}</PianoProvider>
         <CustomCursor />
         <Analytics />
         <div className="desktop-gate" role="alert">

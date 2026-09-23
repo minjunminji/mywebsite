@@ -191,3 +191,23 @@ main {
   inherits: true;
   initial-value: rgba(31, 24, 18, 0.28);
 }
+
+/* The piano player's first-open hint animates this one value: how far the
+   tab's right edge slides out (see HINT_VAR in PianoPlayer.tsx).
+   Registering it is what lets it transition — an unregistered custom property
+   is a string and would snap. */
+@property --piano-hint-w {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+
+/* The YouTube IFrame API builds its own <iframe> in place of the node it is
+   handed, so the element can't be styled inline from React. Force it to fill
+   the box it was mounted into instead of keeping its own width/height attrs. */
+.piano-embed iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
