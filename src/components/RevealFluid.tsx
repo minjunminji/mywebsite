@@ -101,16 +101,21 @@ export default function RevealFluid({
     /*  Blob mask shader (ping-pong feedback)                              */
     /* ------------------------------------------------------------------ */
 
+    // Sub-segments each frame's brush path is drawn with.
+    const PATH_SUBDIV = 12;
+
     const blobFS = `#version 300 es
+      #define PATH_SUBDIV ${PATH_SUBDIV}
       precision highp float;
       in vec2 vUv;
       out vec4 fragColor;
 
       uniform sampler2D u_prev;
-      uniform vec2 u_pointer;
-      uniform vec2 u_prevPointer;
+      // This frame's brush path: a curve sampled into PATH_SUBDIV segments,
+      // with the brush radius at each sample.
+      uniform vec2 u_path[PATH_SUBDIV + 1];
+      uniform float u_pathRadius[PATH_SUBDIV + 1];
       uniform float u_pointerDown;
-      uniform float u_radius;
       uniform float u_strength;
       uniform float u_dTime;
       uniform float u_duration;
@@ -124,19 +129,23 @@ export default function RevealFluid({
         prev -= clamp(u_dTime / u_duration, 0.0, 0.1);
         prev = clamp(prev, 0.0, 1.0);
 
-        // Add a stroke from previous pointer location to current location.
-        // This avoids dotted gaps when the cursor moves a long distance
-        // between animation frames.
+        // Paint the stroke along this frame's curved brush path, so there
+        // are no gaps when the cursor moves a long way between frames and no
+        // corners where one frame's stroke meets the next.
         if (u_pointerDown > 0.5) {
-          vec2 uv = (vUv - 0.5) * 2.0 * vec2(u_aspect, 1.0);
-          vec2 pointerNow = u_pointer * vec2(u_aspect, 1.0);
-          vec2 pointerPrev = u_prevPointer * vec2(u_aspect, 1.0);
-          vec2 segment = pointerNow - pointerPrev;
-          float segmentLenSq = max(dot(segment, segment), 1e-5);
-          float t = clamp(dot(uv - pointerPrev, segment) / segmentLenSq, 0.0, 1.0);
-          vec2 closest = pointerPrev + segment * t;
-          float d = distance(uv, closest);
-          float f = 1.0 - smoothstep(u_radius * 0.1, u_radius, d);
+          vec2 aspectScale = vec2(u_aspect, 1.0);
+          vec2 uv = (vUv - 0.5) * 2.0 * aspectScale;
+          float f = 0.0;
+          for (int i = 0; i < PATH_SUBDIV; i++) {
+            vec2 a = u_path[i] * aspectScale;
+            vec2 b = u_path[i + 1] * aspectScale;
+            vec2 segment = b - a;
+            float segmentLenSq = max(dot(segment, segment), 1e-10);
+            float t = clamp(dot(uv - a, segment) / segmentLenSq, 0.0, 1.0);
+            float d = distance(uv, a + segment * t);
+            float r = mix(u_pathRadius[i], u_pathRadius[i + 1], t);
+            f = max(f, 1.0 - smoothstep(r * 0.1, r, d));
+          }
           // One pass fully reveals the brush footprint. Max (not add) so the
           // overlapping caps between consecutive frame segments don't stack:
           // stacked joints outlive the segment middles and a fading fast
@@ -158,10 +167,9 @@ export default function RevealFluid({
 
     const blobUniforms = {
       u_prev: gl.getUniformLocation(blobProgram, 'u_prev'),
-      u_pointer: gl.getUniformLocation(blobProgram, 'u_pointer'),
-      u_prevPointer: gl.getUniformLocation(blobProgram, 'u_prevPointer'),
+      u_path: gl.getUniformLocation(blobProgram, 'u_path'),
+      u_pathRadius: gl.getUniformLocation(blobProgram, 'u_pathRadius'),
       u_pointerDown: gl.getUniformLocation(blobProgram, 'u_pointerDown'),
-      u_radius: gl.getUniformLocation(blobProgram, 'u_radius'),
       u_strength: gl.getUniformLocation(blobProgram, 'u_strength'),
       u_dTime: gl.getUniformLocation(blobProgram, 'u_dTime'),
       u_duration: gl.getUniformLocation(blobProgram, 'u_duration'),
@@ -374,6 +382,13 @@ export default function RevealFluid({
     let lastPaintY = 10;
     let hasPaint = false;
     let brushRadius = pointerRadius;
+    let lastBrushRadius = pointerRadius;
+    // Direction the previous frame's curve ended with (UV units per frame).
+    // Each new segment starts with it, so segments join without corners.
+    let tangentX = 0;
+    let tangentY = 0;
+    const pathPoints = new Float32Array((PATH_SUBDIV + 1) * 2);
+    const pathRadii = new Float32Array(PATH_SUBDIV + 1);
 
     function getCanvasUV(clientX: number, clientY: number) {
       const rect = canvas!.getBoundingClientRect();
@@ -474,9 +489,11 @@ export default function RevealFluid({
           // sweeping in from wherever it last was.
           paintX = lastPaintX = pointerX;
           paintY = lastPaintY = pointerY;
-          brushRadius = pointerRadius;
+          brushRadius = lastBrushRadius = pointerRadius;
+          tangentX = tangentY = 0;
           hasPaint = true;
         } else {
+          lastBrushRadius = brushRadius;
           lastPaintX = paintX;
           lastPaintY = paintY;
           const k = 1 - Math.exp(-dt * POINTER_FOLLOW);
@@ -494,10 +511,30 @@ export default function RevealFluid({
         hasPaint = false;
       }
 
-      gl!.uniform2f(blobUniforms.u_pointer, paintX, paintY);
-      gl!.uniform2f(blobUniforms.u_prevPointer, lastPaintX, lastPaintY);
+      // Cubic Hermite from last brush position to the current one. It starts
+      // along the previous segment's end tangent and ends along this frame's
+      // chord, which becomes the next segment's start tangent (C1 joins, no
+      // lookahead so no added latency).
+      const endTangentX = paintX - lastPaintX;
+      const endTangentY = paintY - lastPaintY;
+      for (let i = 0; i <= PATH_SUBDIV; i++) {
+        const u = i / PATH_SUBDIV;
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const h00 = 2 * u3 - 3 * u2 + 1;
+        const h10 = u3 - 2 * u2 + u;
+        const h01 = -2 * u3 + 3 * u2;
+        const h11 = u3 - u2;
+        pathPoints[i * 2] = h00 * lastPaintX + h10 * tangentX + h01 * paintX + h11 * endTangentX;
+        pathPoints[i * 2 + 1] = h00 * lastPaintY + h10 * tangentY + h01 * paintY + h11 * endTangentY;
+        pathRadii[i] = lastBrushRadius + (brushRadius - lastBrushRadius) * u;
+      }
+      tangentX = endTangentX;
+      tangentY = endTangentY;
+
+      gl!.uniform2fv(blobUniforms.u_path, pathPoints);
+      gl!.uniform1fv(blobUniforms.u_pathRadius, pathRadii);
       gl!.uniform1f(blobUniforms.u_pointerDown, hasPaint ? 1.0 : 0.0);
-      gl!.uniform1f(blobUniforms.u_radius, brushRadius);
       gl!.uniform1f(blobUniforms.u_strength, blobStrength);
       gl!.uniform1f(blobUniforms.u_dTime, dt);
       gl!.uniform1f(blobUniforms.u_duration, fadeDuration);
