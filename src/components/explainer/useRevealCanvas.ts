@@ -105,6 +105,8 @@ export function useRevealCanvas(canvasRef: RefObject<HTMLCanvasElement | null>, 
       const o = optsRef.current;
       if (!o.reducedMotion) clock += dt;
 
+      // Capped at 2 (RevealFluid isn't): several figure canvases can be on
+      // screen at once, and 3x adds fill cost without visible gain here.
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const cw = Math.floor(canvas.clientWidth * dpr);
       const ch = Math.floor(canvas.clientHeight * dpr);

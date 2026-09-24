@@ -95,7 +95,10 @@ export default function StoryPlayer() {
   const [explainerOpen, setExplainerOpen] = useState(false);
   // Mounted on first open, then kept so its fade-out plays and reopening is instant.
   const [explainerMounted, setExplainerMounted] = useState(false);
+  // The two takeovers are mutually exclusive: each makes everything outside
+  // itself inert, so two open at once would lock each other out.
   const openExplainer = () => {
+    setTldrOpen(false);
     setExplainerMounted(true);
     setExplainerOpen(true);
   };
@@ -430,7 +433,10 @@ export default function StoryPlayer() {
 
         <button
           type="button"
-          onClick={() => setTldrOpen(true)}
+          onClick={() => {
+            setExplainerOpen(false);
+            setTldrOpen(true);
+          }}
           aria-haspopup="dialog"
           data-cursor-pad="-4"
           style={{

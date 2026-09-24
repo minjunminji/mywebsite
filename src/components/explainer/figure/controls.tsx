@@ -36,7 +36,8 @@ type SliderProps = {
   max: number;
   step: number;
   onChange: (value: number) => void;
-  format?: (value: number) => string;
+  /** Required: raw slider values print float noise (0.15000000000000002). */
+  format: (value: number) => string;
 };
 
 export function Slider({ label, value, min, max, step, onChange, format }: SliderProps) {
@@ -52,7 +53,7 @@ export function Slider({ label, value, min, max, step, onChange, format }: Slide
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <Readout>{format ? format(value) : value}</Readout>
+      <Readout>{format(value)}</Readout>
     </label>
   );
 }
@@ -64,18 +65,19 @@ type ToggleProps<T extends string | number> = {
   onChange: (value: T) => void;
 };
 
-/** Segmented text toggle: "path  straight / hermite". */
+/** Segmented text toggle: "path  straight / hermite". Plain pressed-state
+ *  buttons (each its own Tab stop), not a radiogroup, so the semantics match
+ *  the keyboard behavior. */
 export function Toggle<T extends string | number>({ label, value, options, onChange }: ToggleProps<T>) {
   return (
-    <span role="radiogroup" aria-label={label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.65rem' }}>
+    <span role="group" aria-label={label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.65rem' }}>
       <span style={{ color: MUTED }}>{label}</span>
       {options.map((option, i) => (
         <span key={String(option.value)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.65rem' }}>
           {i > 0 ? <span aria-hidden="true" style={{ color: MUTED }}>/</span> : null}
           <button
             type="button"
-            role="radio"
-            aria-checked={option.value === value}
+            aria-pressed={option.value === value}
             className="ex-toggle"
             onClick={() => onChange(option.value)}
           >

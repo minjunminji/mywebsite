@@ -252,11 +252,11 @@ main {
   transition: opacity 160ms ease;
 }
 .ex-toggle:hover,
-.ex-toggle[aria-checked='true'],
+.ex-toggle[aria-pressed='true'],
 .ex-toggle[aria-expanded] {
   opacity: 1;
 }
-.ex-toggle[aria-checked='true'] {
+.ex-toggle[aria-pressed='true'] {
   text-decoration: underline;
   text-decoration-thickness: 1.5px;
   text-underline-offset: 0.25em;
