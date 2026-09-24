@@ -8,6 +8,7 @@ import {
   PROJECT_CONTENT,
   stopIndexById,
   isExperienceStop,
+  isProjectBodyList,
 } from './storyData';
 
 describe('experience stop', () => {
@@ -63,7 +64,7 @@ describe('project body', () => {
   it('has exactly one shader explainer trigger, in "this website"', () => {
     const triggers = PROJECT_CONTENT.flatMap((project) =>
       project.body.flatMap((paragraph) =>
-        typeof paragraph === 'string'
+        typeof paragraph === 'string' || isProjectBodyList(paragraph)
           ? []
           : paragraph
               .filter((segment) => segment.action === 'shaderExplainer')

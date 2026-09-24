@@ -58,7 +58,6 @@ export function P({ children }: { children: ReactNode }) {
 
 export function Chapter({
   id,
-  number,
   title,
   children,
 }: {
@@ -72,15 +71,12 @@ export function Chapter({
       labelledBy={id}
       style={{ marginTop: '6rem' }}
       rail={
-        <>
-          <RailLabel>{number}</RailLabel>
-          <h2
-            id={id}
-            style={{ margin: '0.45rem 0 0', fontFamily: SERIF, fontWeight: 400, fontSize: '1.6rem', lineHeight: 1.2 }}
-          >
-            {title}
-          </h2>
-        </>
+        <h2
+          id={id}
+          style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '1.6rem', lineHeight: 1.2 }}
+        >
+          {title}
+        </h2>
       }
     >
       {children}

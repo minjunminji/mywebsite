@@ -60,7 +60,7 @@ function PingPongDiagram({ active, reducedMotion }: { active: boolean; reducedMo
         </text>
       </svg>
       <p style={{ margin: '0.5rem 0 0', fontFamily: SANS, fontSize: '0.72rem', color: MUTED }}>
-        slowed down — really 60–240× a second
+        slowed down - this swap happens ~once per frame
       </p>
     </div>
   );
@@ -79,7 +79,7 @@ function TwoPassCanvas() {
           what you see
         </span>
         <span style={{ fontFamily: SANS, fontSize: '0.72rem', letterSpacing: '0.08em', color: MUTED }}>
-          the mask (red channel)
+          stored mask
         </span>
       </div>
       <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -100,27 +100,33 @@ function TwoPassCanvas() {
 
 export default function Ch01Passes() {
   return (
-    <Chapter id="ch01" number="01" title="two passes and a feedback loop">
+    <Chapter id="ch01" number="01" title="giving the shader a memory">
       <Prose>
         <P>
-          a fragment shader can&apos;t remember anything between frames — every pixel is computed
-          fresh. so the reveal keeps its memory in a texture: a grayscale <strong>mask</strong>{' '}
-          where 1 means &quot;revealed&quot; and 0 means &quot;hidden&quot;.
+          a fragment shader calculates the color of every pixel, then starts over on the next
+          frame. by itself, it has no memory of where your cursor has already been.
         </P>
         <P>
-          each frame runs two passes. the <strong>mask pass</strong> reads last frame&apos;s mask,
-          fades it a little, and paints the brush on top. the <strong>display pass</strong> uses
-          the mask to decide where to show the colored drawing.
+          to preserve that history, the effect stores it in a grayscale image called a{' '}
+          <strong>mask</strong>. white pixels are fully revealed, black pixels are hidden, and gray
+          pixels sit somewhere in between.
         </P>
         <P>
-          a shader can&apos;t read and write the same texture at once, so there are two: read from
-          a, write to b, then swap. that&apos;s called <strong>ping-pong</strong>.
+          each frame has two steps. first, the <strong>mask pass</strong> fades the old mask
+          slightly and paints the newest part of the stroke into it. then the{' '}
+          <strong>display pass</strong> uses that updated mask to reveal the drawing.
+        </P>
+        <P>
+          there is one complication: the gpu can&apos;t safely read from a texture while writing new
+          values into that same texture. instead, the effect keeps two copies. it reads from
+          texture a and writes to texture b, then swaps them on the next frame. this back-and-forth
+          technique is called <strong>ping-pong rendering</strong>.
         </P>
       </Prose>
 
       <Figure
         number={2}
-        caption="paint on either side. both panes read the same mask; the right one just draws it raw."
+        caption="paint in either pane. the left shows the final effect; the right shows the grayscale mask underneath it."
       >
         <TwoPassCanvas />
       </Figure>
@@ -133,8 +139,9 @@ export default function Ch01Passes() {
         </P>
         <Code label="blob pass · decay">{glslExcerpt(BLOB_FS, 'decay')}</Code>
         <P>
-          the mask is stored at half resolution — it&apos;s a smooth field, so bilinear upsampling
-          hides it, and it costs a quarter of the fill rate.
+          the mask is rendered at half the width and height of the screen. because it contains
+          smooth gradients, scaling it back up is difficult to notice, and processing it requires
+          only one quarter as many pixels.
         </P>
       </MathToggle>
     </Chapter>

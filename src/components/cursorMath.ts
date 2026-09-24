@@ -5,6 +5,18 @@
 /** One springable scalar (a value chasing a target with its own velocity). */
 export type Spring = { value: number; velocity: number };
 
+export type PinnedTargetState = {
+  connected: boolean;
+  inert: boolean;
+  pointerInside: boolean;
+};
+
+/** A pinned cursor must release when its control leaves the live interaction
+ * tree, including when a full-screen takeover makes that control inert. */
+export function shouldReleasePinnedTarget(state: PinnedTargetState): boolean {
+  return !state.connected || state.inert || !state.pointerInside;
+}
+
 /**
  * Advance a spring one frame with a leaky integrator (slight elastic overshoot).
  * Pure-ish: mutates the passed spring in place, no other side effects.

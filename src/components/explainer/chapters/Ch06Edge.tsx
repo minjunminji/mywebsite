@@ -17,13 +17,13 @@ type ViewMode = 'composite' | 'field';
 type Aa = 'on' | 'off';
 
 const octaveOptions: readonly { value: Octaves; label: string }[] = [
-  { value: 0, label: 'clean' },
-  { value: 2, label: 'soft' },
-  { value: 4, label: 'detailed' },
+  { value: 0, label: '0' },
+  { value: 2, label: '2' },
+  { value: 4, label: '4' },
 ];
 const viewOptions: readonly { value: ViewMode; label: string }[] = [
-  { value: 'composite', label: 'composite' },
-  { value: 'field', label: 'field' },
+  { value: 'composite', label: 'final image' },
+  { value: 'field', label: 'mask field' },
 ];
 const aaOptions: readonly { value: Aa; label: string }[] = [
   { value: 'on', label: 'on' },
@@ -145,7 +145,7 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
       </div>
       <div>
         <div style={{ fontFamily: SANS, fontSize: '0.72rem', letterSpacing: '0.08em', color: MUTED, marginBottom: '0.4rem' }}>
-          loupe · on the edge, no smoothing
+          magnified edge · pixel smoothing disabled
         </div>
         <canvas
           ref={loupeRef}
@@ -168,38 +168,43 @@ export default function Ch06Edge() {
   const warn = threshold - noise / 2 <= 0;
 
   return (
-    <Chapter id="ch06" number="06" title="the ink edge">
+    <Chapter id="ch06" number="06" title="making the edge look like ink">
       <Prose>
         <P>
-          a hard threshold on the mask gives you clean circles. real ink bleeds unevenly into
-          paper, so the edge gets noise.
+          the mask alone produces a smooth, regular outline. that&apos;s useful for a digital brush,
+          but real ink doesn&apos;t spread through paper evenly.
         </P>
         <P>
-          <strong>value noise</strong> is random numbers on a grid, smoothly blended between. one
-          layer looks like blobs. <strong>fbm</strong> stacks layers, each twice as fine and half
-          as strong, until it looks organic.
+          to break up the edge, the display shader generates <strong>value noise</strong>: random
+          values placed on a grid and smoothly blended together. one layer creates broad, soft
+          variation.
         </P>
         <P>
-          the noise nudges the mask up or down before the threshold:{' '}
-          <C>field = mask + (n − 0.5)·amp</C>. the edge is wherever <C>field</C> crosses 0.15.
-          keep <C>0.15 − amp/2 &gt; 0</C> or empty paper starts showing through.
+          the shader then combines several layers at different scales. each layer is finer and
+          weaker than the one before it. this technique is called{' '}
+          <strong>fractal Brownian motion</strong>, or <strong>fbm</strong>, and it creates detail
+          at several sizes without losing the larger shapes.
         </P>
         <P>
-          last, antialiasing: <C>fwidth</C> tells the shader how much <C>field</C> changes across
-          one screen pixel, so the edge is always about 1.5px soft — whether the blob is fresh and
-          steep or fading and shallow.
+          the noise slightly raises or lowers the mask before the reveal threshold is applied. that
+          moves different parts of the boundary inward or outward, creating the irregular ink edge.
+        </P>
+        <P>
+          finally, <C>fwidth</C> measures how quickly the value changes across a screen pixel. the
+          shader uses that measurement to soften the boundary by about 1.5 pixels, preventing
+          jagged edges whether the mask is sharp, faint, large, or small.
         </P>
       </Prose>
 
       <Figure
         number={7}
-        caption="increase the edge detail, then turn smoothing off and look in the loupe."
+        caption="start with no noise, then add the layers one at a time. disable antialiasing and inspect the enlarged edge in the loupe."
         controls={
           <>
             <ControlGroup label="try">
-              <Toggle label="edge detail" value={octaves} onChange={setOctaves} options={octaveOptions} />
+              <Toggle label="noise layers" value={octaves} onChange={setOctaves} options={octaveOptions} />
               <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
-              <Toggle label="edge smoothing" value={aa} onChange={setAa} options={aaOptions} />
+              <Toggle label="antialiasing" value={aa} onChange={setAa} options={aaOptions} />
             </ControlGroup>
             <ControlDisclosure label="tune">
               <Slider label="reveal threshold" value={threshold} min={0.02} max={0.5} step={0.01} format={(v) => v.toFixed(2)} onChange={setThreshold} />
@@ -211,7 +216,8 @@ export default function Ch06Edge() {
         <EdgeFigure edge={edge} view={view} />
         {warn ? (
           <p style={{ margin: '1rem 0 0', fontFamily: SERIF, fontStyle: 'italic', fontSize: '0.95rem', color: MUTED }}>
-            the noise can now push empty paper past the threshold — see the speckles?
+            the noise is now strong enough to push untouched areas above the reveal threshold,
+            creating stray speckles.
           </p>
         ) : null}
       </Figure>

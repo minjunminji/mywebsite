@@ -269,20 +269,20 @@ function StrokeFigure() {
   return (
     <Figure
       number={3}
-      caption="drag the points. hover to probe a pixel. switch to add and watch the joint double up."
+      caption="drag the three points to reshape the path, then move over the field to inspect a pixel. switch from max to add to see paint collect at the joint."
       controls={
         <>
           <ControlGroup label="try">
-            <Slider label="brush size" value={radius} min={20} max={120} step={1} format={(v) => `${Math.round(v)}px`} onChange={setRadius} />
-            <Toggle label="overlap" value={combine} onChange={setCombine} options={combineOptions} />
+            <Slider label="radius" value={radius} min={20} max={120} step={1} format={(v) => `${Math.round(v)}px`} onChange={setRadius} />
+            <Toggle label="combine" value={combine} onChange={setCombine} options={combineOptions} />
           </ControlGroup>
           <ControlGroup label="observe">
-            <Stat label="highest paint">{peak.toFixed(2)}</Stat>
+            <Stat label="highest value">{peak.toFixed(2)}</Stat>
             {probe ? (
               <>
                 <Stat label="distance">{`${probe.d.toFixed(1)}px`}</Stat>
-                <Stat label="along path">{probe.t.toFixed(2)}</Stat>
-                <Stat label="paint here">{probe.f.toFixed(2)}</Stat>
+                <Stat label="position on segment">{probe.t.toFixed(2)}</Stat>
+                <Stat label="paint value">{probe.f.toFixed(2)}</Stat>
               </>
             ) : null}
           </ControlGroup>
@@ -314,22 +314,27 @@ function StrokeFigure() {
 
 export default function Ch02Stroke() {
   return (
-    <Chapter id="ch02" number="02" title="painting a stroke">
+    <Chapter id="ch02" number="02" title="turning movement into a stroke">
       <Prose>
         <P>
-          for every pixel, the mask pass asks one question: how far am i from the brush&apos;s
-          path this frame? the path is a short polyline, so that&apos;s the distance to the
-          nearest line segment.
+          the mask shader runs once for every pixel. for each one, it needs to answer:{' '}
+          <strong>how close is this pixel to the brush&apos;s path</strong>?
         </P>
         <P>
-          project the pixel onto the segment&apos;s line, clamp to the ends, measure — that&apos;s{' '}
-          <C>t</C>, how far along the segment the closest point sits.
+          the path is represented by several short line segments. the shader finds the closest
+          point on each segment, measures the distance to it, and keeps the shortest distance it
+          finds.
         </P>
         <P>
-          turn distance into paint with <C>smoothstep</C>: solid near the middle, feathered at the
-          rim. where segments overlap, take the <strong>max</strong> rather than adding — adding
-          double-paints every joint, and those joints outlive the rest of the stroke as it fades,
-          leaving a row of dots.
+          distance then becomes paint. pixels near the center of the path receive a value close to
+          1, pixels outside the brush receive 0, and <C>smoothstep</C> creates a soft transition
+          between them.
+        </P>
+        <P>
+          where two segments meet, their paint values overlap. adding them together would make
+          every joint darker than the rest of the stroke. those brighter joints would also take
+          longer to fade, leaving a trail of dots. taking the <strong>maximum</strong> value instead
+          produces one continuous stroke.
         </P>
       </Prose>
 
@@ -338,8 +343,8 @@ export default function Ch02Stroke() {
       <MathToggle>
         <Eq>{'t = clamp( (p − a)·(b − a) / |b − a|² , 0, 1 )\nd = | p − (a + t(b − a)) |\nf = 1 − smoothstep(0.1r, r, d)'}</Eq>
         <P>
-          the shader multiplies x by the aspect ratio first, so distances are round, not stretched
-          ovals.
+          the calculation adjusts the horizontal axis for the canvas&apos;s aspect ratio. without
+          that correction, a circular brush would stretch into an oval.
         </P>
         <Code label="blob pass · stroke">{glslExcerpt(BLOB_FS, 'stroke')}</Code>
       </MathToggle>

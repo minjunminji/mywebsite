@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { stepSpring, type Spring } from './cursorMath';
+import { shouldReleasePinnedTarget, stepSpring, type Spring } from './cursorMath';
 
 /*
  * CustomCursor — the site's negative liquid cursor (WebGL2 SDF).
@@ -44,14 +44,6 @@ const SPRING_DAMPING = 0.5; // <0.59 here = overdamped, no rebound
  *  the pull axis and drains down the stream, landing exactly on it however you
  *  keep moving. Lower = snappier retract. */
 const RELEASE_DURATION = 260;
-/** How far (px) past a target's edge the cursor can travel before the wrap lets
- *  go. Bigger = the box "holds on" to the cursor further out before snapping back. */
-const RELEASE_DISTANCE = 30;
-/** Release distance for "tight" controls — those that opt into a smaller wrap via
- *  data-cursor-pad (the gallery chevrons and social icons). Shorter than
- *  RELEASE_DISTANCE so a small blob lets go near its own edge instead of holding
- *  on as far as a full-size label does. */
-const TIGHT_RELEASE_DISTANCE = 15;
 
 /* ---- Click press — squish the whole shape while the pointer is held ---- */
 /** Scale of the metaball while pressed (1 = none). A domain scale around the box
@@ -94,6 +86,24 @@ const WARP_TIME_SPEED = 0.35;
 const TARGET_SELECTOR = 'a, button, [role="button"]';
 /** Marker on clickable non-text controls (icon buttons) that must NOT wrap. */
 const SKIP_SELECTOR = '[data-cursor-skip]';
+
+/** Resolve the clickable target under the pointer. Native disabled controls,
+ * aria-disabled controls, and anchors without href must keep the free cursor:
+ * none of them will respond to a click. */
+function clickableTargetFrom(node: EventTarget | null): Element | null {
+  const element = node instanceof Element ? node : null;
+  const target = element?.closest(TARGET_SELECTOR) ?? null;
+  if (
+    !target ||
+    target.closest(SKIP_SELECTOR) ||
+    target.matches(':disabled') ||
+    target.getAttribute('aria-disabled') === 'true' ||
+    (target instanceof HTMLAnchorElement && !target.hasAttribute('href'))
+  ) {
+    return null;
+  }
+  return target;
+}
 
 /** Only activate on devices with a real hovering, fine pointer (mouse/trackpad).
  *  On touch / coarse-pointer devices we render nothing and leave the OS cursor. */
@@ -351,8 +361,6 @@ export default function CustomCursor() {
     // Wrap padding for the active target (px). Defaults to HOVER_PAD; a target can
     // override it with data-cursor-pad (negative = a tighter blob, e.g. chevrons).
     let activePad = HOVER_PAD;
-    // Release distance for the active target — tighter for data-cursor-pad controls.
-    let activeRelease = RELEASE_DISTANCE;
     let pointerX = -9999;
     let pointerY = -9999;
     let hasPointer = false;
@@ -401,22 +409,26 @@ export default function CustomCursor() {
 
       let rect: DOMRect | null = null;
       if (mode === 'pinned') {
-        rect = activeEl && activeEl.isConnected ? activeEl.getBoundingClientRect() : null;
+        const target = activeEl;
+        const connected = target?.isConnected ?? false;
+        const inert = target ? target.closest('[inert]') !== null : false;
+        rect = target && connected && !inert ? target.getBoundingClientRect() : null;
+        const pointerInside =
+          rect !== null &&
+          pointerX >= rect.left &&
+          pointerX <= rect.right &&
+          pointerY >= rect.top &&
+          pointerY <= rect.bottom;
+        const releaseTarget = shouldReleasePinnedTarget({
+          connected,
+          inert,
+          pointerInside,
+        });
+        if (releaseTarget) rect = null;
         if (!rect || (rect.width === 0 && rect.height === 0)) {
           activeEl = null;
           mode = 'releasing';
           rect = null;
-        } else {
-          // Hysteresis hold: stay wrapped until the cursor pulls RELEASE_DISTANCE
-          // past the element's edge (distance is 0 while inside the rect), so the
-          // box "holds on" to the cursor further out before letting go.
-          const dx = Math.max(rect.left - pointerX, 0, pointerX - rect.right);
-          const dy = Math.max(rect.top - pointerY, 0, pointerY - rect.bottom);
-          if (Math.hypot(dx, dy) > activeRelease) {
-            activeEl = null;
-            mode = 'releasing';
-            rect = null;
-          }
         }
       }
 
@@ -581,21 +593,33 @@ export default function CustomCursor() {
       }
       hasPointer = true;
       inWindow = true;
-    };
-    // Delegated targeting (capture phase): wrap when the pointer enters a clickable
-    // text label, ignoring icon controls flagged with data-cursor-skip. The wrap
-    // lets go via the RELEASE_DISTANCE hysteresis in the render loop (no pointerout),
-    // so it can "hold on" past the element edge.
-    const onPointerOver = (e: PointerEvent) => {
-      const target = (e.target as Element | null)?.closest(TARGET_SELECTOR) ?? null;
-      if (target && !target.closest(SKIP_SELECTOR)) {
+
+      // Match the browser's real hit target on every move. The old cursor kept
+      // its wrap for 15–30px after leaving a control, which advertised a click
+      // that the browser would send elsewhere.
+      const target = clickableTargetFrom(e.target);
+      if (target) {
         activeEl = target;
         const padAttr = target.getAttribute('data-cursor-pad');
         const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
         activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
-        // A target that customizes its pad is a "tight" control, so it also lets go
-        // sooner (TIGHT_RELEASE_DISTANCE) rather than holding on like a big label.
-        activeRelease = padAttr !== null ? TIGHT_RELEASE_DISTANCE : RELEASE_DISTANCE;
+        mode = 'pinned';
+      } else if (mode === 'pinned') {
+        activeEl = null;
+        mode = 'releasing';
+      }
+    };
+    // Delegated targeting (capture phase): wrap when the pointer enters a clickable
+    // text label, ignoring disabled controls and icon controls flagged with
+    // data-cursor-skip. Pointer movement above releases the wrap as soon as the
+    // browser's hit target is no longer clickable.
+    const onPointerOver = (e: PointerEvent) => {
+      const target = clickableTargetFrom(e.target);
+      if (target) {
+        activeEl = target;
+        const padAttr = target.getAttribute('data-cursor-pad');
+        const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
+        activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
         mode = 'pinned';
       }
     };

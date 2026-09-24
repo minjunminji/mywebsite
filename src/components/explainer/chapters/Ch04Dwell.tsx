@@ -29,7 +29,7 @@ const dwellOptions: readonly { value: DwellMode; label: string }[] = [
   { value: 'off', label: 'off' },
 ];
 const viewOptions: readonly { value: ViewMode; label: string }[] = [
-  { value: 'field', label: 'field' },
+  { value: 'field', label: 'mask' },
   { value: 'reveal', label: 'reveal' },
 ];
 
@@ -269,7 +269,7 @@ function DwellFigure({ dwellMode, strength, view }: { dwellMode: DwellMode; stre
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
         <Sparkline title="speed" min={0} max={8} minLabel="0" maxLabel="8" refLines={[SLOW_SPEED, FAST_SPEED]} innerRef={speedPolyRef} />
         <Sparkline title="radius" min={BASE_RADIUS * FAST_RADIUS_SCALE} max={BASE_RADIUS} minLabel="0.7r" maxLabel="r" innerRef={radiusPolyRef} />
-        <Sparkline title="dwell (1 − speedT)" min={0} max={1} minLabel="0" maxLabel="1" innerRef={dwellPolyRef} />
+        <Sparkline title="dwell amount" min={0} max={1} minLabel="0" maxLabel="1" innerRef={dwellPolyRef} />
       </div>
     </div>
   );
@@ -281,35 +281,40 @@ export default function Ch04Dwell() {
   const [view, setView] = useState<ViewMode>('reveal');
 
   return (
-    <Chapter id="ch04" number="04" title="speed and dwell">
+    <Chapter id="ch04" number="04" title="responding to speed">
       <Prose>
         <P>
-          a brush that&apos;s the same size at every speed looks mechanical. this one thins out
-          when you move fast — down to 70% of its base radius — and swells back when you slow
-          down.
+          a perfectly uniform brush looks more like a digital marker than wet ink. to make it feel
+          more expressive, the brush changes with the speed of the cursor.
         </P>
         <P>
-          when you stop, it keeps adding a little paint each frame. the footprint&apos;s soft rim
-          creeps past the edge threshold, so the reveal spreads outward like ink soaking in.
+          fast movement narrows the brush to 70% of its normal radius. as the cursor slows down,
+          the brush expands back to full size.
         </P>
         <P>
-          both effects hang off one number, <C>speedT</C>: speed smoothstepped between a quarter
-          of a screen-height and two and a half screen-heights a second.
+          stopping also changes how paint builds up. while the brush rests, it continues adding a
+          small amount to the mask. more of the soft outer edge eventually crosses the reveal
+          threshold, causing the visible mark to spread outward like ink soaking into paper.
+        </P>
+        <P>
+          both behaviors come from the same normalized speed value, <C>speedT</C>. it moves from 0
+          at low speed to 1 at high speed and provides a smooth control signal for the radius and
+          paint build-up.
         </P>
       </Prose>
 
       <Figure
         number={5}
-        caption="move fast, then stop. with build-up off, a resting brush never spreads."
+        caption="move quickly, then pause. disable dwell build-up to see how the mark behaves when a resting brush stops adding paint."
         controls={
           <>
             <ControlGroup label="try">
-              <Toggle label="paint while resting" value={dwellMode} onChange={setDwellMode} options={dwellOptions} />
+              <Toggle label="dwell build-up" value={dwellMode} onChange={setDwellMode} options={dwellOptions} />
               <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
             </ControlGroup>
             {dwellMode === 'on' ? (
               <ControlDisclosure label="tune">
-                <Slider label="build-up strength" value={strength} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setStrength} />
+                <Slider label="strength" value={strength} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setStrength} />
               </ControlDisclosure>
             ) : null}
           </>
@@ -322,7 +327,9 @@ export default function Ch04Dwell() {
         <Eq>{'speedT = smoothstep( (s − 0.5) / 4.5 )\nr = r₀ · (1 − 0.3·speedT)\nmask += f · strength · Δt·60 · (1 − speedT)'}</Eq>
         <Code label="blob pass · dwell">{glslExcerpt(BLOB_FS, 'dwell')}</Code>
         <P>
-          <C>Δt·60</C> makes &quot;strength&quot; mean &quot;per 60hz frame&quot; on any display.
+          multiplying by <C>Δt·60</C> keeps the build-up consistent across refresh rates. the
+          chosen strength behaves like a per-frame value at 60hz, even when the display runs
+          faster or slower.
         </P>
       </MathToggle>
     </Chapter>

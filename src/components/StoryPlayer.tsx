@@ -14,6 +14,7 @@ import {
   PROJECT_CONTENT,
   firstProjectIndex,
   isExperienceStop,
+  isProjectBodyList,
   isProjectStop,
   landingFrames,
   stopIndexById,
@@ -690,29 +691,37 @@ export default function StoryPlayer() {
                       fontWeight: 300,
                     }}
                   >
-                    {project.body.map((paragraph, index) => (
-                      <p key={index} style={{ margin: 0 }}>
-                        {typeof paragraph === 'string'
-                          ? paragraph
-                          : paragraph.map((segment, segmentIndex) =>
-                              segment.action === 'shaderExplainer' ? (
-                                <button
-                                  key={segmentIndex}
-                                  type="button"
-                                  className="inline-trigger"
-                                  onClick={openExplainer}
-                                  // Warm the chunk while the pointer is on its way.
-                                  onPointerEnter={() => void loadShaderExplainer()}
-                                  onFocus={() => void loadShaderExplainer()}
-                                >
-                                  {segment.text}
-                                </button>
-                              ) : (
-                                <span key={segmentIndex}>{segment.text}</span>
-                              ),
-                            )}
-                      </p>
-                    ))}
+                    {project.body.map((paragraph, index) =>
+                      isProjectBodyList(paragraph) ? (
+                        <ul key={index} style={{ margin: 0, paddingLeft: '1.4em' }}>
+                          {paragraph.items.map((item) => (
+                            <li key={item}>{item}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p key={index} style={{ margin: 0 }}>
+                          {typeof paragraph === 'string'
+                            ? paragraph
+                            : paragraph.map((segment, segmentIndex) =>
+                                segment.action === 'shaderExplainer' ? (
+                                  <button
+                                    key={segmentIndex}
+                                    type="button"
+                                    className="inline-trigger"
+                                    onClick={openExplainer}
+                                    // Warm the chunk while the pointer is on its way.
+                                    onPointerEnter={() => void loadShaderExplainer()}
+                                    onFocus={() => void loadShaderExplainer()}
+                                  >
+                                    {segment.text}
+                                  </button>
+                                ) : (
+                                  <span key={segmentIndex}>{segment.text}</span>
+                                ),
+                              )}
+                        </p>
+                      ),
+                    )}
                   </div>
                   {project.imageSrc ? (
                     <div style={{ marginTop: '0.4rem' }}>

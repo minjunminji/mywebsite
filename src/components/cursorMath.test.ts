@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stepSpring, type Spring } from './cursorMath';
+import { shouldReleasePinnedTarget, stepSpring, type Spring } from './cursorMath';
 
 describe('stepSpring', () => {
   it('moves toward the target on the first step from rest, staying finite', () => {
@@ -23,5 +23,19 @@ describe('stepSpring', () => {
     for (let i = 0; i < 500; i += 1) stepSpring(s, -20, 0.45, 0.76);
     expect(s.value).toBeCloseTo(-20, 3);
     expect(Math.abs(s.velocity)).toBeLessThan(1e-3);
+  });
+});
+
+describe('pinned cursor target', () => {
+  it('releases a connected trigger when a takeover makes it inert', () => {
+    expect(
+      shouldReleasePinnedTarget({ connected: true, inert: true, pointerInside: true }),
+    ).toBe(true);
+  });
+
+  it('releases when an animated target moves away from a stationary pointer', () => {
+    expect(
+      shouldReleasePinnedTarget({ connected: true, inert: false, pointerInside: false }),
+    ).toBe(true);
   });
 });

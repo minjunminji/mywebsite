@@ -181,8 +181,8 @@ function PrecisionChart({ hz, zoom }: { hz: Hz; zoom: Zoom }) {
       </svg>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
         <Swatch label="ideal" innerRef={(el) => { swatchRefs.current[0] = el; }} />
-        <Swatch label="r16f" innerRef={(el) => { swatchRefs.current[1] = el; }} />
-        <Swatch label="rgba8" innerRef={(el) => { swatchRefs.current[2] = el; }} />
+        <Swatch label="half-float" innerRef={(el) => { swatchRefs.current[1] = el; }} />
+        <Swatch label="8-bit" innerRef={(el) => { swatchRefs.current[2] = el; }} />
       </div>
     </div>
   );
@@ -197,36 +197,41 @@ export default function Ch05Precision() {
   const r16fFade = fadeTime(hz, T, 'r16f');
 
   return (
-    <Chapter id="ch05" number="05" title="the bug that only happened at 240hz">
+    <Chapter id="ch05" number="05" title="the 240hz bug">
       <Prose>
         <P>
-          every frame, every pixel fades by <C>Δt / 2.5s</C>. at 60hz that&apos;s 0.0067, at
-          240hz it&apos;s 0.0017.
+          the mask should fade at the same speed on every display. each frame subtracts{' '}
+          <C>Δt / 2.5s</C> from its stored value: about 0.0067 at 60hz, but only 0.0017 at 240hz.
         </P>
         <P>
-          an ordinary 8-bit texture stores values in steps of <C>1/255 ≈ 0.0039</C>. write back{' '}
-          <C>1 − 0.0017</C> and it rounds straight back to 1. on a 240hz monitor the reveal never
-          faded. (and at 60hz it fades about 15% too fast, because 1.7 steps rounds up to 2.)
+          the first version stored the mask in an 8-bit texture. that format has only 256 possible
+          values, separated by steps of roughly 0.0039.
         </P>
         <P>
-          the fix is one line: store the mask as a 16-bit float (<C>R16F</C>), whose steps near 1
-          are about 0.0005 — close enough to invisible, though not quite exact either.
+          at 240hz, the requested fade of 0.0017 is smaller than half of one available step. the
+          value rounds back to where it started, so a fully revealed pixel remains fully revealed
+          forever. even at 60hz, rounding makes the fade roughly 15% faster than intended.
+        </P>
+        <P>
+          the solution was to store the mask as a 16-bit floating-point texture, or <C>R16F</C>.
+          its values are spaced much more closely, so each small fade survives when the result is
+          written back.
         </P>
       </Prose>
 
       <Figure
         number={6}
-        caption="pick 240. the orange line never leaves the top."
+        caption="select 240hz and zoom into the top 5%. the 8-bit value rounds back to 1 on every frame, while the half-float value continues to fall."
         controls={
           <>
             <ControlGroup label="try">
               <Toggle label="refresh rate" value={hz} onChange={setHz} options={hzOptions} />
-              <Toggle label="chart view" value={zoom} onChange={setZoom} options={zoomOptions} />
+              <Toggle label="zoom" value={zoom} onChange={setZoom} options={zoomOptions} />
             </ControlGroup>
             <ControlGroup label="observe">
-              <Stat label="fade each frame">{perFrame}</Stat>
-              <Stat label="8-bit reaches zero">{rgba8Fade === null ? 'never' : `${rgba8Fade.toFixed(2)}s`}</Stat>
-              <Stat label="half-float reaches zero">{r16fFade === null ? 'never' : `${r16fFade.toFixed(2)}s`}</Stat>
+              <Stat label="fade requested per frame">{perFrame}</Stat>
+              <Stat label="8-bit fade time">{rgba8Fade === null ? 'never' : `${rgba8Fade.toFixed(2)}s`}</Stat>
+              <Stat label="half-float fade time">{r16fFade === null ? 'never' : `${r16fFade.toFixed(2)}s`}</Stat>
             </ControlGroup>
           </>
         }

@@ -27,11 +27,11 @@ const IDLE = 10;
 
 const pathOptions: readonly { value: PathMode; label: string }[] = [
   { value: 'straight', label: 'straight' },
-  { value: 'hermite', label: 'curved' },
+  { value: 'hermite', label: 'hermite' },
 ];
 const tangentOptions: readonly { value: TangentMode; label: string }[] = [
-  { value: 'velocity', label: 'normal' },
-  { value: 'stale', label: 'old bug' },
+  { value: 'velocity', label: 'velocity × Δt' },
+  { value: 'stale', label: 'stale tangent' },
 ];
 const timingOptions: readonly { value: Timing; label: string }[] = [
   { value: 'even', label: 'even' },
@@ -235,40 +235,45 @@ export default function Ch03Smoothing() {
   const k = followFactor(1 / simHz, follow);
 
   return (
-    <Chapter id="ch03" number="03" title="smoothing the cursor">
+    <Chapter id="ch03" number="03" title="making the brush feel smooth">
       <Prose>
         <P>
-          the browser only tells you where the pointer is once per frame. connect those samples
-          with straight lines and fast strokes turn into polygons.
+          cursor positions arrive as separate samples. drawing a straight line between each pair
+          works at low speeds, but quick movements expose the individual segments and make the
+          stroke look angular.
         </P>
         <P>
-          so the brush doesn&apos;t sit on the pointer; it chases it. each frame it covers a
-          fraction <C>k = 1 − e^(−λΔt)</C> of the gap. that exponent is what makes it frame-rate
-          independent: two half-frames cover exactly as much as one full one.
+          instead of attaching the brush directly to the cursor, I let it follow slightly behind.
+          every frame, it closes a fraction of the remaining distance. the delay is small, but it
+          filters out abrupt changes and gives the brush a more natural sense of weight.
         </P>
         <P>
-          between frames the brush draws a <strong>cubic hermite curve</strong>: a curve defined
-          by its two endpoints and the direction it&apos;s heading at each. if every segment
-          starts in the direction the last one ended, the joins are invisible.
+          the fraction is calculated with <C>k = 1 − e^(−λΔt)</C>. including the elapsed time,{' '}
+          <C>Δt</C>, makes the motion consistent across different frame rates.
         </P>
         <P>
-          the bug: i used to store last frame&apos;s end direction and reuse it as-is. after a
-          long frame followed by a short one, that direction was far too big for the new segment,
-          and the curve looped. the fix is to store velocity and scale it by <em>this</em>{' '}
-          frame&apos;s Δt.
+          the gaps between brush positions are filled with <strong>cubic hermite curves</strong>.
+          each curve knows where it starts, where it ends, and the direction the brush is moving
+          at both points. matching those directions between consecutive curves hides the joins.
+        </P>
+        <P>
+          an earlier version stored a tangent from the previous frame and reused it unchanged.
+          when a long frame was followed by a short one, that tangent was much too large and could
+          make the curve loop backward. storing velocity instead and scaling it to the current
+          frame&apos;s duration fixed the problem.
         </P>
       </Prose>
 
       <Figure
         number={4}
-        caption="move over the pad (or watch the autopilot). choose uneven timing, then switch the curve behavior to the old bug."
+        caption="move across the pad or watch the automatic path. choose uneven timing and enable the old tangent behavior to reproduce the looping bug."
         controls={
           <>
             <ControlGroup label="try">
               <Toggle label="path" value={pathMode} onChange={setPathMode} options={pathOptions} />
-              <Toggle label="frame timing" value={timing} onChange={setTiming} options={timingOptions} />
+              <Toggle label="timing" value={timing} onChange={setTiming} options={timingOptions} />
               <Toggle
-                label="curve behavior"
+                label="tangents"
                 value={tangentMode}
                 onChange={setTangentMode}
                 options={tangentOptions}
@@ -277,8 +282,8 @@ export default function Ch03Smoothing() {
             </ControlGroup>
             <ControlDisclosure label="tune">
               <Slider label="follow speed" value={follow} min={5} max={60} step={1} format={(v) => v.toFixed(0)} onChange={setFollow} />
-              <Slider label="simulated frame rate" value={simHz} min={10} max={60} step={1} format={(v) => `${v.toFixed(0)}hz`} onChange={setSimHz} />
-              <Stat label="gap closed per frame">{k.toFixed(2)}</Stat>
+              <Slider label="frame rate" value={simHz} min={10} max={60} step={1} format={(v) => `${v.toFixed(0)}hz`} onChange={setSimHz} />
+              <Stat label="distance closed per frame">{k.toFixed(2)}</Stat>
             </ControlDisclosure>
           </>
         }
@@ -289,7 +294,10 @@ export default function Ch03Smoothing() {
       <MathToggle>
         <Eq>{'k = 1 − e^(−λΔt)\np ← p + (target − p)·k'}</Eq>
         <Eq>{'h(u) = (2u³−3u²+1)p₀ + (u³−2u²+u)m₀ + (−2u³+3u²)p₁ + (u³−u²)m₁\nm = v·Δt'}</Eq>
-        <P>this part runs on the cpu in typescript; the 13 samples are uploaded as a uniform array.</P>
+        <P>
+          this part runs on the cpu in typescript. each curve is sampled at 13 points, which are
+          then sent to the shader as a uniform array.
+        </P>
       </MathToggle>
     </Chapter>
   );

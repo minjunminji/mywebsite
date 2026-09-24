@@ -156,10 +156,6 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
                   >
                     how the ink reveal works
                   </h1>
-                  <p style={{ margin: '0.9rem 0 0', fontStyle: 'italic', fontSize: '1.1rem', lineHeight: 1.45, color: MUTED }}>
-                    a walk through the webgl2 shader behind the about page: the math, a
-                    couple of bugs, and figures you can poke at.
-                  </p>
                   <p style={{ margin: '1.1rem 0 0', fontFamily: SANS, fontSize: '0.74rem', letterSpacing: '0.06em', lineHeight: 1.6, color: MUTED }}>
                     webgl2 · glsl es 3.0
                     <br />
@@ -174,10 +170,17 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
               </div>
               <Prose>
                 <P>
-                  the effect looks like one thing, but it&apos;s really two small programs running on
-                  the gpu every frame, fed by a bit of math on the cpu. we&apos;ll build it up piece
-                  by piece: first the loop that remembers where you&apos;ve been, then the brush, then
-                  the ink edge.
+                  the reveal begins with a simple idea: wherever your cursor moves, uncover the
+                  drawing.
+                </P>
+                <P>
+                  making that feel like ink takes a little more work. the page needs to remember
+                  where you painted, connect uneven cursor positions into a smooth stroke, and give
+                  the edge an organic texture.
+                </P>
+                <P>
+                  the result is split between the cpu, which shapes the brush&apos;s path, and two
+                  small programs on the gpu, which update and display the reveal.
                 </P>
               </Prose>
             </Row>

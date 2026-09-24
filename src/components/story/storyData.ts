@@ -111,7 +111,7 @@ export const ABOUT_PIANO_LINE = {
 export const ABOUT_PIANO_LINE_INDEX = 2;
 
 export const ABOUT_LINES = [
-  "hi, i'm ryan",
+  "hi, i'm ryan 👋",
   "i'm a junior computer engineering student at the university of british columbia, and i love building things that make me or other people happy",
   `${ABOUT_PIANO_LINE.before}${ABOUT_PIANO_LINE.trigger}${ABOUT_PIANO_LINE.after}`,
 ] as const;
@@ -125,8 +125,17 @@ export const ABOUT_GROUP_GAP_MS = 800;
 // --- Project content ---
 // A run of text in a project paragraph; `action` makes it an in-page trigger.
 export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
-// A paragraph is plain text, or a list of runs when part of it is interactive.
-export type ProjectBodyParagraph = string | readonly ProjectBodySegment[];
+export type ProjectBodyList = { items: readonly string[] };
+// A body block is a paragraph, a list of runs when part of it is interactive,
+// or a bulleted list.
+export type ProjectBodyParagraph =
+  | string
+  | readonly ProjectBodySegment[]
+  | ProjectBodyList;
+
+export function isProjectBodyList(block: ProjectBodyParagraph): block is ProjectBodyList {
+  return typeof block === 'object' && !Array.isArray(block) && 'items' in block;
+}
 
 export type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
@@ -162,8 +171,8 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     title: 'this website',
     techStack: ['Next.js', 'React', 'TypeScript', 'WebGL2'],
     body: [
-      'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a hand-drawn world you navigate where each section is its own scene, and the drawings animate to carry you between them.',
-      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react — clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
+      'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static. so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
+      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react. clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
       [
         {
           text:
@@ -196,9 +205,17 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
     linkHref: 'http://tryrebase.io/',
     body: [
-      'an ai-native resume builder that treats your career as a structured database instead of a folder full of near-identical files. each experience lives once as a reusable block, and you assemble tailored resumes on demand.',
-      'drop in a job description and it picks your most relevant experience, rewrites the bullets to fit the role, and renders a clean, ats-friendly pdf with typst.',
-      'it also keeps your source material sharp — log wins the moment they happen, and targeted follow-up questions turn "improved performance" into something specific and credible.',
+      'an ai-native resume builder that treats your career as a structured database instead of a folder of near-identical files.',
+      'the core is a data model i designed around one idea: every experience should live exactly once. each experience is an atomic "blob" with two layers:',
+      {
+        items: [
+          'the "base content" is the raw source of truth, everything you\'ve ever done in that role, written as loosely as you want.',
+          '"bullet versions" are polished, version-controlled phrasings you can mix and match across resumes.',
+        ],
+      },
+      'for a user, that means one place to see and edit each experience. for an LLM writing your resume bullets, it means clean, scoped context. the main flow is input a job description, then, via a multi-model routing layer, an LLM model of your choice picks your most relevant experiences, and writes fresh bullets from the full base content instead of from whatever limited phrasing you used last time.',
+      'since bullets are only as good as their source, rebase keeps that base content growing. i built the "quick add" feature to minimize the friction it takes to log a win on one of your experiences, and the "refine" feature asks you targeted questions about your existing blobs to turn vagueness into specifics (this also reduced hallucination by a lot!).',
+      'this all culminates in a custom Typst-based rendering engine. structured resume data flows through a template adapter layer that turns each selected experience and bullet version into Typst source. that same source powers both a live SVG preview and client-side PDF export, so what you see is what you download. the engine supports multiple templates, custom fonts, configurable contact links and formatting, user-defined section ordering, and a one-page overflow warning. because compilation happens entirely in the browser through WebAssembly, exporting a resume requires no server-side document generation.',
     ],
     carouselImages: [
       {
@@ -259,8 +276,9 @@ export const EXPERIENCE: readonly ExperienceEntry[] = [
     title: 'software engineer intern',
     bullets: {
       software: [
-        'build the experience layer for AI store-theme generation on mobile, including UI implementation, client-side event logic and generation state management',
-        'navigate deep stacked-PR workflows (Graphite) within a multi-million-line monorepo, shipping 10 production-ready PRs to main within my first six weeks',
+        'drove delivery of an AI storefront-generation experience across 17 merged PRs from prototype to release readiness, building the TypeScript and GraphQL generation flows, real-time server-driven progress, generated-theme navigation, and accessible cross-device UI',
+        'shipped merchant-facing changes in a large full-stack TypeScript/GraphQL web application, scoping a fix in a shared UI component to 1 of its 5 call sites to avoid regressions and correcting a responsive-breakpoint failure, each with new unit tests and reviewer instructions requiring no local setup',
+        'fixed an intermittent Skia/JSI crash caused by the canvas mounting mid-navigation while the JavaScript runtime was busy starting AI generation; rendered a static fallback through the transition and deferred the live canvas until interactions settled',
       ],
       product: [
         'redesigned the AI theme-generation experience, converting a blocking 2-minute synchronous wait into an asynchronous background workflow with real-time toast notifications on completion — keeping merchants unblocked throughout.',
@@ -347,28 +365,31 @@ export const TLDR_NAME = 'ryan kim';
 // favorite-artists line is static for now; when a Spotify top-artists feed lands
 // it swaps to "on repeat this month: …" — see 2026-07-21-tldr-takeover-design.md.
 export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
+  [{ text: 'vancouver, canada' }],
   [
     {
       text:
-        'computer engineering at ubc (class of 2028) and a ubc presidential scholar. ' +
-        'currently a software engineer intern at shopify, doing mobile development on ' +
-        'the admin app used by millions of merchants.',
+        'computer engineering at ubc (class of 2028) and a ubc presidential scholar',
     },
   ],
   [
     {
       text:
-        'leading a team of 7 — product, design, and engineering — at ubc sailbot; ' +
-        "most recently we're building an internal hiring portal.",
+        'previous software engineer @shopify (summer 2026), doing mobile development for the merchant admin app',
     },
   ],
   [
-    { text: 'founded ' },
+    {
+      text:
+        'leading a team of 7 at ubc sailbot, currently building an internal hiring portal',
+    },
+  ],
+  [
+    { text: 'built ' },
     { text: 'rebase', href: 'https://www.tryrebase.io/' },
     {
       text:
-        ', an AI-native career dashboard — took a 3-person team from ' +
-        'concept to private beta with 20+ users.',
+        ', an AI-native career dashboard. took a 3-person team from concept to private beta with 20+ users',
     },
   ],
   [
@@ -376,20 +397,19 @@ export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
       text:
         'i like building things that live between engineering and design. this whole ' +
         'site is a hand-drawn, frame-by-frame world i illustrated and wrote a custom ' +
-        'scene engine for.',
+        'scene engine for',
     },
   ],
-  [{ text: 'i play valorant, peaked immortal top 0.5% NA in V26A3.' }],
+  [{ text: 'i play valorant, peaked immortal top 0.5% NA in V26A3' }],
   [
     { text: "i play piano; my favorite composer is chopin. here's me " },
     {
       text: 'performing his first piano concerto',
       href: 'https://youtu.be/QSbZHTvbjR4',
     },
-    { text: ' with the VSO SOM orchestra.' },
+    { text: ' with the VAMSO orchestra' },
   ],
-  [{ text: 'some of my favorite artists are fujii kaze, wave to earth, and exo.' }],
-  [{ text: 'based in vancouver.' }],
+  [{ text: 'some of my favorite artists are fujii kaze, wave to earth, and exo' }],
 ];
 
 export const TLDR_FOOTER_LINKS: readonly TldrFooterLink[] = [

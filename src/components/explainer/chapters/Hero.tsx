@@ -31,7 +31,7 @@ export default function Hero() {
   return (
     <Figure
       number={1}
-      caption="go ahead, paint. this is the same shader as the about page, running the same code."
+      caption="try painting over the drawing! this is the same effect used on the about page."
     >
       <HeroCanvas />
     </Figure>
