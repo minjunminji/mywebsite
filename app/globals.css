@@ -211,3 +211,31 @@ main {
   height: 100%;
   border: 0;
 }
+
+/* Inline in-page trigger inside project copy (e.g. "here's how it works →").
+   Bold against the 300-weight body to read as interactive; underline on hover. */
+.inline-trigger {
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
+  transition: text-decoration-color 160ms ease;
+}
+
+.inline-trigger:hover,
+.inline-trigger:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.inline-trigger:focus-visible {
+  outline: 2px solid #1f1812;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
