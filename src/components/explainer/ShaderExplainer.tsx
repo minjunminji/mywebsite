@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
+import { useInertOutside } from '@/components/useInertOutside';
 import { ExplainerOpenContext } from './explainerContext';
 import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
 import { Prose } from './layout';
@@ -24,6 +25,8 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const { scrollRef, contentRef, onScroll, maskImage } = useScrollFade();
+  // Keep Tab inside the takeover while it's open.
+  useInertOutside(rootRef, open);
 
   // First mount arrives with open=true; start hidden and flip on the next
   // frame so the opacity transition actually runs.
