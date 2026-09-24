@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
 import { useInertOutside } from '@/components/useInertOutside';
+import Ch01Passes from './chapters/Ch01Passes';
 import Hero from './chapters/Hero';
 import { ExplainerOpenContext } from './explainerContext';
 import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
@@ -161,7 +162,9 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
                 the ink edge.
               </P>
             </Prose>
-            {/* Ch01–06 + outro are added in the rest of Phase D. */}
+
+            <Ch01Passes />
+            {/* Ch02–06 + outro are added in the rest of Phase D. */}
           </article>
         </div>
       </div>
