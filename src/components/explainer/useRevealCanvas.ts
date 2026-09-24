@@ -1,7 +1,7 @@
 // src/components/explainer/useRevealCanvas.ts
 'use client';
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
-import { createBrush, stepBrush } from '@/components/reveal/brush';
+import { createBrush, stepBrush, type Brush } from '@/components/reveal/brush';
 import { createRevealRenderer, type RevealRenderer } from '@/components/reveal/revealRenderer';
 import { DEFAULT_EDGE, type EdgeParams, type RevealView } from '@/components/reveal/shaders';
 import { ABOUT_REFERENCE_IMAGE } from '@/components/story/storyData';
@@ -18,7 +18,7 @@ export type RevealCanvasOptions = {
   /** Scripted pointer when idle (not hovered). Given seconds, returns clip-space x,y. */
   autopilot?: (t: number) => { x: number; y: number };
   /** Runs right after each frame is drawn (e.g. a loupe copying pixels). */
-  afterDraw?: (canvas: HTMLCanvasElement, brush: { x: number; y: number }) => void;
+  afterDraw?: (canvas: HTMLCanvasElement, brush: Brush) => void;
 };
 
 const BASE_RADIUS = 0.15;

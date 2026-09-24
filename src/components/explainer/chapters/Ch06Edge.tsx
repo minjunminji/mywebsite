@@ -2,6 +2,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DISPLAY_FS, glslExcerpt, type EdgeParams, type RevealView } from '@/components/reveal/shaders';
+import { type Brush } from '@/components/reveal/brush';
 import { aboutFrames } from '@/components/story/storyData';
 import { Figure, useFigureActive } from '../figure/Figure';
 import { Slider, Toggle } from '../figure/controls';
@@ -32,9 +33,16 @@ const aaOptions: readonly { value: Aa; label: string }[] = [
 ];
 
 const VIEW_OF: Record<ViewMode, RevealView> = { composite: 0, field: 2 };
-// Device pixels of the WebGL canvas captured into the loupe each frame.
-const REGION = 20;
+// Device pixels of the WebGL canvas captured into the loupe each frame:
+// wide enough to show the edge in context, small enough that each pixel is
+// still a visible square (~4x at 2x DPR).
+const REGION = 48;
 const LOUPE_CSS = 200;
+// The reveal edge sits where the mask crosses the 0.15 threshold, about 0.8
+// brush radii out from the center (1 - smoothstep(0.1r, r, d) = 0.15).
+const EDGE_OFFSET = 0.8;
+// How quickly the loupe's aim swings to a new side of the stroke (1/s).
+const AIM_FOLLOW = 6;
 
 function autopilot(t: number) {
   return { x: 0.45 * Math.cos(0.6 * t), y: 0.4 * Math.sin(0.6 * t) };
@@ -58,13 +66,44 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
   // Copies a small window of the WebGL canvas around the brush, in the same
   // frame it was drawn — the context has no preserveDrawingBuffer, so this
   // has to happen synchronously right after draw(), not on a later tick.
-  const afterDraw = useCallback((canvas: HTMLCanvasElement, brush: { x: number; y: number }) => {
+  // Unit direction (device px, y down) from the brush center to the edge the
+  // loupe looks at: perpendicular to the brush's motion, eased so it doesn't
+  // flip every frame, and held while the brush rests.
+  const aimRef = useRef({ x: 1, y: 0, last: 0 });
+
+  const afterDraw = useCallback((canvas: HTMLCanvasElement, brush: Brush) => {
     const loupe = loupeRef.current;
     const lctx = loupe?.getContext('2d');
     if (!loupe || !lctx) return;
 
-    const px = ((brush.x + 1) / 2) * canvas.width;
-    const py = ((1 - brush.y) / 2) * canvas.height;
+    const aim = aimRef.current;
+    const now = performance.now();
+    const dt = aim.last ? Math.min((now - aim.last) / 1000, 0.05) : 0;
+    aim.last = now;
+    // Brush velocity in device px (clip x spans the width, y the height, y up).
+    const vx = brush.velX * (canvas.width / 2);
+    const vy = -brush.velY * (canvas.height / 2);
+    const speed = Math.hypot(vx, vy);
+    if (speed > 1) {
+      // Left-hand normal of the motion; pick the side closer to the current
+      // aim so a reversing brush doesn't swing the loupe across the stroke.
+      let nx = -vy / speed;
+      let ny = vx / speed;
+      if (nx * aim.x + ny * aim.y < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const k = 1 - Math.exp(-dt * AIM_FOLLOW);
+      aim.x += (nx - aim.x) * k;
+      aim.y += (ny - aim.y) * k;
+      const len = Math.hypot(aim.x, aim.y) || 1;
+      aim.x /= len;
+      aim.y /= len;
+    }
+
+    const radiusPx = brush.radius * (canvas.height / 2) * EDGE_OFFSET;
+    const px = ((brush.x + 1) / 2) * canvas.width + aim.x * radiusPx;
+    const py = ((1 - brush.y) / 2) * canvas.height + aim.y * radiusPx;
     const sx = px - REGION / 2;
     const sy = py - REGION / 2;
 
@@ -113,7 +152,7 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
       </div>
       <div>
         <div style={{ fontFamily: SANS, fontSize: '0.72rem', letterSpacing: '0.08em', color: MUTED, marginBottom: '0.4rem' }}>
-          loupe · 20×20px, no smoothing
+          loupe · on the edge, no smoothing
         </div>
         <canvas
           ref={loupeRef}
