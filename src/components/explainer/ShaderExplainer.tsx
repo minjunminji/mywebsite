@@ -12,6 +12,7 @@ import Ch04Dwell from './chapters/Ch04Dwell';
 import Ch05Precision from './chapters/Ch05Precision';
 import Ch06Edge from './chapters/Ch06Edge';
 import Hero from './chapters/Hero';
+import Outro from './chapters/Outro';
 import { ExplainerOpenContext } from './explainerContext';
 import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
 import { P, Prose } from './layout';
@@ -154,7 +155,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
                 couple of bugs, and figures you can poke at.
               </p>
               <p style={{ margin: '1.4rem 0 0', fontFamily: SANS, fontSize: '0.78rem', letterSpacing: '0.06em', color: MUTED }}>
-                webgl2 · glsl es 3.0 · ~8 min · interactive
+                webgl2 · glsl es 3.0 · ~6 min · interactive
               </p>
             </Prose>
 
@@ -174,7 +175,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
             <Ch04Dwell />
             <Ch05Precision />
             <Ch06Edge />
-            {/* Outro is added in the rest of Phase D. */}
+            <Outro onClose={onClose} />
           </article>
         </div>
       </div>

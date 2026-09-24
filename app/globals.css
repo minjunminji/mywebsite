@@ -300,3 +300,27 @@ main {
   background: #f7f7f5;
   border: 1.5px solid #1f1812;
 }
+
+/* Outro links/buttons — same underline-on-hover affordance as .inline-trigger,
+   without forcing its serif body font (the outro's links are set in Geist Sans). */
+.ex-link {
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.18em;
+  transition: text-decoration-color 160ms ease;
+}
+.ex-link:hover,
+.ex-link:focus-visible {
+  text-decoration-color: currentColor;
+}
+.ex-link:focus-visible {
+  outline: 2px solid #1f1812;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
