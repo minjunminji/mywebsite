@@ -5,9 +5,10 @@ import { useEffect, useRef, useState } from 'react';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
 import { useInertOutside } from '@/components/useInertOutside';
+import Hero from './chapters/Hero';
 import { ExplainerOpenContext } from './explainerContext';
 import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
-import { Prose } from './layout';
+import { P, Prose } from './layout';
 
 type ShaderExplainerProps = {
   open: boolean;
@@ -150,7 +151,17 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
                 webgl2 · glsl es 3.0 · ~8 min · interactive
               </p>
             </Prose>
-            {/* Hero + chapters + outro are added in Phase D. */}
+
+            <Hero />
+            <Prose>
+              <P>
+                the effect looks like one thing, but it&apos;s really two small programs running on
+                the gpu every frame, fed by a bit of math on the cpu. we&apos;ll build it up piece
+                by piece: first the loop that remembers where you&apos;ve been, then the brush, then
+                the ink edge.
+              </P>
+            </Prose>
+            {/* Ch01–06 + outro are added in the rest of Phase D. */}
           </article>
         </div>
       </div>
