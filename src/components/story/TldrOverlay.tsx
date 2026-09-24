@@ -8,6 +8,7 @@ import {
 } from '@/components/story/storyData';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
+import { useInertOutside } from '@/components/useInertOutside';
 
 const INK = '#1f1812';
 const PAGE_BG = '#f7f7f5';
@@ -29,6 +30,8 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const { scrollRef, contentRef, onScroll, maskImage } = useScrollFade();
+  // Keep Tab inside the takeover while it's open.
+  useInertOutside(rootRef, open);
 
   // Take the closed overlay out of the tab order without killing the fade-out
   // (visibility:hidden would). `inert` is set imperatively to dodge attribute

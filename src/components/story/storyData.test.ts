@@ -5,6 +5,7 @@ import {
   EXPERIENCE,
   LENSES,
   NAV,
+  PROJECT_CONTENT,
   stopIndexById,
   isExperienceStop,
 } from './storyData';
@@ -55,5 +56,20 @@ describe('nav', () => {
   it('leads with the name as the home entry', () => {
     expect(NAV[0]).toEqual({ label: 'ryan kim', stopId: 'landing' });
     expect(NAV.some((entry) => entry.label === 'home')).toBe(false);
+  });
+});
+
+describe('project body', () => {
+  it('has exactly one shader explainer trigger, in "this website"', () => {
+    const triggers = PROJECT_CONTENT.flatMap((project) =>
+      project.body.flatMap((paragraph) =>
+        typeof paragraph === 'string'
+          ? []
+          : paragraph
+              .filter((segment) => segment.action === 'shaderExplainer')
+              .map((segment) => ({ project: project.key, text: segment.text })),
+      ),
+    );
+    expect(triggers).toEqual([{ project: 'thisWebsite', text: "here's how it works →" }]);
   });
 });

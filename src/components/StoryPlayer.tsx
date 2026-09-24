@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
+import dynamic from 'next/dynamic';
 import {
   ABOUT_FADE_DURATION_MS,
   ABOUT_INITIAL_DELAY_MS,
@@ -29,6 +30,10 @@ import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
 import { usePiano } from '@/components/piano/PianoContext';
+
+// Heavy (figures, WebGL) and rarely opened: load on first open only.
+const loadShaderExplainer = () => import('@/components/explainer/ShaderExplainer');
+const ShaderExplainer = dynamic(loadShaderExplainer, { ssr: false });
 
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
@@ -87,6 +92,16 @@ export default function StoryPlayer() {
   const showPianoNote = pianoSummoned && !pianoVisible;
 
   const [tldrOpen, setTldrOpen] = useState(false);
+  const [explainerOpen, setExplainerOpen] = useState(false);
+  // Mounted on first open, then kept so its fade-out plays and reopening is instant.
+  const [explainerMounted, setExplainerMounted] = useState(false);
+  // The two takeovers are mutually exclusive: each makes everything outside
+  // itself inert, so two open at once would lock each other out.
+  const openExplainer = () => {
+    setTldrOpen(false);
+    setExplainerMounted(true);
+    setExplainerOpen(true);
+  };
   // The tldr button fades in with the nav on the landing; gate its click (and the
   // whole corner cluster) on that fade finishing — mirrors the nav's interactive
   // gate so the cursor doesn't blob a button that hasn't fully appeared yet.
@@ -418,7 +433,10 @@ export default function StoryPlayer() {
 
         <button
           type="button"
-          onClick={() => setTldrOpen(true)}
+          onClick={() => {
+            setExplainerOpen(false);
+            setTldrOpen(true);
+          }}
           aria-haspopup="dialog"
           data-cursor-pad="-4"
           style={{
@@ -672,9 +690,27 @@ export default function StoryPlayer() {
                       fontWeight: 300,
                     }}
                   >
-                    {project.body.map((paragraph) => (
-                      <p key={`${project.key}-${paragraph}`} style={{ margin: 0 }}>
-                        {paragraph}
+                    {project.body.map((paragraph, index) => (
+                      <p key={index} style={{ margin: 0 }}>
+                        {typeof paragraph === 'string'
+                          ? paragraph
+                          : paragraph.map((segment, segmentIndex) =>
+                              segment.action === 'shaderExplainer' ? (
+                                <button
+                                  key={segmentIndex}
+                                  type="button"
+                                  className="inline-trigger"
+                                  onClick={openExplainer}
+                                  // Warm the chunk while the pointer is on its way.
+                                  onPointerEnter={() => void loadShaderExplainer()}
+                                  onFocus={() => void loadShaderExplainer()}
+                                >
+                                  {segment.text}
+                                </button>
+                              ) : (
+                                <span key={segmentIndex}>{segment.text}</span>
+                              ),
+                            )}
                       </p>
                     ))}
                   </div>
@@ -979,6 +1015,9 @@ export default function StoryPlayer() {
       />
 
       <TldrOverlay open={tldrOpen} onClose={() => setTldrOpen(false)} />
+      {explainerMounted ? (
+        <ShaderExplainer open={explainerOpen} onClose={() => setExplainerOpen(false)} />
+      ) : null}
     </div>
   );
 }

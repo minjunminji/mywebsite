@@ -123,11 +123,16 @@ export const ABOUT_FADE_DURATION_MS = 600;
 export const ABOUT_GROUP_GAP_MS = 800;
 
 // --- Project content ---
+// A run of text in a project paragraph; `action` makes it an in-page trigger.
+export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
+// A paragraph is plain text, or a list of runs when part of it is interactive.
+export type ProjectBodyParagraph = string | readonly ProjectBodySegment[];
+
 export type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
   title: string;
   techStack: readonly string[];
-  body: readonly string[];
+  body: readonly ProjectBodyParagraph[];
   linkHref?: string;
   imageSrc?: string;
   imageAlt?: string;
@@ -159,6 +164,14 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     body: [
       'my old portfolio was hand-drawn too, but it felt static. i rebuilt it as a hand-drawn world you navigate where each section is its own scene, and the drawings animate to carry you between them.',
       'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react — clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
+      [
+        {
+          text:
+            'remember painting over my drawing on the about page? ' +
+            "that's a custom webgl2 shader i wrote. ",
+        },
+        { text: "here's how it works →", action: 'shaderExplainer' },
+      ],
       'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
     carouselImages: [
