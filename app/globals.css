@@ -239,3 +239,64 @@ main {
   outline-offset: 2px;
   border-radius: 2px;
 }
+
+/* ---- shader explainer controls ---- */
+.ex-toggle {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+}
+.ex-toggle:hover,
+.ex-toggle[aria-checked='true'],
+.ex-toggle[aria-expanded] {
+  opacity: 1;
+}
+.ex-toggle[aria-checked='true'] {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 0.25em;
+}
+.ex-toggle:focus-visible,
+.ex-range:focus-visible {
+  outline: 2px solid #1f1812;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+.ex-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 9rem;
+  height: 1rem;
+  background: transparent;
+  cursor: pointer;
+}
+.ex-range::-webkit-slider-runnable-track {
+  height: 1px;
+  background: rgba(31, 24, 18, 0.35);
+}
+.ex-range::-moz-range-track {
+  height: 1px;
+  background: rgba(31, 24, 18, 0.35);
+}
+.ex-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #f7f7f5;
+  border: 1.5px solid #1f1812;
+}
+.ex-range::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f7f7f5;
+  border: 1.5px solid #1f1812;
+}
