@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PATH_SUBDIV, createBrush, followFactor, stepBrush } from '@/components/reveal/brush';
 import { Figure, useFigureActive } from '../figure/Figure';
-import { Slider, Stat, Toggle } from '../figure/controls';
+import { ControlDisclosure, ControlGroup, Slider, Stat, Toggle } from '../figure/controls';
 import { Eq, MathToggle } from '../figure/MathToggle';
 import { prepareCanvas2D, useAnimationFrame, useElementSize, useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
@@ -27,11 +27,11 @@ const IDLE = 10;
 
 const pathOptions: readonly { value: PathMode; label: string }[] = [
   { value: 'straight', label: 'straight' },
-  { value: 'hermite', label: 'hermite' },
+  { value: 'hermite', label: 'curved' },
 ];
 const tangentOptions: readonly { value: TangentMode; label: string }[] = [
-  { value: 'velocity', label: 'velocity × Δt' },
-  { value: 'stale', label: 'stale (old bug)' },
+  { value: 'velocity', label: 'normal' },
+  { value: 'stale', label: 'old bug' },
 ];
 const timingOptions: readonly { value: Timing; label: string }[] = [
   { value: 'even', label: 'even' },
@@ -261,21 +261,25 @@ export default function Ch03Smoothing() {
 
       <Figure
         number={4}
-        caption="move over the pad (or watch the autopilot). switch timing to uneven, then tangents to the old bug."
+        caption="move over the pad (or watch the autopilot). choose uneven timing, then switch the curve behavior to the old bug."
         controls={
           <>
-            <Toggle label="path" value={pathMode} onChange={setPathMode} options={pathOptions} />
-            <Toggle
-              label="tangents"
-              value={tangentMode}
-              onChange={setTangentMode}
-              options={tangentOptions}
-              disabled={pathMode === 'straight'}
-            />
-            <Toggle label="timing" value={timing} onChange={setTiming} options={timingOptions} />
-            <Slider label="follow λ" value={follow} min={5} max={60} step={1} format={(v) => v.toFixed(0)} onChange={setFollow} />
-            <Slider label="frame rate" value={simHz} min={10} max={60} step={1} format={(v) => `${v.toFixed(0)}hz`} onChange={setSimHz} />
-            <Stat label="k per frame">{k.toFixed(2)}</Stat>
+            <ControlGroup label="try">
+              <Toggle label="path" value={pathMode} onChange={setPathMode} options={pathOptions} />
+              <Toggle label="frame timing" value={timing} onChange={setTiming} options={timingOptions} />
+              <Toggle
+                label="curve behavior"
+                value={tangentMode}
+                onChange={setTangentMode}
+                options={tangentOptions}
+                disabled={pathMode === 'straight'}
+              />
+            </ControlGroup>
+            <ControlDisclosure label="tune">
+              <Slider label="follow speed" value={follow} min={5} max={60} step={1} format={(v) => v.toFixed(0)} onChange={setFollow} />
+              <Slider label="simulated frame rate" value={simHz} min={10} max={60} step={1} format={(v) => `${v.toFixed(0)}hz`} onChange={setSimHz} />
+              <Stat label="gap closed per frame">{k.toFixed(2)}</Stat>
+            </ControlDisclosure>
           </>
         }
       >

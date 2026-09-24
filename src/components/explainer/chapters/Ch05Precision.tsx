@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState, type PointerEvent as ReactPoint
 import { BLOB_FS, glslExcerpt } from '@/components/reveal/shaders';
 import { fadeTime, simulateDecay } from '../explainerMath';
 import { Figure, useFigureActive } from '../figure/Figure';
-import { Stat, Toggle } from '../figure/controls';
+import { ControlGroup, Stat, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { useAnimationFrame, useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
@@ -219,11 +219,15 @@ export default function Ch05Precision() {
         caption="pick 240. the orange line never leaves the top."
         controls={
           <>
-            <Toggle label="refresh rate" value={hz} onChange={setHz} options={hzOptions} />
-            <Toggle label="zoom" value={zoom} onChange={setZoom} options={zoomOptions} />
-            <Stat label="per-frame fade">{perFrame}</Stat>
-            <Stat label="8-bit fades in">{rgba8Fade === null ? 'never' : `${rgba8Fade.toFixed(2)}s`}</Stat>
-            <Stat label="half-float fades in">{r16fFade === null ? 'never' : `${r16fFade.toFixed(2)}s`}</Stat>
+            <ControlGroup label="try">
+              <Toggle label="refresh rate" value={hz} onChange={setHz} options={hzOptions} />
+              <Toggle label="chart view" value={zoom} onChange={setZoom} options={zoomOptions} />
+            </ControlGroup>
+            <ControlGroup label="observe">
+              <Stat label="fade each frame">{perFrame}</Stat>
+              <Stat label="8-bit reaches zero">{rgba8Fade === null ? 'never' : `${rgba8Fade.toFixed(2)}s`}</Stat>
+              <Stat label="half-float reaches zero">{r16fFade === null ? 'never' : `${r16fFade.toFixed(2)}s`}</Stat>
+            </ControlGroup>
           </>
         }
       >

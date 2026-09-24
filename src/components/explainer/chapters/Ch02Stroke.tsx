@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { BLOB_FS, glslExcerpt } from '@/components/reveal/shaders';
 import { distToSegmentInto, strokeFalloff } from '../explainerMath';
 import { Figure } from '../figure/Figure';
-import { Slider, Stat, Toggle } from '../figure/controls';
+import { ControlGroup, Slider, Stat, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { prepareCanvas2D, useElementSize } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
@@ -272,12 +272,20 @@ function StrokeFigure() {
       caption="drag the points. hover to probe a pixel. switch to add and watch the joint double up."
       controls={
         <>
-          <Slider label="radius" value={radius} min={20} max={120} step={1} format={(v) => `${Math.round(v)}px`} onChange={setRadius} />
-          <Toggle label="combine" value={combine} onChange={setCombine} options={combineOptions} />
-          <Stat label="d">{probe ? `${probe.d.toFixed(1)}px` : '—'}</Stat>
-          <Stat label="t">{probe ? probe.t.toFixed(2) : '—'}</Stat>
-          <Stat label="f">{probe ? probe.f.toFixed(2) : '—'}</Stat>
-          <Stat label="peak">{peak.toFixed(2)}</Stat>
+          <ControlGroup label="try">
+            <Slider label="brush size" value={radius} min={20} max={120} step={1} format={(v) => `${Math.round(v)}px`} onChange={setRadius} />
+            <Toggle label="overlap" value={combine} onChange={setCombine} options={combineOptions} />
+          </ControlGroup>
+          <ControlGroup label="observe">
+            <Stat label="highest paint">{peak.toFixed(2)}</Stat>
+            {probe ? (
+              <>
+                <Stat label="distance">{`${probe.d.toFixed(1)}px`}</Stat>
+                <Stat label="along path">{probe.t.toFixed(2)}</Stat>
+                <Stat label="paint here">{probe.f.toFixed(2)}</Stat>
+              </>
+            ) : null}
+          </ControlGroup>
         </>
       }
     >

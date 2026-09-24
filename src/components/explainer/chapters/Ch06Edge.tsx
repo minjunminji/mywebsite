@@ -5,7 +5,7 @@ import { DISPLAY_FS, glslExcerpt, type EdgeParams, type RevealView } from '@/com
 import { type Brush } from '@/components/reveal/brush';
 import { AboutUnderlay, ABOUT_CROP, ABOUT_CROP_ASPECT } from '../figure/AboutUnderlay';
 import { Figure, useFigureActive } from '../figure/Figure';
-import { Slider, Toggle } from '../figure/controls';
+import { ControlDisclosure, ControlGroup, Slider, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
@@ -17,11 +17,9 @@ type ViewMode = 'composite' | 'field';
 type Aa = 'on' | 'off';
 
 const octaveOptions: readonly { value: Octaves; label: string }[] = [
-  { value: 0, label: '0' },
-  { value: 1, label: '1' },
-  { value: 2, label: '2' },
-  { value: 3, label: '3' },
-  { value: 4, label: '4' },
+  { value: 0, label: 'clean' },
+  { value: 2, label: 'soft' },
+  { value: 4, label: 'detailed' },
 ];
 const viewOptions: readonly { value: ViewMode; label: string }[] = [
   { value: 'composite', label: 'composite' },
@@ -195,14 +193,18 @@ export default function Ch06Edge() {
 
       <Figure
         number={7}
-        caption="add octaves one at a time. turn antialiasing off and look in the loupe."
+        caption="increase the edge detail, then turn smoothing off and look in the loupe."
         controls={
           <>
-            <Toggle label="octaves" value={octaves} onChange={setOctaves} options={octaveOptions} />
-            <Slider label="threshold" value={threshold} min={0.02} max={0.5} step={0.01} format={(v) => v.toFixed(2)} onChange={setThreshold} />
-            <Slider label="noise" value={noise} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setNoise} />
-            <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
-            <Toggle label="antialiasing" value={aa} onChange={setAa} options={aaOptions} />
+            <ControlGroup label="try">
+              <Toggle label="edge detail" value={octaves} onChange={setOctaves} options={octaveOptions} />
+              <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
+              <Toggle label="edge smoothing" value={aa} onChange={setAa} options={aaOptions} />
+            </ControlGroup>
+            <ControlDisclosure label="tune">
+              <Slider label="reveal threshold" value={threshold} min={0.02} max={0.5} step={0.01} format={(v) => v.toFixed(2)} onChange={setThreshold} />
+              <Slider label="noise strength" value={noise} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setNoise} />
+            </ControlDisclosure>
           </>
         }
       >

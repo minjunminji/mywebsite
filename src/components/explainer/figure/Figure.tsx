@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useExplainerOpen } from '../explainerContext';
 import { COLUMN, INK, MUTED, RULE, SANS, SERIF } from '../tokens';
+import { ControlShelf } from './controls';
 
 const FigureActiveContext = createContext(false);
 
@@ -48,18 +49,9 @@ export function Figure({ number, caption, controls, children }: FigureProps) {
           <div
             role="group"
             aria-label={`figure ${number} controls`}
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: '0.9rem 2.2rem',
-              marginTop: '1.1rem',
-              fontFamily: SANS,
-              fontSize: '0.8rem',
-              color: INK,
-            }}
+            style={{ marginTop: '1.1rem', fontFamily: SANS, fontSize: '0.8rem', color: INK }}
           >
-            {controls}
+            <ControlShelf>{controls}</ControlShelf>
           </div>
         ) : null}
         <figcaption

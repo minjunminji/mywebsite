@@ -5,7 +5,7 @@ import { FAST_RADIUS_SCALE, FAST_SPEED, SLOW_SPEED, createBrush, stepBrush } fro
 import { BLOB_FS, DEFAULT_EDGE, glslExcerpt } from '@/components/reveal/shaders';
 import { createCpuMask, stepCpuMask, type CpuMask } from '../explainerMath';
 import { Figure, useFigureActive } from '../figure/Figure';
-import { Slider, Toggle } from '../figure/controls';
+import { ControlDisclosure, ControlGroup, Slider, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { prepareCanvas2D, useAnimationFrame, useElementSize, useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
@@ -303,9 +303,15 @@ export default function Ch04Dwell() {
         caption="move fast, then stop. with build-up off, a resting brush never spreads."
         controls={
           <>
-            <Toggle label="dwell build-up" value={dwellMode} onChange={setDwellMode} options={dwellOptions} />
-            <Slider label="strength" value={strength} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setStrength} />
-            <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
+            <ControlGroup label="try">
+              <Toggle label="paint while resting" value={dwellMode} onChange={setDwellMode} options={dwellOptions} />
+              <Toggle label="view" value={view} onChange={setView} options={viewOptions} />
+            </ControlGroup>
+            {dwellMode === 'on' ? (
+              <ControlDisclosure label="tune">
+                <Slider label="build-up strength" value={strength} min={0} max={0.3} step={0.01} format={(v) => v.toFixed(2)} onChange={setStrength} />
+              </ControlDisclosure>
+            ) : null}
           </>
         }
       >

@@ -241,6 +241,77 @@ main {
 }
 
 /* ---- shader explainer controls ---- */
+.ex-control-shelf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1.1rem 2.4rem;
+  padding: 1rem 1.1rem 1.05rem;
+  border-top: 1px solid rgba(31, 24, 18, 0.12);
+  border-bottom: 1px solid rgba(31, 24, 18, 0.08);
+  background: rgba(31, 24, 18, 0.025);
+}
+
+.ex-control-group {
+  min-width: 0;
+}
+
+.ex-control-group-label,
+.ex-control-disclosure > summary {
+  margin-bottom: 0.65rem;
+  color: #6f655a;
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+.ex-control-group-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.8rem 1.1rem;
+}
+
+.ex-control {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.38rem;
+}
+
+.ex-control-label {
+  color: #6f655a;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.ex-readout {
+  display: inline-block;
+  color: #1f1812;
+  font-family: var(--font-inconsolata), monospace;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.ex-stat {
+  display: flex;
+  min-width: 4.8rem;
+  flex-direction: column;
+  gap: 0.42rem;
+}
+
+.ex-segmented {
+  display: inline-flex;
+  overflow: hidden;
+  padding: 2px;
+  border: 1px solid rgba(31, 24, 18, 0.18);
+  border-radius: 4px;
+  background: rgba(247, 247, 245, 0.7);
+}
+
 .ex-toggle {
   font: inherit;
   color: inherit;
@@ -248,60 +319,144 @@ main {
   border: 0;
   padding: 0;
   cursor: pointer;
-  opacity: 0.45;
-  transition: opacity 160ms ease;
 }
-.ex-toggle:not(:disabled):hover,
-.ex-toggle[aria-pressed='true'],
-.ex-toggle[aria-expanded] {
-  opacity: 1;
+
+.ex-segmented .ex-toggle {
+  min-height: 1.85rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 2px;
+  color: #6f655a;
+  font-size: 0.75rem;
+  line-height: 1;
+  transition: color 140ms ease, background-color 140ms ease;
 }
-.ex-toggle[aria-pressed='true'] {
-  text-decoration: underline;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 0.25em;
+
+.ex-segmented .ex-toggle:not(:disabled):hover {
+  color: #1f1812;
 }
+
+.ex-segmented .ex-toggle[aria-pressed='true'] {
+  color: #1f1812;
+  background: rgba(31, 24, 18, 0.1);
+  box-shadow: inset 0 -2px #c8412b;
+}
+
 .ex-toggle:disabled {
   cursor: default;
 }
+
+.ex-toggle-control[data-disabled='true'] {
+  opacity: 0.35;
+}
+
 .ex-toggle:focus-visible,
 .ex-range:focus-visible {
   outline: 2px solid #1f1812;
-  outline-offset: 3px;
+  outline-offset: 2px;
   border-radius: 2px;
+}
+
+.ex-slider-control {
+  min-width: 12rem;
+}
+
+.ex-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
 }
 
 .ex-range {
   -webkit-appearance: none;
   appearance: none;
-  width: 9rem;
-  height: 1rem;
+  width: 9.5rem;
+  height: 1.85rem;
   background: transparent;
   cursor: pointer;
 }
+
 .ex-range::-webkit-slider-runnable-track {
-  height: 1px;
+  height: 2px;
   background: rgba(31, 24, 18, 0.35);
 }
+
 .ex-range::-moz-range-track {
-  height: 1px;
+  height: 2px;
   background: rgba(31, 24, 18, 0.35);
 }
+
 .ex-range::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 11px;
-  height: 11px;
+  width: 12px;
+  height: 12px;
   margin-top: -5px;
   border-radius: 50%;
   background: #f7f7f5;
   border: 1.5px solid #1f1812;
 }
+
 .ex-range::-moz-range-thumb {
-  width: 9px;
-  height: 9px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #f7f7f5;
   border: 1.5px solid #1f1812;
+}
+
+.ex-control-disclosure {
+  flex-basis: 100%;
+  border-top: 1px solid rgba(31, 24, 18, 0.08);
+  padding-top: 0.8rem;
+}
+
+.ex-control-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ex-control-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ex-control-disclosure > summary::after {
+  content: '+';
+  color: #c8412b;
+  font-size: 0.85rem;
+}
+
+.ex-control-disclosure[open] > summary {
+  margin-bottom: 0.8rem;
+}
+
+.ex-control-disclosure[open] > summary::after {
+  content: '−';
+}
+
+@media (max-width: 700px) {
+  .ex-control-shelf {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.15rem;
+    padding-inline: 0.85rem;
+  }
+
+  .ex-control-group-content {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ex-slider-control {
+    min-width: 0;
+    grid-column: 1 / -1;
+  }
+
+  .ex-range {
+    width: min(9.5rem, 52vw);
+  }
 }
 
 /* Outro links/buttons — same underline-on-hover affordance as .inline-trigger,
