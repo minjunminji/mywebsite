@@ -8,6 +8,7 @@ import { useInertOutside } from '@/components/useInertOutside';
 import Ch01Passes from './chapters/Ch01Passes';
 import Ch02Stroke from './chapters/Ch02Stroke';
 import Ch03Smoothing from './chapters/Ch03Smoothing';
+import Ch04Dwell from './chapters/Ch04Dwell';
 import Hero from './chapters/Hero';
 import { ExplainerOpenContext } from './explainerContext';
 import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
@@ -168,7 +169,8 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
             <Ch01Passes />
             <Ch02Stroke />
             <Ch03Smoothing />
-            {/* Ch04–06 + outro are added in the rest of Phase D. */}
+            <Ch04Dwell />
+            {/* Ch05–06 + outro are added in the rest of Phase D. */}
           </article>
         </div>
       </div>
