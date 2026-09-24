@@ -205,9 +205,13 @@ function StrokeFigure() {
     scheduleDraw();
   }, [scheduleDraw]);
 
+  // Clear the ref too: Strict Mode unmounts and remounts in dev, and a stale
+  // id would make scheduleDraw think a frame is still queued, so it never
+  // draws again.
   useEffect(
     () => () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
     },
     [],
   );
