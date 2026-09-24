@@ -33,10 +33,6 @@ export function useRevealCanvas(canvasRef: RefObject<HTMLCanvasElement | null>, 
     optsRef.current = opts;
   });
   const rendererRef = useRef<RevealRenderer | null>(null);
-  const glRef = useRef<WebGL2RenderingContext | null>(null);
-  // Set once the figure unmounts, so a reference-image load that finishes
-  // after teardown doesn't touch a disposed renderer.
-  const disposedRef = useRef(false);
 
   // Pointer state lives across activations.
   const pointer = useRef({ x: 0, y: 0, active: false, newStroke: false });
@@ -84,11 +80,12 @@ export function useRevealCanvas(canvasRef: RefObject<HTMLCanvasElement | null>, 
       if (!gl) return undefined;
       const renderer = createRevealRenderer(gl);
       if (!renderer) return undefined;
-      glRef.current = gl;
       rendererRef.current = renderer;
       const img = new Image();
+      // Only upload into the renderer this load was started for — it may have
+      // been disposed (and replaced) by the time the image arrives.
       img.onload = () => {
-        if (!disposedRef.current) rendererRef.current?.setReference(img);
+        if (rendererRef.current === renderer) renderer.setReference(img);
       };
       img.src = ABOUT_REFERENCE_IMAGE;
     }
@@ -154,12 +151,15 @@ export function useRevealCanvas(canvasRef: RefObject<HTMLCanvasElement | null>, 
     return () => cancelAnimationFrame(id);
   }, [opts.active, canvasRef]);
 
-  // Free the GL context when the figure unmounts.
+  // Free the GL resources on unmount, and forget the renderer so a remount
+  // (React Strict Mode mounts, unmounts and remounts in dev) builds a fresh
+  // one. The context itself is left alone: a context lost with
+  // WEBGL_lose_context stays lost for this canvas, so a remount couldn't
+  // draw again.
   useEffect(
     () => () => {
-      disposedRef.current = true;
       rendererRef.current?.dispose();
-      glRef.current?.getExtension('WEBGL_lose_context')?.loseContext();
+      rendererRef.current = null;
     },
     [],
   );
