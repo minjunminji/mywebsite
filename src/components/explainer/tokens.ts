@@ -16,6 +16,11 @@ export const SERIF = 'var(--font-neuton), Georgia, serif';
 export const SANS = 'var(--font-geist-sans), sans-serif';
 export const MONO = 'var(--font-inconsolata), monospace';
 
-/** Text column and figure breakout widths. */
+/** Reading measure for body text inside the main pane. */
 export const COLUMN = '42.5rem'; // ~680px
-export const WIDE = '60rem'; // ~960px
+/** Two-pane layout: a thin rail of sticky headers beside the main pane. */
+export const RAIL = 'clamp(11rem, 20vw, 16rem)';
+export const RAIL_GAP = 'clamp(2.5rem, 5vw, 4.5rem)';
+export const PAGE_MAX = '72rem';
+/** Top padding of the article, and where rail headers stick while scrolling. */
+export const PAGE_TOP = 'clamp(4.5rem, 12vh, 7.5rem)';

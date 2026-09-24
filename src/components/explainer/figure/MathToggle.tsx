@@ -8,7 +8,7 @@ export function MathToggle({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const id = useId();
   return (
-    <div style={{ maxWidth: COLUMN, margin: '1.6rem auto 0' }}>
+    <div style={{ maxWidth: COLUMN, margin: '1.6rem 0 0' }}>
       <button
         type="button"
         className="ex-toggle"

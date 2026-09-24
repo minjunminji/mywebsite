@@ -1,13 +1,13 @@
 // src/components/explainer/chapters/Outro.tsx
 'use client';
-import { P, Prose } from '../layout';
+import { P, Prose, RailLabel, Row } from '../layout';
 import { INK, MUTED, RULE, SANS } from '../tokens';
 
 const SOURCE_URL = 'https://github.com/minjunminji/mywebsite/blob/main/src/components/reveal/shaders.ts';
 
 export default function Outro({ onClose }: { onClose: () => void }) {
   return (
-    <section style={{ marginTop: '6rem', paddingBottom: '1rem' }}>
+    <Row style={{ marginTop: '6rem', paddingBottom: '1rem' }} rail={<RailLabel>end</RailLabel>}>
       <Prose>
         <P>
           that&apos;s the whole thing: two passes, one texture that remembers, a brush that
@@ -38,6 +38,6 @@ export default function Outro({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </Prose>
-    </section>
+    </Row>
   );
 }

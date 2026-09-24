@@ -2,7 +2,7 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useExplainerOpen } from '../explainerContext';
-import { COLUMN, INK, MUTED, RULE, SANS, SERIF, WIDE } from '../tokens';
+import { COLUMN, INK, MUTED, RULE, SANS, SERIF } from '../tokens';
 
 const FigureActiveContext = createContext(false);
 
@@ -37,8 +37,7 @@ export function Figure({ number, caption, controls, children }: FigureProps) {
       <figure
         ref={ref}
         style={{
-          maxWidth: WIDE,
-          margin: '2.8rem auto',
+          margin: '2.8rem 0',
           padding: '1.6rem 0 1.1rem',
           borderTop: `1px solid ${RULE}`,
           borderBottom: `1px solid ${RULE}`,

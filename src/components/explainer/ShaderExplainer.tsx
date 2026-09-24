@@ -14,8 +14,8 @@ import Ch06Edge from './chapters/Ch06Edge';
 import Hero from './chapters/Hero';
 import Outro from './chapters/Outro';
 import { ExplainerOpenContext } from './explainerContext';
-import { INK, MUTED, PAPER, SANS, SERIF, WIDE } from './tokens';
-import { P, Prose } from './layout';
+import { INK, MUTED, PAGE_MAX, PAGE_TOP, PAPER, SANS, SERIF } from './tokens';
+import { P, Prose, Row } from './layout';
 
 type ShaderExplainerProps = {
   open: boolean;
@@ -137,37 +137,50 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
           <article
             ref={contentRef}
             style={{
-              maxWidth: WIDE,
+              maxWidth: PAGE_MAX,
               margin: '0 auto',
-              padding: 'clamp(4.5rem, 12vh, 7.5rem) 2rem 8rem',
+              padding: `${PAGE_TOP} 2rem 8rem`,
               fontFamily: SERIF,
               fontSize: '1.25rem',
               lineHeight: 1.6,
               color: INK,
             }}
           >
-            <Prose>
-              <h1 style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '3.4rem', lineHeight: 1.05, letterSpacing: '-0.01em' }}>
-                how the ink reveal works
-              </h1>
-              <p style={{ margin: '1rem 0 0', fontStyle: 'italic', fontSize: '1.45rem', lineHeight: 1.45, color: MUTED }}>
-                a walk through the webgl2 shader behind the about page: the math, a
-                couple of bugs, and figures you can poke at.
-              </p>
-              <p style={{ margin: '1.4rem 0 0', fontFamily: SANS, fontSize: '0.78rem', letterSpacing: '0.06em', color: MUTED }}>
-                webgl2 · glsl es 3.0 · ~6 min · interactive
-              </p>
-            </Prose>
-
-            <Hero />
-            <Prose>
-              <P>
-                the effect looks like one thing, but it&apos;s really two small programs running on
-                the gpu every frame, fed by a bit of math on the cpu. we&apos;ll build it up piece
-                by piece: first the loop that remembers where you&apos;ve been, then the brush, then
-                the ink edge.
-              </P>
-            </Prose>
+            <Row
+              labelledBy="explainer-title"
+              rail={
+                <>
+                  <h1
+                    id="explainer-title"
+                    style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '2.3rem', lineHeight: 1.08, letterSpacing: '-0.01em' }}
+                  >
+                    how the ink reveal works
+                  </h1>
+                  <p style={{ margin: '0.9rem 0 0', fontStyle: 'italic', fontSize: '1.1rem', lineHeight: 1.45, color: MUTED }}>
+                    a walk through the webgl2 shader behind the about page: the math, a
+                    couple of bugs, and figures you can poke at.
+                  </p>
+                  <p style={{ margin: '1.1rem 0 0', fontFamily: SANS, fontSize: '0.74rem', letterSpacing: '0.06em', lineHeight: 1.6, color: MUTED }}>
+                    webgl2 · glsl es 3.0
+                    <br />
+                    ~6 min · interactive
+                  </p>
+                </>
+              }
+            >
+              {/* The hero figure's top rule sits level with the title. */}
+              <div style={{ marginTop: '-2.8rem' }}>
+                <Hero />
+              </div>
+              <Prose>
+                <P>
+                  the effect looks like one thing, but it&apos;s really two small programs running on
+                  the gpu every frame, fed by a bit of math on the cpu. we&apos;ll build it up piece
+                  by piece: first the loop that remembers where you&apos;ve been, then the brush, then
+                  the ink edge.
+                </P>
+              </Prose>
+            </Row>
 
             <Ch01Passes />
             <Ch02Stroke />
