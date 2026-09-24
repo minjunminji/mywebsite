@@ -1,7 +1,7 @@
 // src/components/explainer/chapters/Hero.tsx
 'use client';
 import { useRef } from 'react';
-import { aboutFrames } from '@/components/story/storyData';
+import { AboutUnderlay, ABOUT_CROP_ASPECT } from '../figure/AboutUnderlay';
 import { Figure, useFigureActive } from '../figure/Figure';
 import { useReducedMotion } from '../hooks';
 import { useRevealCanvas } from '../useRevealCanvas';
@@ -16,20 +16,8 @@ function HeroCanvas() {
   const reducedMotion = useReducedMotion();
   useRevealCanvas(canvasRef, { active, reducedMotion, panes: [{ view: 0 }] });
   return (
-    <div style={{ position: 'relative', aspectRatio: '16 / 9' }}>
-      <img
-        src={aboutFrames[0]}
-        alt=""
-        draggable={false}
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'contain',
-          userSelect: 'none',
-        }}
-      />
+    <div style={{ position: 'relative', aspectRatio: ABOUT_CROP_ASPECT, overflow: 'hidden' }}>
+      <AboutUnderlay />
       <canvas
         ref={canvasRef}
         aria-label="live reveal: move the pointer over the drawing to paint"

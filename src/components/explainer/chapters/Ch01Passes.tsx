@@ -2,7 +2,7 @@
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
 import { BLOB_FS, glslExcerpt } from '@/components/reveal/shaders';
-import { aboutFrames } from '@/components/story/storyData';
+import { AboutUnderlay, ABOUT_CROP_ASPECT } from '../figure/AboutUnderlay';
 import { Figure, useFigureActive } from '../figure/Figure';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { useReducedMotion } from '../hooks';
@@ -82,21 +82,9 @@ function TwoPassCanvas() {
           the mask (red channel)
         </span>
       </div>
-      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', height: 320 }}>
-        <div style={{ position: 'relative', overflow: 'hidden' }}>
-          <img
-            src={aboutFrames[0]}
-            alt=""
-            draggable={false}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'contain',
-              userSelect: 'none',
-            }}
-          />
+      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ position: 'relative', aspectRatio: ABOUT_CROP_ASPECT, overflow: 'hidden' }}>
+          <AboutUnderlay />
         </div>
         <div />
         <canvas

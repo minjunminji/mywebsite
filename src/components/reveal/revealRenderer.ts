@@ -30,6 +30,8 @@ export type DrawParams = {
   view: RevealView;
   edge: EdgeParams;
   accent?: readonly [number, number, number];
+  /** Part of the reference image to show: x, y (from top-left), w, h in 0..1. Whole image by default. */
+  crop?: readonly [number, number, number, number];
 };
 
 export type RevealRenderer = {
@@ -44,6 +46,8 @@ export type RevealRenderer = {
   setReference(img: HTMLImageElement): void;
   dispose(): void;
 };
+
+const FULL_CROP = [0, 0, 1, 1] as const;
 
 export function createRevealRenderer(gl: WebGL2RenderingContext): RevealRenderer | null {
   function createShader(type: number, src: string) {
@@ -108,6 +112,7 @@ export function createRevealRenderer(gl: WebGL2RenderingContext): RevealRenderer
     refLoaded: u(displayProgram, 'u_refLoaded'),
     canvasAspect: u(displayProgram, 'u_canvasAspect'),
     refAspect: u(displayProgram, 'u_refAspect'),
+    refCrop: u(displayProgram, 'u_refCrop'),
     time: u(displayProgram, 'u_time'),
     threshold: u(displayProgram, 'u_threshold'),
     noiseAmp: u(displayProgram, 'u_noiseAmp'),
@@ -207,7 +212,10 @@ export function createRevealRenderer(gl: WebGL2RenderingContext): RevealRenderer
       gl.uniform1i(displayU.refImage, 1);
       gl.uniform1f(displayU.refLoaded, refTexture ? 1.0 : 0.0);
       gl.uniform1f(displayU.canvasAspect, p.aspect);
-      gl.uniform1f(displayU.refAspect, refAspect);
+      const crop = p.crop ?? FULL_CROP;
+      // The fit is against the cropped region's shape, not the whole image's.
+      gl.uniform1f(displayU.refAspect, (refAspect * crop[2]) / crop[3]);
+      gl.uniform4f(displayU.refCrop, crop[0], crop[1], crop[2], crop[3]);
       gl.uniform1f(displayU.time, p.time);
       gl.uniform1f(displayU.threshold, p.edge.threshold);
       gl.uniform1f(displayU.noiseAmp, p.edge.noiseAmp);

@@ -5,6 +5,7 @@ import { createBrush, stepBrush, type Brush } from '@/components/reveal/brush';
 import { createRevealRenderer, type RevealRenderer } from '@/components/reveal/revealRenderer';
 import { DEFAULT_EDGE, type EdgeParams, type RevealView } from '@/components/reveal/shaders';
 import { ABOUT_REFERENCE_IMAGE } from '@/components/story/storyData';
+import { ABOUT_CROP } from './figure/AboutUnderlay';
 
 export type RevealPane = { view: RevealView };
 
@@ -142,6 +143,7 @@ export function useRevealCanvas(canvasRef: RefObject<HTMLCanvasElement | null>, 
           time: clock,
           view: pane.view,
           edge: o.edge ?? DEFAULT_EDGE,
+          crop: ABOUT_CROP,
         });
       });
       o.afterDraw?.(canvas, brush);

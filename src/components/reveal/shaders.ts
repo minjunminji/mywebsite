@@ -103,6 +103,9 @@ export const DISPLAY_FS = `#version 300 es
   uniform float u_refLoaded;
   uniform float u_canvasAspect;
   uniform float u_refAspect;
+  // Sub-rect of the reference image to fit to the canvas: x, y (from the
+  // image's top-left), w, h, in 0..1 image UVs. (0, 0, 1, 1) is the whole image.
+  uniform vec4 u_refCrop;
   uniform float u_time;
   // Edge parameters (see EdgeParams) and explainer debug views.
   uniform float u_threshold;
@@ -198,7 +201,8 @@ export const DISPLAY_FS = `#version 300 es
     float reveal = edge * inBounds * u_refLoaded;
 
     // Flip Y for image (WebGL UV origin is bottom-left, image is top-left)
-    vec2 refUv = vec2(clamp(fitUv.x, 0.0, 1.0), 1.0 - clamp(fitUv.y, 0.0, 1.0));
+    vec2 cropUv = u_refCrop.xy + vec2(fitUv.x, 1.0 - fitUv.y) * u_refCrop.zw;
+    vec2 refUv = clamp(cropUv, 0.0, 1.0);
     vec4 ref = texture(u_refImage, refUv);
 
     // Composite ref image over page background so transparent ref pixels

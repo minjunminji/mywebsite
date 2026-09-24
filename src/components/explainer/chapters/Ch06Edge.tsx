@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DISPLAY_FS, glslExcerpt, type EdgeParams, type RevealView } from '@/components/reveal/shaders';
 import { type Brush } from '@/components/reveal/brush';
-import { aboutFrames } from '@/components/story/storyData';
+import { AboutUnderlay, ABOUT_CROP, ABOUT_CROP_ASPECT } from '../figure/AboutUnderlay';
 import { Figure, useFigureActive } from '../figure/Figure';
 import { Slider, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
@@ -112,14 +112,15 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
     lctx.fillRect(0, 0, loupe.width, loupe.height);
 
     // The underlay <img> beneath the WebGL canvas, cropped to the same
-    // window (it's the same 16:9 frame as the canvas, so the mapping is
-    // proportional — no letterboxing math needed).
+    // window. Both show exactly ABOUT_CROP of the frame, so canvas pixels map
+    // proportionally into that rect of the image.
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
-      const ix = (sx / canvas.width) * img.naturalWidth;
-      const iy = (sy / canvas.height) * img.naturalHeight;
-      const iw = (REGION / canvas.width) * img.naturalWidth;
-      const ih = (REGION / canvas.height) * img.naturalHeight;
+      const [cx, cy, cw, ch] = ABOUT_CROP;
+      const ix = (cx + (sx / canvas.width) * cw) * img.naturalWidth;
+      const iy = (cy + (sy / canvas.height) * ch) * img.naturalHeight;
+      const iw = (REGION / canvas.width) * cw * img.naturalWidth;
+      const ih = (REGION / canvas.height) * ch * img.naturalHeight;
       lctx.drawImage(img, ix, iy, iw, ih, 0, 0, loupe.width, loupe.height);
     }
     lctx.drawImage(canvas, sx, sy, REGION, REGION, 0, 0, loupe.width, loupe.height);
@@ -136,14 +137,8 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '1.25rem', alignItems: 'start' }}>
-      <div style={{ position: 'relative', aspectRatio: '16 / 9' }}>
-        <img
-          ref={imgRef}
-          src={aboutFrames[0]}
-          alt=""
-          draggable={false}
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', userSelect: 'none' }}
-        />
+      <div style={{ position: 'relative', aspectRatio: ABOUT_CROP_ASPECT, overflow: 'hidden' }}>
+        <AboutUnderlay imgRef={imgRef} />
         <canvas
           ref={canvasRef}
           aria-label="live reveal with adjustable edge noise: move the pointer over the drawing, or watch the autopilot"
