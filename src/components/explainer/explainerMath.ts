@@ -15,15 +15,30 @@ export function smoothstep(e0: number, e1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** Distance from p to segment ab, and the clamped projection parameter t. */
-export function distToSegment(
+/**
+ * Distance from p to segment ab, and the clamped projection parameter t,
+ * written into `out` instead of allocating — for hot loops (stepCpuMask runs
+ * this ~249k times a frame at 192×108×12).
+ */
+export function distToSegmentInto(
+  out: { d: number; t: number },
   px: number, py: number, ax: number, ay: number, bx: number, by: number,
-): { d: number; t: number } {
+): void {
   const sx = bx - ax;
   const sy = by - ay;
   const lenSq = Math.max(sx * sx + sy * sy, 1e-10);
   const t = clamp01(((px - ax) * sx + (py - ay) * sy) / lenSq);
-  return { d: Math.hypot(px - (ax + sx * t), py - (ay + sy * t)), t };
+  out.d = Math.hypot(px - (ax + sx * t), py - (ay + sy * t));
+  out.t = t;
+}
+
+/** Distance from p to segment ab, and the clamped projection parameter t. */
+export function distToSegment(
+  px: number, py: number, ax: number, ay: number, bx: number, by: number,
+): { d: number; t: number } {
+  const out = { d: 0, t: 0 };
+  distToSegmentInto(out, px, py, ax, ay, bx, by);
+  return out;
 }
 
 /** The brush footprint: 1 inside 10% of r, easing to 0 at r. */
@@ -86,6 +101,10 @@ export function createCpuMask(w: number, h: number): CpuMask {
 
 export type CpuMaskParams = { dt: number; duration: number; strength: number; aspect: number };
 
+// Scratch object reused across stepCpuMask's inner loop (~249k calls/frame at
+// 192×108×12) so distToSegmentInto never allocates on the hot path.
+const scratchHit = { d: 0, t: 0 };
+
 /**
  * One frame of the blob mask pass on the CPU (row 0 = top). Same math as
  * BLOB_FS: decay, max-in the stroke footprint, dwell build-up.
@@ -106,13 +125,14 @@ export function stepCpuMask(mask: CpuMask, brush: Brush, painting: boolean, p: C
         const ux = (((i + 0.5) / w) - 0.5) * 2 * p.aspect;
         let f = 0;
         for (let s = 0; s < PATH_SUBDIV; s++) {
-          const { d, t } = distToSegment(
+          distToSegmentInto(
+            scratchHit,
             ux, uy,
             path[s * 2] * p.aspect, path[s * 2 + 1],
             path[s * 2 + 2] * p.aspect, path[s * 2 + 3],
           );
-          const r = radii[s] + (radii[s + 1] - radii[s]) * t;
-          f = Math.max(f, strokeFalloff(d, r));
+          const r = radii[s] + (radii[s + 1] - radii[s]) * scratchHit.t;
+          f = Math.max(f, strokeFalloff(scratchHit.d, r));
         }
         prev = Math.max(prev, f);
         prev = clamp01(prev + f * p.strength * p.dt * 60 * dwell);

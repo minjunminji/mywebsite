@@ -265,14 +265,13 @@ export default function Ch03Smoothing() {
         controls={
           <>
             <Toggle label="path" value={pathMode} onChange={setPathMode} options={pathOptions} />
-            <span
-              style={{
-                opacity: pathMode === 'straight' ? 0.35 : 1,
-                pointerEvents: pathMode === 'straight' ? 'none' : 'auto',
-              }}
-            >
-              <Toggle label="tangents" value={tangentMode} onChange={setTangentMode} options={tangentOptions} />
-            </span>
+            <Toggle
+              label="tangents"
+              value={tangentMode}
+              onChange={setTangentMode}
+              options={tangentOptions}
+              disabled={pathMode === 'straight'}
+            />
             <Toggle label="timing" value={timing} onChange={setTiming} options={timingOptions} />
             <Slider label="follow λ" value={follow} min={5} max={60} step={1} format={(v) => v.toFixed(0)} onChange={setFollow} />
             <Slider label="frame rate" value={simHz} min={10} max={60} step={1} format={(v) => `${v.toFixed(0)}hz`} onChange={setSimHz} />

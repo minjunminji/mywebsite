@@ -2676,7 +2676,7 @@ Figure numbering is manual: Hero = 1, Ch01 = 2 … Ch06 = 7.
 - **Idea:**
   1. a brush that's the same size at every speed looks mechanical. this one thins out when you move fast (down to 70%) and swells back when you slow down.
   2. when you stop, it keeps adding a little paint each frame. the footprint's soft rim creeps past the edge threshold, so the reveal spreads outward like ink soaking in.
-  3. both hang off one number, `speedT`: speed smoothstepped between 0.5 and 5 screen-heights per second.
+  3. both hang off one number, `speedT`: speed smoothstepped between a quarter of a screen-height and two and a half screen-heights per second (clip-space speed 0.5–5, and a screen-height spans 2 clip-space units).
 - **Figure 5:** grid `1fr 220px`.
   - Left: canvas (16:9) showing a `createCpuMask(192, 108)` stepped each frame with `stepCpuMask` (strength slider value, dwell toggle → pass strength 0 when off). Render: offscreen 192×108 canvas → `putImageData` → `drawImage` scaled with smoothing on. View toggle `field` (mask as `ACCENT` alpha = value) / `reveal` (`ACCENT` where value > 0.15, else paper; plus `FAINT` field underneath).
   - Input: pointer, or autopilot that alternates 1.6s of fast figure-eight with 1.6s parked (so dwell build-up is visible without interaction); none under reduced motion.

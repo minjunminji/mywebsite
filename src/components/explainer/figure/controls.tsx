@@ -63,14 +63,26 @@ type ToggleProps<T extends string | number> = {
   value: T;
   options: readonly { value: T; label: string }[];
   onChange: (value: T) => void;
+  /** When true, renders native `disabled` buttons (out of tab order, inert)
+   *  and dims the whole group, instead of just dimming it visually. */
+  disabled?: boolean;
 };
 
 /** Segmented text toggle: "path  straight / hermite". Plain pressed-state
  *  buttons (each its own Tab stop), not a radiogroup, so the semantics match
  *  the keyboard behavior. */
-export function Toggle<T extends string | number>({ label, value, options, onChange }: ToggleProps<T>) {
+export function Toggle<T extends string | number>({ label, value, options, onChange, disabled }: ToggleProps<T>) {
   return (
-    <span role="group" aria-label={label} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.65rem' }}>
+    <span
+      role="group"
+      aria-label={label}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'baseline',
+        gap: '0.65rem',
+        opacity: disabled ? 0.35 : 1,
+      }}
+    >
       <span style={{ color: MUTED }}>{label}</span>
       {options.map((option, i) => (
         <span key={String(option.value)} style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.65rem' }}>
@@ -78,6 +90,7 @@ export function Toggle<T extends string | number>({ label, value, options, onCha
           <button
             type="button"
             aria-pressed={option.value === value}
+            disabled={disabled}
             className="ex-toggle"
             onClick={() => onChange(option.value)}
           >

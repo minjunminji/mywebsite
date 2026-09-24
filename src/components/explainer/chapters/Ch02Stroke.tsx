@@ -2,7 +2,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { BLOB_FS, glslExcerpt } from '@/components/reveal/shaders';
-import { distToSegment, strokeFalloff } from '../explainerMath';
+import { distToSegmentInto, strokeFalloff } from '../explainerMath';
 import { Figure } from '../figure/Figure';
 import { Slider, Stat, Toggle } from '../figure/controls';
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
@@ -33,6 +33,11 @@ function toAbs(p: Pt, w: number, h: number) {
   return { x: p.fx * w, y: p.fy * h };
 }
 
+// Scratch objects reused across sampleAt's per-cell heatmap calls (w/CELL ×
+// h/CELL times per draw) so distToSegmentInto never allocates in that loop.
+const scratchSeg1 = { d: 0, t: 0 };
+const scratchSeg2 = { d: 0, t: 0 };
+
 /** f at (px, py), plus the distance/t of the nearer of the two segments. */
 function sampleAt(
   px: number, py: number, pts: readonly Pt[], w: number, h: number, r: number, mode: Combine,
@@ -40,13 +45,14 @@ function sampleAt(
   const A = toAbs(pts[0], w, h);
   const B = toAbs(pts[1], w, h);
   const C1 = toAbs(pts[2], w, h);
-  const seg1 = distToSegment(px, py, A.x, A.y, B.x, B.y);
-  const seg2 = distToSegment(px, py, B.x, B.y, C1.x, C1.y);
-  const f1 = strokeFalloff(seg1.d, r);
-  const f2 = strokeFalloff(seg2.d, r);
+  distToSegmentInto(scratchSeg1, px, py, A.x, A.y, B.x, B.y);
+  distToSegmentInto(scratchSeg2, px, py, B.x, B.y, C1.x, C1.y);
+  const f1 = strokeFalloff(scratchSeg1.d, r);
+  const f2 = strokeFalloff(scratchSeg2.d, r);
   const f = mode === 'max' ? Math.max(f1, f2) : f1 + f2;
-  const nearer = seg1.d <= seg2.d ? seg1 : seg2;
-  return { f, d: nearer.d, t: nearer.t, useSeg1: seg1.d <= seg2.d, A, B, C: C1 };
+  const useSeg1 = scratchSeg1.d <= scratchSeg2.d;
+  const nearer = useSeg1 ? scratchSeg1 : scratchSeg2;
+  return { f, d: nearer.d, t: nearer.t, useSeg1, A, B, C: C1 };
 }
 
 /** The falloff curve f(d), with markers at 0.1r and r, and the probe's (d, f). */

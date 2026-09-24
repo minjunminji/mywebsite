@@ -4,6 +4,7 @@ import { createBrush, stepBrush } from '../reveal/brush';
 import {
   createCpuMask,
   distToSegment,
+  distToSegmentInto,
   fadeTime,
   quantizeUnorm8,
   simulateDecay,
@@ -22,6 +23,29 @@ describe('distToSegment', () => {
   });
   it('handles a zero-length segment', () => {
     expect(distToSegment(3, 4, 1, 1, 1, 1).d).toBeCloseTo(Math.hypot(2, 3), 9);
+  });
+});
+
+describe('distToSegmentInto', () => {
+  const cases: readonly [string, [number, number, number, number, number, number]][] = [
+    ['interior projection', [5, 3, 0, 0, 10, 0]],
+    ['clamps to the start endpoint', [-4, 3, 0, 0, 10, 0]],
+    ['clamps to the end endpoint', [14, 3, 0, 0, 10, 0]],
+    ['zero-length segment', [3, 4, 1, 1, 1, 1]],
+  ];
+  it.each(cases)('matches distToSegment: %s', (_label, args) => {
+    const expected = distToSegment(...args);
+    const out = { d: 0, t: 0 };
+    distToSegmentInto(out, ...args);
+    expect(out).toEqual(expected);
+  });
+
+  it('writes into the same object across repeated calls without allocating a new one', () => {
+    const out = { d: 0, t: 0 };
+    distToSegmentInto(out, 5, 3, 0, 0, 10, 0);
+    expect(out).toEqual({ d: 3, t: 0.5 });
+    distToSegmentInto(out, -4, 3, 0, 0, 10, 0);
+    expect(out).toEqual({ d: 5, t: 0 });
   });
 });
 

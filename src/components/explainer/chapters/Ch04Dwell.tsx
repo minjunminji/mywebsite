@@ -293,8 +293,8 @@ export default function Ch04Dwell() {
           creeps past the edge threshold, so the reveal spreads outward like ink soaking in.
         </P>
         <P>
-          both effects hang off one number, <C>speedT</C>: speed smoothstepped between 0.5 and 5
-          screen-heights a second.
+          both effects hang off one number, <C>speedT</C>: speed smoothstepped between a quarter
+          of a screen-height and two and a half screen-heights a second.
         </P>
       </Prose>
 
