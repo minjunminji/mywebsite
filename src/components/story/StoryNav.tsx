@@ -413,7 +413,7 @@ export default function StoryNav({
         fontWeight: 450,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
-        fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.3rem, 2.3vw, 2rem)',
+        fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.05rem, 1.8vw, 1.6rem)',
         opacity: visible ? 1 : 0,
         ...({ '--nav-pale': docked ? PALE_DOCKED : INK } as CSSProperties),
         transition: [
