@@ -171,8 +171,6 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     title: 'this website',
     techStack: ['Next.js', 'React', 'TypeScript', 'WebGL2'],
     body: [
-      'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static. so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
-      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react. clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
       [
         {
           text:
@@ -181,6 +179,8 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
         },
         { text: "here's how it works →", action: 'shaderExplainer' },
       ],
+      'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static. so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
+      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react. clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
       'this project is where my love for illustration, design, and frontend engineering all meet.',
     ],
     carouselImages: [
