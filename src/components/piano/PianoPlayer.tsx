@@ -314,6 +314,8 @@ export default function PianoPlayer({
   return (
     <div
       data-piano-player
+      // Full-screen takeovers inert everything else; the player stays usable.
+      data-keep-interactive
       aria-hidden={!shown}
       style={{
         position: 'fixed',
