@@ -10,6 +10,10 @@ const PALE_DOCKED = 'rgba(31, 24, 18, 0.28)';
 const PALE = 'var(--nav-pale)';
 const EXPAND_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';
 const CHILD_STAGGER_MS = 70;
+// Project sub-nodes stack below the projects label: the drop from the label,
+// then the spacing between rows.
+const CHILD_TOP_GAP = '0.4rem';
+const CHILD_ROW_GAP = '0.3rem';
 const NODE_PAD_PX = 5;
 // One curve/duration (NAV_GLIDE_MS) for the whole dock move (position, scale,
 // spacing) so it settles as a single smooth motion instead of parts easing out
@@ -18,7 +22,7 @@ const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const EXPAND_MS = 560;
 // Docked, the bar sits in the top-left corner.
 const DOCK_INSET = '1.5rem';
-const DOCKED_FONT_SIZE = 'clamp(0.78rem, 1vw, 0.95rem)';
+const DOCKED_FONT_SIZE = 'clamp(0.9rem, 1.15vw, 1.09rem)';
 // Vertical center of the docked bar: the inset plus half a button (the font
 // size at line-height 1, plus its 0.1rem top and bottom padding). The top-right
 // cluster and the tldr close button center on this so they sit level with it.
@@ -93,24 +97,15 @@ export default function StoryNav({
   const glide = (property: string): string =>
     `${property} ${NAV_GLIDE_MS}ms ${LAYOUT_EASE} ${glideDelay}ms`;
   const gapValue = docked ? '0.55rem' : '0.9rem';
-  // Project sub-nodes sit tighter than the main row (30% less spacing).
-  const childGapValue = docked ? '0.385rem' : '0.63rem';
   const connectorWidth = docked ? '1.5rem' : '2.25rem';
-  // Project sub-nodes get very short connectors so they read as sub-pages.
-  const childConnectorWidth = docked ? '0.375rem' : '0.5625rem';
-  // Those sub-page connectors render as a small dot rather than a line.
-  const childDotSize = docked ? '3.5px' : '5px';
 
   // Rough pixel widths so a step's fill is a single constant-speed sweep across
   // its pieces (line then text), proportioned by their actual on-screen size.
   const connPx = docked ? 24 : 36;
-  const childConnPx = docked ? 6 : 9;
   const charPx = docked ? 9 : 15;
   const estWidth = (piece: Piece): number =>
     piece.kind === 'conn'
-      ? piece.small
-        ? childConnPx
-        : connPx
+      ? connPx
       : piece.label.length * charPx * (piece.small ? 0.82 : 1) + NODE_PAD_PX;
 
   // Visual order of every fillable piece (main row + project children).
@@ -122,9 +117,10 @@ export default function StoryNav({
     }
     order.push({ key: `node-${entry.label}`, kind: 'node', stopIndex: entryStopIndex, label: entry.label, small: false });
     if (entry.children) {
+      // Children stack in a column under their parent, so each row is just
+      // its text: the sweep runs left to right across one row per stop.
       entry.children.forEach((child) => {
         const childStopIndex = stopIndexById(child.stopId);
-        order.push({ key: `cconn-${child.stopId}`, kind: 'conn', stopIndex: childStopIndex, label: child.label, small: true });
         order.push({ key: `cnode-${child.stopId}`, kind: 'node', stopIndex: childStopIndex, label: child.label, small: true });
       });
     }
@@ -182,58 +178,25 @@ export default function StoryNav({
     onNavigate(stopIndex);
   };
 
-  const connector = (
-    key: string,
-    fraction: number,
-    extra?: CSSProperties,
-    dot = false,
-  ): ReactNode =>
-    dot ? (
-      // A dot instead of a line. The outer span keeps the connector's footprint
-      // (so spacing/expansion are unchanged) and centers a small filled circle;
-      // the same gradient inks it in as the playhead sweeps past.
-      <span
-        key={key}
-        aria-hidden
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: childConnectorWidth,
-          height: childConnectorWidth,
-          transition: 'width 520ms ease',
-          ...extra,
-        }}
-      >
-        <span
-          style={{
-            width: childDotSize,
-            height: childDotSize,
-            borderRadius: '50%',
-            background: lineFill(fraction),
-          }}
-        />
-      </span>
-    ) : (
-      <span
-        key={key}
-        aria-hidden
-        style={{
-          display: 'inline-block',
-          width: connectorWidth,
-          height: '1px',
-          background: lineFill(fraction),
-          // Hidden on the landing; drawn left to right once the glide lands,
-          // and retracted toward the left before the bar glides home.
-          transform: docked ? 'scaleX(1)' : 'scaleX(0)',
-          transformOrigin: 'left center',
-          transition:
-            `${glide('width')}, ` +
-            `transform ${NAV_DRAW_MS}ms ${docked ? 'ease-out' : 'ease-in'} ${docked ? NAV_GLIDE_MS : 0}ms`,
-          ...extra,
-        }}
-      />
-    );
+  const connector = (key: string, fraction: number): ReactNode => (
+    <span
+      key={key}
+      aria-hidden
+      style={{
+        display: 'inline-block',
+        width: connectorWidth,
+        height: '1px',
+        background: lineFill(fraction),
+        // Hidden on the landing; drawn left to right once the glide lands,
+        // and retracted toward the left before the bar glides home.
+        transform: docked ? 'scaleX(1)' : 'scaleX(0)',
+        transformOrigin: 'left center',
+        transition:
+          `${glide('width')}, ` +
+          `transform ${NAV_DRAW_MS}ms ${docked ? 'ease-out' : 'ease-in'} ${docked ? NAV_GLIDE_MS : 0}ms`,
+      }}
+    />
+  );
 
   const node = (
     key: string,
@@ -309,61 +272,54 @@ export default function StoryNav({
     if (entryIndex > 0) {
       items.push(connector(`conn-${entry.label}`, fracById[`conn-${entry.label}`] ?? 0));
     }
-    items.push(node(`node-${entry.label}`, entry.label, entryStopIndex, fracById[`node-${entry.label}`] ?? 0));
+    const entryNode = node(`node-${entry.label}`, entry.label, entryStopIndex, fracById[`node-${entry.label}`] ?? 0);
 
-    if (entry.children) {
-      const childEls: ReactNode[] = [];
-      entry.children.forEach((child, childIndex) => {
-        const childStopIndex = stopIndexById(child.stopId);
-        const delay = projectsExpanded ? expandHold + childIndex * CHILD_STAGGER_MS : 0;
-        const reveal: CSSProperties = {
+    if (!entry.children) {
+      items.push(entryNode);
+      return;
+    }
+
+    // Children hang in a column under the parent label, aligned to its left
+    // edge. Absolutely positioned so expanding never changes the bar's width.
+    const childEls = entry.children.map((child, childIndex) => {
+      const childStopIndex = stopIndexById(child.stopId);
+      const delay = projectsExpanded ? expandHold + childIndex * CHILD_STAGGER_MS : 0;
+      return node(
+        `cnode-${child.stopId}`,
+        child.label,
+        childStopIndex,
+        fracById[`cnode-${child.stopId}`] ?? 0,
+        {
+          fontSize: '0.82em',
+          fontWeight: 350,
           opacity: projectsExpanded ? 1 : 0,
-          transform: projectsExpanded ? 'translateX(0)' : 'translateX(-10px)',
-          transition: `opacity 320ms ease ${delay}ms, transform 460ms ${EXPAND_EASE} ${delay}ms`,
-        };
-        childEls.push(
-          connector(
-            `cconn-${child.stopId}`,
-            fracById[`cconn-${child.stopId}`] ?? 0,
-            { ...reveal, width: childConnectorWidth },
-            true,
-          ),
-        );
-        childEls.push(
-          node(`cnode-${child.stopId}`, child.label, childStopIndex, fracById[`cnode-${child.stopId}`] ?? 0, {
-            fontSize: '0.82em',
-            fontWeight: 350,
-            ...reveal,
-          }),
-        );
-      });
+          transform: projectsExpanded ? 'translateY(0)' : 'translateY(-6px)',
+          transition: `opacity 320ms ease ${delay}ms, transform ${EXPAND_MS}ms ${EXPAND_EASE} ${delay}ms`,
+        },
+        { tabIndex: projectsExpanded ? 0 : -1 },
+      );
+    });
 
-      items.push(
-        <div
-          key={`group-${entry.label}`}
+    items.push(
+      <span key={`group-${entry.label}`} style={{ position: 'relative', display: 'inline-flex' }}>
+        {entryNode}
+        <span
+          aria-hidden={!projectsExpanded}
           style={{
-            display: 'inline-grid',
-            gridTemplateColumns: projectsExpanded ? '1fr' : '0fr',
-            marginLeft: projectsExpanded ? '0' : `-${gapValue}`,
-            transition:
-              `grid-template-columns ${EXPAND_MS}ms ${EXPAND_EASE} ${expandHold}ms, ` +
-              `margin-left ${EXPAND_MS}ms ${EXPAND_EASE} ${expandHold}ms`,
+            position: 'absolute',
+            left: 0,
+            top: `calc(100% + ${CHILD_TOP_GAP})`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: CHILD_ROW_GAP,
+            pointerEvents: projectsExpanded ? 'auto' : 'none',
           }}
         >
-          <div
-            style={{
-              minWidth: 0,
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              gap: childGapValue,
-            }}
-          >
-            {childEls}
-          </div>
-        </div>,
-      );
-    }
+          {childEls}
+        </span>
+      </span>,
+    );
   });
 
   return (

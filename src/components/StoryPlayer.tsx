@@ -41,6 +41,11 @@ const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const LANDING_LOOP_REPEATS = 2; // idle loops before the train (~1.4s; was 4 / ~2.9s)
 const PAGE_BG = '#f7f7f5';
 const PAGE_BG_CLEAR = 'rgba(247, 247, 245, 0)';
+// Space under a project's media, lifting it off the bottom of the pane.
+const PROJECT_MEDIA_GAP = 'clamp(3rem, 8vh, 5rem)';
+// Media without carousel dots adds the dots row's height (0.7rem margin +
+// 0.54rem dot) so its bottom edge lines up with a carousel's.
+const PROJECT_MEDIA_GAP_NO_DOTS = `calc(${PROJECT_MEDIA_GAP} + 1.24rem)`;
 // Soft vignette that feathers the page background inward on every edge, so the
 // train drawing dissolves into the page instead of ending on a hard cutoff.
 const EDGE_FADE =
@@ -137,13 +142,6 @@ export default function StoryPlayer() {
     rebase: 0,
     mango: 0,
   });
-  const stepProjectCarousel = (key: ProjectContent['key'], direction: -1 | 1, total: number) => {
-    setProjectCarouselIndex((previous) => {
-      const current = previous[key] ?? 0;
-      const next = (current + direction + total) % total;
-      return { ...previous, [key]: next };
-    });
-  };
   const jumpProjectCarousel = (key: ProjectContent['key'], index: number) => {
     setProjectCarouselIndex((previous) => ({ ...previous, [key]: index }));
   };
@@ -154,7 +152,7 @@ export default function StoryPlayer() {
     contentRef: projectContentRef,
     onScroll: onProjectScroll,
     maskImage: projectMask,
-  } = useScrollFade();
+  } = useScrollFade({ fadeBottom: true });
 
   // Preload frame images once.
   useEffect(() => {
@@ -551,18 +549,13 @@ export default function StoryPlayer() {
           }}
         >
           <div
-            ref={projectScrollRef}
-            className="custom-scroll"
-            onScroll={onProjectScroll}
             style={{
               position: 'relative',
               width: '100%',
               maxWidth: '35rem',
-              maxHeight: '100%',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              WebkitMaskImage: projectMask,
-              maskImage: projectMask,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
             {(() => {
@@ -577,10 +570,13 @@ export default function StoryPlayer() {
               return (
                 <article
                   key={project.key}
-                  ref={projectContentRef}
                   style={{
+                    // Fills the pane: header pinned top, media pinned bottom, and
+                    // the body takes the space between (scrolling if it overflows).
                     display: 'flex',
                     flexDirection: 'column',
+                    flex: '1 1 auto',
+                    minHeight: 0,
                     gap: '1.1rem',
                     color: '#1f1812',
                     fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
@@ -596,6 +592,7 @@ export default function StoryPlayer() {
                       alignItems: 'flex-start',
                       gap: '0.4rem',
                       width: '100%',
+                      flexShrink: 0,
                     }}
                   >
                     <div
@@ -683,49 +680,64 @@ export default function StoryPlayer() {
                     </p>
                   </div>
                   <div
+                    ref={projectScrollRef}
+                    className="custom-scroll"
+                    onScroll={onProjectScroll}
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.8rem',
-                      fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
-                      lineHeight: 1.65,
-                      fontWeight: 400,
+                      flex: '1 1 auto',
+                      minHeight: 0,
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
+                      WebkitMaskImage: projectMask,
+                      maskImage: projectMask,
                     }}
                   >
-                    {project.body.map((paragraph, index) =>
-                      isProjectBodyList(paragraph) ? (
-                        <ul key={index} style={{ margin: 0, paddingLeft: '1.4em' }}>
-                          {paragraph.items.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p key={index} style={{ margin: 0 }}>
-                          {typeof paragraph === 'string'
-                            ? paragraph
-                            : paragraph.map((segment, segmentIndex) =>
-                                segment.action === 'shaderExplainer' ? (
-                                  <button
-                                    key={segmentIndex}
-                                    type="button"
-                                    className="inline-trigger"
-                                    onClick={openExplainer}
-                                    // Warm the chunk while the pointer is on its way.
-                                    onPointerEnter={() => void loadShaderExplainer()}
-                                    onFocus={() => void loadShaderExplainer()}
-                                  >
-                                    {segment.text}
-                                  </button>
-                                ) : (
-                                  <span key={segmentIndex}>{segment.text}</span>
-                                ),
-                              )}
-                        </p>
-                      ),
-                    )}
+                    <div
+                      ref={projectContentRef}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.8rem',
+                        fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
+                        lineHeight: 1.65,
+                        fontWeight: 400,
+                      }}
+                    >
+                      {project.body.map((paragraph, index) =>
+                        isProjectBodyList(paragraph) ? (
+                          <ul key={index} style={{ margin: 0, paddingLeft: '1.4em' }}>
+                            {paragraph.items.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p key={index} style={{ margin: 0 }}>
+                            {typeof paragraph === 'string'
+                              ? paragraph
+                              : paragraph.map((segment, segmentIndex) =>
+                                  segment.action === 'shaderExplainer' ? (
+                                    <button
+                                      key={segmentIndex}
+                                      type="button"
+                                      className="inline-trigger"
+                                      onClick={openExplainer}
+                                      // Warm the chunk while the pointer is on its way.
+                                      onPointerEnter={() => void loadShaderExplainer()}
+                                      onFocus={() => void loadShaderExplainer()}
+                                    >
+                                      {segment.text}
+                                    </button>
+                                  ) : (
+                                    <span key={segmentIndex}>{segment.text}</span>
+                                  ),
+                                )}
+                          </p>
+                        ),
+                      )}
+                    </div>
                   </div>
                   {project.imageSrc ? (
-                    <div style={{ marginTop: '0.4rem' }}>
+                    <div style={{ marginTop: '0.4rem', marginBottom: PROJECT_MEDIA_GAP_NO_DOTS, flexShrink: 0 }}>
                       <figure
                         style={{
                           margin: 0,
@@ -765,13 +777,14 @@ export default function StoryPlayer() {
                     <div
                       style={{
                         marginTop: '0.4rem',
+                        marginBottom: PROJECT_MEDIA_GAP,
+                        flexShrink: 0,
                         pointerEvents: 'auto',
                       }}
                     >
                       <figure
                         style={{
                           margin: 0,
-                          border: '1.5px solid #1f1812',
                           borderRadius: '12px',
                           overflow: 'hidden',
                           background: '#f0eadf',
@@ -858,99 +871,32 @@ export default function StoryPlayer() {
                           display: 'flex',
                           justifyContent: 'center',
                           alignItems: 'center',
-                          gap: '0.9rem',
+                          gap: '0.45rem',
                         }}
                       >
-                        <button
-                          type="button"
-                          data-cursor-pad="-4"
-                          aria-label={`Previous ${project.title} media`}
-                          onClick={() => stepProjectCarousel(project.key, -1, carouselLength)}
-                          style={{
-                            width: '2rem',
-                            height: '2rem',
-                            borderRadius: 0,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#1f1812',
-                            display: 'grid',
-                            placeItems: 'center',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                            <path
-                              d="M14.5 5.5L8 12l6.5 6.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        </button>
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'center',
-                            alignItems: 'center',
-                            gap: '0.45rem',
-                          }}
-                        >
-                          {carouselImages.map((_, dotIndex) => {
-                            const isActive = dotIndex === activeCarouselIndex;
+                        {carouselImages.map((_, dotIndex) => {
+                          const isActive = dotIndex === activeCarouselIndex;
 
-                            return (
-                              <button
-                                key={`${project.key}-dot-${dotIndex}`}
-                                type="button"
-                                data-cursor-skip
-                                aria-label={`Show ${project.title} media ${dotIndex + 1}`}
-                                onClick={() => jumpProjectCarousel(project.key, dotIndex)}
-                                style={{
-                                  width: isActive ? '0.92rem' : '0.54rem',
-                                  height: '0.54rem',
-                                  borderRadius: '999px',
-                                  border: 'none',
-                                  background: isActive ? '#1f1812' : 'rgba(31, 24, 18, 0.32)',
-                                  cursor: 'pointer',
-                                  transition: 'width 180ms ease, background-color 180ms ease',
-                                  padding: 0,
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                        <button
-                          type="button"
-                          data-cursor-pad="-4"
-                          aria-label={`Next ${project.title} media`}
-                          onClick={() => stepProjectCarousel(project.key, 1, carouselLength)}
-                          style={{
-                            width: '2rem',
-                            height: '2rem',
-                            borderRadius: 0,
-                            border: 'none',
-                            background: 'transparent',
-                            color: '#1f1812',
-                            display: 'grid',
-                            placeItems: 'center',
-                            cursor: 'pointer',
-                            padding: 0,
-                          }}
-                        >
-                          <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-                            <path
-                              d="M9.5 5.5L16 12l-6.5 6.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
+                          return (
+                            <button
+                              key={`${project.key}-dot-${dotIndex}`}
+                              type="button"
+                              data-cursor-skip
+                              aria-label={`Show ${project.title} media ${dotIndex + 1}`}
+                              onClick={() => jumpProjectCarousel(project.key, dotIndex)}
+                              style={{
+                                width: isActive ? '0.92rem' : '0.54rem',
+                                height: '0.54rem',
+                                borderRadius: '999px',
+                                border: 'none',
+                                background: isActive ? '#1f1812' : 'rgba(31, 24, 18, 0.32)',
+                                cursor: 'pointer',
+                                transition: 'width 180ms ease, background-color 180ms ease',
+                                padding: 0,
+                              }}
                             />
-                          </svg>
-                        </button>
+                          );
+                        })}
                       </div>
                     </div>
                   ) : null}
@@ -959,7 +905,8 @@ export default function StoryPlayer() {
                       style={{
                         margin: 0,
                         marginTop: '0.4rem',
-                        border: '1.5px solid #1f1812',
+                        marginBottom: PROJECT_MEDIA_GAP_NO_DOTS,
+                        flexShrink: 0,
                         borderRadius: '12px',
                         overflow: 'hidden',
                         background: '#f0eadf',

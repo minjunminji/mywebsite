@@ -220,8 +220,8 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     carouselImages: [
       {
         kind: 'image',
-        src: '/rebase1.webp',
-        alt: 'Rebase screenshot 1',
+        src: '/rebase3.webp',
+        alt: 'Rebase screenshot 3',
       },
       {
         kind: 'image',
@@ -230,8 +230,8 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
       },
       {
         kind: 'image',
-        src: '/rebase3.webp',
-        alt: 'Rebase screenshot 3',
+        src: '/rebase1.webp',
+        alt: 'Rebase screenshot 1',
       },
       {
         kind: 'image',
