@@ -295,7 +295,7 @@ export default function StoryNav({
           transition: glide('gap'),
         }}
       >
-        {node(`node-${head.label}`, head.label, stopIndexById(head.stopId), fracById[`node-${head.label}`] ?? 1, undefined, {
+        {node(`node-${head.label}`, head.label, stopIndexById(head.stopId), fracById[`node-${head.label}`] ?? 1, { fontWeight: 700 }, {
           tabIndex: docked ? 0 : -1,
           'aria-label': `${head.label}, home`,
         })}
@@ -377,8 +377,8 @@ export default function StoryNav({
         display: 'flex',
         alignItems: 'center',
         gap: gapValue,
-        fontFamily: "var(--font-geist-sans), sans-serif",
-        fontWeight: 450,
+        fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
+        fontWeight: 400,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
         fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.05rem, 1.8vw, 1.6rem)',

@@ -12,8 +12,7 @@ export const ACCENT = '#c8412b';
 export const ACCENT_RGB: readonly [number, number, number] = [200, 65, 43];
 export const INK_RGB: readonly [number, number, number] = [31, 24, 18];
 
-export const SERIF = 'var(--font-neuton), Georgia, serif';
-export const SANS = 'var(--font-geist-sans), sans-serif';
+export const SANS = 'var(--font-alte-haas-grotesk), Arial, sans-serif';
 export const MONO = 'var(--font-inconsolata), monospace';
 
 /** Reading measure for body text inside the main pane. */

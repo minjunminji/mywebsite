@@ -2,7 +2,7 @@
 'use client';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useExplainerOpen } from '../explainerContext';
-import { COLUMN, INK, MUTED, RULE, SANS, SERIF } from '../tokens';
+import { COLUMN, INK, MUTED, RULE, SANS } from '../tokens';
 import { ControlShelf } from './controls';
 
 const FigureActiveContext = createContext(false);
@@ -58,25 +58,13 @@ export function Figure({ number, caption, controls, children }: FigureProps) {
           style={{
             maxWidth: COLUMN,
             marginTop: '0.95rem',
-            fontFamily: SERIF,
+            fontFamily: SANS,
             fontStyle: 'italic',
             fontSize: '1.02rem',
             lineHeight: 1.5,
             color: MUTED,
           }}
         >
-          <span
-            style={{
-              fontFamily: SANS,
-              fontStyle: 'normal',
-              fontSize: '0.7rem',
-              letterSpacing: '0.12em',
-              color: INK,
-              marginRight: '0.7em',
-            }}
-          >
-            FIG. {number}
-          </span>
           {caption}
         </figcaption>
       </figure>

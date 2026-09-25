@@ -80,7 +80,7 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
         opacity: open ? 1 : 0,
         transition: 'opacity 300ms ease',
         pointerEvents: open ? 'auto' : 'none',
-        fontFamily: 'var(--font-geist-sans), sans-serif',
+        fontFamily: 'var(--font-alte-haas-grotesk), Arial, sans-serif',
       }}
     >
       {/* Close (X) — also bound to Esc above. */}
@@ -149,7 +149,7 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
             style={{
               margin: '0 0 1.6rem',
               fontSize: 'clamp(2rem, 4vw, 3rem)',
-              fontWeight: 600,
+              fontWeight: 700,
               letterSpacing: '0.01em',
               textTransform: 'lowercase',
               lineHeight: 1.05,
@@ -168,7 +168,7 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
               gap: '1.1em',
               fontSize: 'clamp(0.95rem, 1.15vw, 1.15rem)',
               lineHeight: 1.7,
-              fontWeight: 300,
+              fontWeight: 400,
             }}
           >
             {TLDR_BULLETS.map((segments, index) => (

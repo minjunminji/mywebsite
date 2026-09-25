@@ -1,10 +1,14 @@
 // src/components/explainer/layout.tsx
 import { type CSSProperties, type ReactNode } from 'react';
-import { ACCENT, COLUMN, PAGE_TOP, RAIL, RAIL_GAP, SANS, SERIF } from './tokens';
+import { ACCENT, COLUMN, PAGE_TOP, RAIL, RAIL_GAP, SANS } from './tokens';
 
 /** The ~680px reading measure, left-aligned in the main pane. */
 export function Prose({ children }: { children: ReactNode }) {
-  return <div style={{ maxWidth: COLUMN }}>{children}</div>;
+  return (
+    <div style={{ maxWidth: COLUMN, fontFamily: SANS, fontSize: '1.05rem', lineHeight: 1.7 }}>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -73,7 +77,7 @@ export function Chapter({
       rail={
         <h2
           id={id}
-          style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '1.6rem', lineHeight: 1.2 }}
+          style={{ margin: 0, fontFamily: SANS, fontWeight: 700, fontSize: '1.6rem', lineHeight: 1.2 }}
         >
           {title}
         </h2>
