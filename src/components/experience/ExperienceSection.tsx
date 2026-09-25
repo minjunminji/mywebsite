@@ -101,7 +101,7 @@ function DecodingText({
 }: {
   final: string;
   shown: string;
-  /** Render the first N characters at weight 500 (e.g. a title's company). */
+  /** Render the first N characters in bold (e.g. a title's company). */
   boldLen?: number;
   style?: CSSProperties;
 }) {
@@ -110,7 +110,7 @@ function DecodingText({
   const render = (text: string) =>
     boldLen > 0 ? (
       <>
-        <span style={{ fontWeight: 500 }}>{text.slice(0, boldLen)}</span>
+        <span style={{ fontWeight: 700 }}>{text.slice(0, boldLen)}</span>
         {text.slice(boldLen)}
       </>
     ) : (
@@ -344,7 +344,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
             {/* Invisible in-flow anchor: gives the slot a real text baseline (so
                 the selected word lines up with the sentence) and its width. Must
                 match the buttons' weight so the reserved width stays correct. */}
-            <span aria-hidden style={{ visibility: 'hidden', fontWeight: 500 }}>{LENSES[0]}</span>
+            <span aria-hidden style={{ visibility: 'hidden', fontWeight: 700 }}>{LENSES[0]}</span>
             {/* Fixed order: software on top, product below. Before a choice the
                 stack rests half a line up so the baseline falls between the two;
                 a choice slides the picked word onto the baseline. */}
@@ -385,7 +385,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                     textAlign: 'left',
                     whiteSpace: 'nowrap',
                     cursor: 'pointer',
-                    fontWeight: 500,
+                    fontWeight: 700,
                     // Both pale until a choice is made, then the picked lens inks.
                     color: chosen && lens === l ? INK : PALE,
                     transition: reduced ? 'none' : 'color 300ms ease',
@@ -396,7 +396,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
               ))}
             </span>
           </span>{' '}
-          <span style={{ fontWeight: 500 }}>engineer:</span>
+          <span style={{ fontWeight: 700 }}>engineer:</span>
         </h2>
 
         {/* The résumé list scrolls on its own once it outgrows the space below
@@ -472,7 +472,7 @@ export default function ExperienceSection({ active }: ExperienceSectionProps) {
                           key={`${entry.key}-${i}`}
                           aria-label={b}
                           style={{
-                            fontWeight: 300,
+                            fontWeight: 400,
                             fontSize: 'clamp(0.8rem, 1.05vw, 1rem)',
                             lineHeight: 1.6,
                             display: 'flex',

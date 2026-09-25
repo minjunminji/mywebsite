@@ -284,7 +284,7 @@ export default function StoryPlayer() {
               maxWidth: '28rem',
               color: '#1f1812',
               fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
-              fontWeight: 600,
+              fontWeight: 400,
               fontSize: 'clamp(0.95rem, 1.25vw, 1.2rem)',
               lineHeight: 1.7,
             }}
@@ -302,7 +302,7 @@ export default function StoryPlayer() {
                     whiteSpace: 'pre-wrap',
                     overflowWrap: 'break-word',
                     fontSize: index === 0 ? '1.5em' : 'inherit',
-                    fontWeight: index === 0 ? 600 : 300,
+                    fontWeight: index === 0 ? 700 : 400,
                     opacity: 0,
                     animationName: 'aboutFadeIn',
                     animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
@@ -356,7 +356,7 @@ export default function StoryPlayer() {
                 margin: 0,
                 marginTop: '4em',
                 fontSize: '0.85em',
-                fontWeight: 300,
+                fontWeight: 400,
                 opacity: 0,
                 animationName: 'aboutFadeIn',
                 animationDuration: `${ABOUT_FADE_DURATION_MS}ms`,
@@ -448,7 +448,7 @@ export default function StoryPlayer() {
             margin: 0,
             cursor: 'pointer',
             fontFamily: 'var(--font-alte-haas-grotesk), Arial, sans-serif',
-            fontWeight: 450,
+            fontWeight: 400,
             fontSize: 'clamp(0.95rem, 1.2vw, 1.25rem)',
             letterSpacing: '0.03em',
             textTransform: 'lowercase',
@@ -629,7 +629,7 @@ export default function StoryPlayer() {
                             style={{
                               margin: 0,
                               fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
-                              fontWeight: 600,
+                              fontWeight: 700,
                               lineHeight: 1,
                               textTransform: 'lowercase',
                             }}
@@ -658,7 +658,7 @@ export default function StoryPlayer() {
                           style={{
                             margin: 0,
                             fontSize: 'clamp(1.5rem, 2.8vw, 2.4rem)',
-                            fontWeight: 600,
+                            fontWeight: 700,
                             lineHeight: 1,
                             textTransform: 'lowercase',
                           }}
@@ -673,7 +673,7 @@ export default function StoryPlayer() {
                         margin: 0,
                         fontSize: 'clamp(0.72rem, 0.9vw, 0.86rem)',
                         lineHeight: 1.25,
-                        fontWeight: 500,
+                        fontWeight: 700,
                         letterSpacing: '0.03em',
                         color: '#4a3f33',
                         pointerEvents: 'none',
@@ -689,7 +689,7 @@ export default function StoryPlayer() {
                       gap: '0.8rem',
                       fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
                       lineHeight: 1.65,
-                      fontWeight: 300,
+                      fontWeight: 400,
                     }}
                   >
                     {project.body.map((paragraph, index) =>

@@ -213,10 +213,10 @@ main {
 }
 
 /* Inline in-page trigger inside project copy (e.g. "here's how it works →").
-   Bold against the 300-weight body to read as interactive; underline on hover. */
+   Bold against the regular body copy to read as interactive; underline on hover. */
 .inline-trigger {
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   color: inherit;
   background: none;
   border: 0;
@@ -261,7 +261,7 @@ main {
   margin-bottom: 0.65rem;
   color: #6f655a;
   font-size: 0.65rem;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.06em;
   line-height: 1;
 }
