@@ -327,7 +327,7 @@ export default function PianoPlayer({
         // is empty air beside the tab. The tab and the frame opt back in.
         pointerEvents: 'none',
         zIndex: 30,
-        fontFamily: 'var(--font-geist-sans), sans-serif',
+        fontFamily: 'var(--font-alte-haas-grotesk), Arial, sans-serif',
         // Transform must not ease while dragging (the window would lag the
         // cursor), while hidden, or on the reveal itself (see `revealing`).
         // Hiding waits for the fade to finish; revealing happens immediately.

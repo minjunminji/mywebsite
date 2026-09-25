@@ -29,7 +29,9 @@ export function MathToggle({ children }: { children: ReactNode }) {
         }}
       >
         <div style={{ overflow: 'hidden' }} inert={!open ? true : undefined}>
-          <div style={{ paddingTop: '1.1rem' }}>{children}</div>
+          <div style={{ paddingTop: '1.1rem', fontFamily: SANS, fontSize: '1.05rem', lineHeight: 1.7 }}>
+            {children}
+          </div>
         </div>
       </div>
     </div>

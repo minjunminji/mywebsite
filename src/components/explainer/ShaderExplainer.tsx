@@ -14,7 +14,7 @@ import Ch06Edge from './chapters/Ch06Edge';
 import Hero from './chapters/Hero';
 import Outro from './chapters/Outro';
 import { ExplainerOpenContext } from './explainerContext';
-import { INK, MUTED, PAGE_MAX, PAGE_TOP, PAPER, SANS, SERIF } from './tokens';
+import { INK, PAGE_MAX, PAGE_TOP, PAPER, SANS } from './tokens';
 import { P, Prose, Row } from './layout';
 
 type ShaderExplainerProps = {
@@ -140,7 +140,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
               maxWidth: PAGE_MAX,
               margin: '0 auto',
               padding: `${PAGE_TOP} 2rem 8rem`,
-              fontFamily: SERIF,
+              fontFamily: SANS,
               fontSize: '1.25rem',
               lineHeight: 1.6,
               color: INK,
@@ -152,15 +152,10 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
                 <>
                   <h1
                     id="explainer-title"
-                    style={{ margin: 0, fontFamily: SERIF, fontWeight: 400, fontSize: '2.3rem', lineHeight: 1.08, letterSpacing: '-0.01em' }}
+                    style={{ margin: 0, fontFamily: SANS, fontWeight: 700, fontSize: '2.3rem', lineHeight: 1.08, letterSpacing: '-0.01em' }}
                   >
                     how the ink reveal works
                   </h1>
-                  <p style={{ margin: '1.1rem 0 0', fontFamily: SANS, fontSize: '0.74rem', letterSpacing: '0.06em', lineHeight: 1.6, color: MUTED }}>
-                    webgl2 · glsl es 3.0
-                    <br />
-                    ~6 min · interactive
-                  </p>
                 </>
               }
             >

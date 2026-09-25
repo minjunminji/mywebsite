@@ -7,7 +7,7 @@ import { useDecrypt, type DecryptLine } from './useDecrypt';
 
 const INK = '#1f1812';
 const PALE = 'rgba(31,24,18,0.28)';
-const FONT = "var(--font-geist-sans), sans-serif";
+const FONT = "var(--font-alte-haas-grotesk), Arial, sans-serif";
 // One headline line — the slot's slide step and each lens word's box height.
 // Matches the headline line-height so the selected word sits on the baseline.
 const SLOT_LINE = '1.4em';

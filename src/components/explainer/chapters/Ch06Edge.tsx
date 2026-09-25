@@ -9,7 +9,7 @@ import { ControlDisclosure, ControlGroup, Slider, Toggle } from '../figure/contr
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
-import { MUTED, PAPER, RULE, SANS, SERIF } from '../tokens';
+import { MUTED, PAPER, RULE, SANS } from '../tokens';
 import { useRevealCanvas } from '../useRevealCanvas';
 
 type Octaves = 0 | 1 | 2 | 3 | 4;
@@ -215,7 +215,7 @@ export default function Ch06Edge() {
       >
         <EdgeFigure edge={edge} view={view} />
         {warn ? (
-          <p style={{ margin: '1rem 0 0', fontFamily: SERIF, fontStyle: 'italic', fontSize: '0.95rem', color: MUTED }}>
+          <p style={{ margin: '1rem 0 0', fontFamily: SANS, fontStyle: 'italic', fontSize: '0.95rem', color: MUTED }}>
             the noise is now strong enough to push untouched areas above the reveal threshold,
             creating stray speckles.
           </p>

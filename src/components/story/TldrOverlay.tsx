@@ -80,7 +80,7 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
         opacity: open ? 1 : 0,
         transition: 'opacity 300ms ease',
         pointerEvents: open ? 'auto' : 'none',
-        fontFamily: 'var(--font-geist-sans), sans-serif',
+        fontFamily: 'var(--font-alte-haas-grotesk), Arial, sans-serif',
       }}
     >
       {/* Close (X) — also bound to Esc above. */}

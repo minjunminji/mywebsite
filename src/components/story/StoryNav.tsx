@@ -242,32 +242,64 @@ export default function StoryNav({
     fraction: number,
     extraStyle?: CSSProperties,
     attrs?: { tabIndex?: number; 'aria-label'?: string },
-  ): ReactNode => (
-    <button
-      key={key}
-      type="button"
-      onClick={() => handleClick(stopIndex)}
-      {...attrs}
-      style={{
-        border: 'none',
-        background: 'transparent',
-        padding: '0.1rem 0.15rem',
-        margin: 0,
-        cursor: 'pointer',
-        fontFamily: 'inherit',
-        fontWeight: 'inherit',
-        fontSize: 'inherit',
-        letterSpacing: 'inherit',
-        textTransform: 'inherit',
-        lineHeight: 1,
-        whiteSpace: 'nowrap',
-        ...textFill(fraction),
-        ...extraStyle,
-      }}
-    >
-      {label}
-    </button>
-  );
+  ): ReactNode => {
+    // Alte Haas ships as separate regular and bold files, so font-weight itself
+    // would snap between faces. Overlay the two faces and crossfade them during
+    // the dock glide to make the landing's bold labels soften smoothly.
+    const fixedWeight = extraStyle?.fontWeight;
+    const weightFade = `opacity ${NAV_GLIDE_MS}ms ${LAYOUT_EASE} ${glideDelay}ms`;
+    const labelLayer = (weight: number, opacity: number): ReactNode => (
+      <span
+        aria-hidden
+        style={{
+          gridArea: '1 / 1',
+          fontWeight: weight,
+          opacity,
+          transition: weightFade,
+          ...textFill(fraction),
+        }}
+      >
+        {label}
+      </span>
+    );
+
+    return (
+      <button
+        key={key}
+        type="button"
+        onClick={() => handleClick(stopIndex)}
+        {...attrs}
+        aria-label={attrs?.['aria-label'] ?? label}
+        style={{
+          border: 'none',
+          background: 'transparent',
+          padding: '0.1rem 0.15rem',
+          margin: 0,
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          fontWeight: 'inherit',
+          fontSize: 'inherit',
+          letterSpacing: 'inherit',
+          textTransform: 'inherit',
+          lineHeight: 1,
+          whiteSpace: 'nowrap',
+          display: 'inline-grid',
+          ...extraStyle,
+        }}
+      >
+        {fixedWeight === undefined ? (
+          <>
+            {labelLayer(700, docked ? 0 : 1)}
+            {labelLayer(400, docked ? 1 : 0)}
+          </>
+        ) : (
+          <span aria-hidden style={{ fontWeight: fixedWeight, ...textFill(fraction) }}>
+            {label}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   const [head, ...entries] = NAV;
   const headConnKey = `conn-${entries[0].label}`;
@@ -295,7 +327,7 @@ export default function StoryNav({
           transition: glide('gap'),
         }}
       >
-        {node(`node-${head.label}`, head.label, stopIndexById(head.stopId), fracById[`node-${head.label}`] ?? 1, undefined, {
+        {node(`node-${head.label}`, head.label, stopIndexById(head.stopId), fracById[`node-${head.label}`] ?? 1, { fontWeight: 700 }, {
           tabIndex: docked ? 0 : -1,
           'aria-label': `${head.label}, home`,
         })}
@@ -377,11 +409,11 @@ export default function StoryNav({
         display: 'flex',
         alignItems: 'center',
         gap: gapValue,
-        fontFamily: "var(--font-geist-sans), sans-serif",
+        fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
         fontWeight: 450,
         letterSpacing: '0.03em',
         textTransform: 'lowercase',
-        fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.05rem, 1.8vw, 1.6rem)',
+        fontSize: docked ? DOCKED_FONT_SIZE : 'clamp(1.3rem, 2.3vw, 2rem)',
         opacity: visible ? 1 : 0,
         ...({ '--nav-pale': docked ? PALE_DOCKED : INK } as CSSProperties),
         transition: [
