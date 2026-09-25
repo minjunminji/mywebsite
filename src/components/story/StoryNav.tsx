@@ -18,7 +18,7 @@ const LAYOUT_EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const EXPAND_MS = 560;
 // Docked, the bar sits in the top-left corner.
 const DOCK_INSET = '1.5rem';
-const DOCKED_FONT_SIZE = 'clamp(0.78rem, 1vw, 0.95rem)';
+const DOCKED_FONT_SIZE = 'clamp(0.9rem, 1.15vw, 1.09rem)';
 // Vertical center of the docked bar: the inset plus half a button (the font
 // size at line-height 1, plus its 0.1rem top and bottom padding). The top-right
 // cluster and the tldr close button center on this so they sit level with it.
