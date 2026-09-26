@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { shouldReleasePinnedTarget, stepSpring, type Spring } from './cursorMath';
+import { shouldReleasePinnedTarget, stepSpring, wrapScaleForTarget, type Spring } from './cursorMath';
 
 /*
  * CustomCursor — the site's negative liquid cursor (WebGL2 SDF).
@@ -32,6 +32,12 @@ const HOVER_PAD = 8;
 /** Max corner radius of the wrap, in px. Clamped to half the box's shorter side,
  *  so short targets become fully pill-ended; raise for rounder, lower for boxier. */
 const MAX_RADIUS = 28;
+/** Targets whose shorter side is at least this (px) get the full wrap. Smaller
+ *  ones scale the default pad and the smin bulge down with their size, so the blob
+ *  stays snug on icon buttons instead of dwarfing them. */
+const SMALL_TARGET_SIZE = 48;
+/** Floor for that scale (fraction of the full pad / bulge) on the tiniest targets. */
+const SMALL_TARGET_MIN_SCALE = 0.25;
 
 /** Geometry spring — overdamped + low stiffness gives a slow, smooth dot↔box
  *  transition with (almost) no rebound. Lower STIFFNESS = slower transition;
@@ -201,6 +207,7 @@ export default function CustomCursor() {
       uniform float u_corner;     // px
       uniform float u_wrap;       // 0..1 — box edge warp + size gate
       uniform float u_bridge;     // 0..1 — dot↔box smooth-min strength
+      uniform float u_sminScale;  // 0..1 — shrinks the smin radius on small targets
       uniform float u_stream;     // 0..1 — release drain stream (cursor→bulk cone)
       uniform float u_motion;     // 1 normal, 0 under prefers-reduced-motion
       uniform float u_press;      // press squish scale (1 = none, <1 = smaller)
@@ -297,7 +304,7 @@ export default function CustomCursor() {
         // wrapped, easing to 0 on release), so the box melts back into the cursor
         // as one gooey body and the smin inflation deflates to nothing as it lands
         // — no leftover circle. ≈0 when free → the box is just the dot, a no-op.
-        float k = mix(0.001, ${glf(SMIN_K)}, u_bridge);
+        float k = mix(0.001, ${glf(SMIN_K)} * u_sminScale, u_bridge);
         float d = smin(dCursor, dBox, k);
 
         // Tablecloth stream: while releasing, a tapered cone from the live cursor
@@ -344,6 +351,7 @@ export default function CustomCursor() {
       corner: gl.getUniformLocation(program, 'u_corner'),
       wrap: gl.getUniformLocation(program, 'u_wrap'),
       bridge: gl.getUniformLocation(program, 'u_bridge'),
+      sminScale: gl.getUniformLocation(program, 'u_sminScale'),
       stream: gl.getUniformLocation(program, 'u_stream'),
       motion: gl.getUniformLocation(program, 'u_motion'),
       press: gl.getUniformLocation(program, 'u_press'),
@@ -361,6 +369,8 @@ export default function CustomCursor() {
     // Wrap padding for the active target (px). Defaults to HOVER_PAD; a target can
     // override it with data-cursor-pad (negative = a tighter blob, e.g. chevrons).
     let activePad = HOVER_PAD;
+    // True when activePad came from data-cursor-pad (honored as-is, not size-scaled).
+    let padOverridden = false;
     let pointerX = -9999;
     let pointerY = -9999;
     let hasPointer = false;
@@ -380,6 +390,10 @@ export default function CustomCursor() {
     const grow: Spring = { value: 0, velocity: 0 };
     // Press squish: 1 at rest, springs toward PRESS_SCALE while the pointer is held.
     const press: Spring = { value: 1, velocity: 0 };
+    // Smin-radius scale for the current target (1 = full bulge). Springed with the
+    // geometry so hopping between big and small targets doesn't pop; held during
+    // release so the drain keeps the size it let go with.
+    const sminScale: Spring = { value: 1, velocity: 0 };
 
     // Timed-release state: snapshot of the wrap's size when it lets go, the start
     // time, and the pull axis (unit) + how far the bulk starts behind the cursor
@@ -440,10 +454,15 @@ export default function CustomCursor() {
       if (mode === 'pinned' && rect) {
         tCX = rect.left + rect.width / 2;
         tCY = rect.top + rect.height / 2;
+        // Small targets get a proportionally smaller pad (unless overridden) and
+        // smin bulge, so the blob hugs icon buttons instead of swallowing them.
+        const scale = wrapScaleForTarget(rect.width, rect.height, SMALL_TARGET_SIZE, SMALL_TARGET_MIN_SCALE);
+        const pad = padOverridden ? activePad : activePad * scale;
         // Never let the wrap fall below the free dot, even with a negative pad.
-        tW = Math.max(rect.width + activePad * 2, DOT_SIZE);
-        tH = Math.max(rect.height + activePad * 2, DOT_SIZE);
+        tW = Math.max(rect.width + pad * 2, DOT_SIZE);
+        tH = Math.max(rect.height + pad * 2, DOT_SIZE);
         tGrow = 1;
+        settle(sminScale, scale);
       }
 
       if (mode === 'free') {
@@ -571,6 +590,7 @@ export default function CustomCursor() {
       // melts in as one body) and eases it to 0 exactly as the box lands, so the
       // release→free handoff is continuous (no popped-off leftover circle).
       gl.uniform1f(u.bridge, grow.value);
+      gl.uniform1f(u.sminScale, sminScale.value);
       // Stream cone only while releasing — it forms the draining tablecloth neck.
       gl.uniform1f(u.stream, mode === 'releasing' ? 1.0 : 0.0);
       gl.uniform1f(u.motion, reducedMotion ? 0.0 : 1.0);
@@ -602,7 +622,8 @@ export default function CustomCursor() {
         activeEl = target;
         const padAttr = target.getAttribute('data-cursor-pad');
         const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
-        activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
+        padOverridden = Number.isFinite(parsedPad);
+        activePad = padOverridden ? parsedPad : HOVER_PAD;
         mode = 'pinned';
       } else if (mode === 'pinned') {
         activeEl = null;
@@ -619,7 +640,8 @@ export default function CustomCursor() {
         activeEl = target;
         const padAttr = target.getAttribute('data-cursor-pad');
         const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
-        activePad = Number.isFinite(parsedPad) ? parsedPad : HOVER_PAD;
+        padOverridden = Number.isFinite(parsedPad);
+        activePad = padOverridden ? parsedPad : HOVER_PAD;
         mode = 'pinned';
       }
     };

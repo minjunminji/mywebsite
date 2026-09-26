@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shouldReleasePinnedTarget, stepSpring, type Spring } from './cursorMath';
+import { shouldReleasePinnedTarget, stepSpring, wrapScaleForTarget, type Spring } from './cursorMath';
 
 describe('stepSpring', () => {
   it('moves toward the target on the first step from rest, staying finite', () => {
@@ -37,5 +37,22 @@ describe('pinned cursor target', () => {
     expect(
       shouldReleasePinnedTarget({ connected: true, inert: false, pointerInside: false }),
     ).toBe(true);
+  });
+});
+
+describe('wrapScaleForTarget', () => {
+  it('gives large targets the full wrap', () => {
+    expect(wrapScaleForTarget(200, 48, 48, 0.25)).toBe(1);
+    expect(wrapScaleForTarget(300, 120, 48, 0.25)).toBe(1);
+  });
+
+  it('scales small targets down by their shorter side', () => {
+    expect(wrapScaleForTarget(24, 24, 48, 0.25)).toBeCloseTo(0.5);
+    expect(wrapScaleForTarget(100, 12, 48, 0.25)).toBeCloseTo(0.25);
+  });
+
+  it('floors at minScale for tiny or degenerate rects', () => {
+    expect(wrapScaleForTarget(4, 4, 48, 0.25)).toBe(0.25);
+    expect(wrapScaleForTarget(0, 0, 48, 0.25)).toBe(0.25);
   });
 });

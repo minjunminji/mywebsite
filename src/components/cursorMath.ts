@@ -29,3 +29,15 @@ export function stepSpring(spring: Spring, target: number, stiffness: number, da
   spring.velocity *= damping;
   spring.value += spring.velocity;
 }
+
+/**
+ * How much of the full wrap "inflation" a target of this size gets, 0..1-ish.
+ * Targets whose shorter side is at least `fullSize` get 1 (full pad + full
+ * smooth-min bulge); smaller ones scale down linearly, floored at `minScale`,
+ * so tiny icon buttons get a snug blob instead of one twice their size.
+ */
+export function wrapScaleForTarget(width: number, height: number, fullSize: number, minScale: number): number {
+  const side = Math.min(width, height);
+  if (!(side > 0) || !(fullSize > 0)) return minScale;
+  return Math.min(1, Math.max(minScale, side / fullSize));
+}
