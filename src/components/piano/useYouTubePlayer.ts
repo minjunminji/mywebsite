@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // Only the methods we actually call, rather than pulling in @types/youtube
 // for two signatures.
 type YTPlayer = {
+  playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
 };
@@ -37,8 +38,10 @@ declare global {
   }
 }
 
-/** Player state as reported by onStateChange. */
+/** Player states as reported by onStateChange. */
 const ENDED = 0;
+const PLAYING = 1;
+const BUFFERING = 3;
 
 /**
  * Ceiling on the whole boot, from mount to onReady. Generous, because a slow
@@ -100,6 +103,10 @@ export type YouTubeController = {
    * message, so `ready` takes precedence for display.
    */
   failed: boolean;
+  /** Playing, or buffering on the way to it — i.e. what a play/pause toggle
+   *  should treat as "on", whichever control started it. */
+  playing: boolean;
+  play: () => void;
   pause: () => void;
   /**
    * Boot again after the API script failed to load. A no-op once a player has
@@ -110,8 +117,9 @@ export type YouTubeController = {
 };
 
 /**
- * Wraps one YouTube embed. Transport belongs to the embed; this exists to pause
- * on close and to report whether the thing loaded at all.
+ * Wraps one YouTube embed. Transport mostly belongs to the embed; this exists to
+ * pause on close, to drive the collapsed bar's play/pause, and to report whether
+ * the thing loaded at all.
  *
  * The API *replaces* the element it is handed with an iframe, so `mountRef` must
  * point at a node that never unmounts and never moves in the tree — remounting
@@ -128,6 +136,7 @@ export function useYouTubePlayer(
   const playerRef = useRef<YTPlayer | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [playing, setPlaying] = useState(false);
   // Bumped by `retry` to run the boot effect again.
   const [attempt, setAttempt] = useState(0);
 
@@ -173,6 +182,7 @@ export function useYouTubePlayer(
             },
             onStateChange: (event) => {
               if (destroyed) return;
+              setPlaying(event.data === PLAYING || event.data === BUFFERING);
               // Rewind on finish so YouTube's related-video end screen never
               // gets a chance to render over the video.
               if (event.data === ENDED) {
@@ -197,6 +207,7 @@ export function useYouTubePlayer(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, attempt]);
 
+  const play = useCallback(() => playerRef.current?.playVideo(), []);
   const pause = useCallback(() => playerRef.current?.pauseVideo(), []);
 
   const retry = useCallback(() => {
@@ -205,5 +216,5 @@ export function useYouTubePlayer(
     setAttempt((n) => n + 1);
   }, []);
 
-  return { ready, failed, pause, retry };
+  return { ready, failed, playing, play, pause, retry };
 }

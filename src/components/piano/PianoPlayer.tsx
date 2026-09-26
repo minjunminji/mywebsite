@@ -21,6 +21,11 @@ const RADIUS = 12;
 const THUMB_H = HEADER_H;
 const THUMB_W = (THUMB_H * VIDEO_W) / VIDEO_H;
 const ROW_GAP = 8;
+/** How far a press on the collapsed thumbnail may wander and still count as a
+ *  tap (play/pause) rather than a drag. */
+const TAP_SLOP = 4;
+/** The play/pause glyph centred on the collapsed thumbnail. */
+const GLYPH = 22;
 
 const GRIP_W = 8; // the six-dot drag glyph
 const CONTROL_BOX = 24; // icon button hit area
@@ -98,9 +103,10 @@ export default function PianoPlayer({
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [collapsed, setCollapsed] = useState(false);
 
-  // Transport belongs to the embed; the API is still needed to pause on close
-  // and to say whether it loaded at all.
-  const { ready, failed, pause, retry } = useYouTubePlayer(
+  // Transport belongs to the embed while expanded. The API is still needed to
+  // pause on close, to drive the collapsed thumbnail's play/pause, and to say
+  // whether it loaded at all.
+  const { ready, failed, playing, play, pause, retry } = useYouTubePlayer(
     mountRef,
     PIANO_VIDEO_ID,
     VIDEO_SIZE,
@@ -253,6 +259,20 @@ export default function PianoPlayer({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+  };
+
+  /* ---------------------------------------------------------------- */
+  /*  Collapsed play/pause                                             */
+  /* ---------------------------------------------------------------- */
+
+  // Where a press on the thumbnail began, so release can tell a tap from a drag.
+  const tapStart = useRef<Point | null>(null);
+  const [thumbHover, setThumbHover] = useState(false);
+  const toggleThumb = () => {
+    if (!ready) return;
+    dismissHint();
+    if (playing) pause();
+    else play();
   };
 
   // A shrinking viewport can strand the window off-screen; pull it back.
@@ -581,7 +601,8 @@ export default function PianoPlayer({
         {/* Shield. The embed owns transport in this variant, so the cursor has to
             reach it — but only while expanded. Collapsed, the video is 71x40 and
             YouTube's controls would be both unreadable and easy to hit by
-            accident, so the whole thumbnail goes inert. It also covers any drag,
+            accident, so the embed goes inert and the shield itself becomes a
+            single tap-to-play/pause surface. It also covers any drag,
             since an iframe swallows pointermove and would otherwise stutter the
             gesture the moment the cursor crossed the video.
 
@@ -591,17 +612,78 @@ export default function PianoPlayer({
             so these never fire. */}
         {dragging || collapsed ? (
           <div
-            onPointerDown={onHeaderPointerDown}
+            // Collapsed, the whole thumbnail is the play/pause control: a tap
+            // toggles, a drag moves the window. Keyboard users get the same
+            // through role/tabIndex.
+            role={collapsed && ready ? 'button' : undefined}
+            tabIndex={collapsed && ready ? 0 : undefined}
+            aria-label={collapsed && ready ? (playing ? 'Pause' : 'Play') : undefined}
+            onPointerDown={(event) => {
+              tapStart.current = { x: event.clientX, y: event.clientY };
+              onHeaderPointerDown(event);
+            }}
             onPointerMove={onHeaderPointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
+            onPointerUp={(event) => {
+              const start = tapStart.current;
+              tapStart.current = null;
+              endDrag(event);
+              if (
+                start &&
+                Math.hypot(event.clientX - start.x, event.clientY - start.y) < TAP_SLOP
+              ) {
+                toggleThumb();
+              }
+            }}
+            onPointerCancel={(event) => {
+              tapStart.current = null;
+              endDrag(event);
+            }}
+            onPointerEnter={() => setThumbHover(true)}
+            onPointerLeave={() => setThumbHover(false)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleThumb();
+              }
+            }}
             style={{
               position: 'absolute',
               inset: 0,
               cursor: dragging ? 'grabbing' : 'grab',
               touchAction: 'none',
             }}
-          />
+          >
+            {collapsed && ready ? (
+              // Just the glyph, paper with an ink outline, so it holds up over
+              // both light and dark frames of the video.
+              <svg
+                viewBox="0 0 24 24"
+                width={GLYPH}
+                height={GLYPH}
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  left: `calc(50% - ${GLYPH / 2}px)`,
+                  top: `calc(50% - ${GLYPH / 2}px)`,
+                  overflow: 'visible',
+                  transform: `scale(${thumbHover ? 1.1 : 1})`,
+                  transition: `transform ${FADE_MS}ms ${EASE}`,
+                  pointerEvents: 'none',
+                }}
+              >
+                <g fill={PAPER} stroke={INK} strokeWidth="2" strokeLinejoin="round">
+                  {playing ? (
+                    <>
+                      <rect x="5.5" y="4" width="4.5" height="16" rx="1.2" />
+                      <rect x="14" y="4" width="4.5" height="16" rx="1.2" />
+                    </>
+                  ) : (
+                    <path d="M7 4v16l13-8z" />
+                  )}
+                </g>
+              </svg>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>
