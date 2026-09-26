@@ -366,16 +366,17 @@ export const TLDR_NAME = 'ryan kim';
 // it swaps to "on repeat this month: …" — see 2026-07-21-tldr-takeover-design.md.
 export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
   [{ text: 'vancouver, canada' }],
+  [{ text: 'SWE intern at Superpilot' }],
   [
     {
       text:
-        'computer engineering at ubc (class of 2028) and a ubc presidential scholar',
+        'computer engineering at ubc (c.o. 2028) and ubc presidential scholar',
     },
   ],
   [
     {
       text:
-        'previous software engineer @shopify (summer 2026), doing mobile development for the merchant admin app',
+        'prev. SWE intern at shopify, doing mobile development for the merchant admin app',
     },
   ],
   [
@@ -389,18 +390,16 @@ export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
     { text: 'rebase', href: 'https://www.tryrebase.io/' },
     {
       text:
-        ', an AI-native career dashboard. took a 3-person team from concept to private beta with 20+ users',
+        ', an AI-native career dashboard',
     },
   ],
   [
     {
       text:
-        'i like building things that live between engineering and design. this whole ' +
-        'site is a hand-drawn, frame-by-frame world i illustrated and wrote a custom ' +
-        'scene engine for',
+        'i like building things that live between engineering and design',
     },
   ],
-  [{ text: 'i play valorant, peaked immortal top 0.5% NA in V26A3' }],
+  [{ text: 'valorant peak immortal #4000' }],
   [
     { text: "i play piano; my favorite composer is chopin. here's me " },
     {
