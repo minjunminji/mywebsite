@@ -12,7 +12,7 @@ const VIDEO_W = 400;
 const VIDEO_H = 225; // 16:9 against VIDEO_W
 const HEADER_H = 40;
 const EXPANDED_H = HEADER_H + VIDEO_H;
-const BORDER = 1.5;
+const BORDER = 1;
 const RADIUS = 12;
 /** Collapsed, the video covers the bar end completely — it spans the bar's full
  *  *outer* height and runs to its outer right edge, painting over the border
@@ -62,6 +62,8 @@ const SLOW_MS = 2_500;
 const WATCH_URL = `https://www.youtube.com/watch?v=${PIANO_VIDEO_ID}`;
 
 const INK = '#1f1812';
+/** The tab's outline: its border, the hint's walls, and the fillet. */
+const LINE = '#858585';
 const PAPER = '#f7f7f5';
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const MOVE_MS = 340;
@@ -84,6 +86,14 @@ const HINT_W = `var(${HINT_VAR})`;
  *  to hold the arc plus a run of straight edge over the border beneath. The hint
  *  widens this same box, so the corner never has to be redrawn or rounded off. */
 const CORNER_BOX_W = 2 * RADIUS;
+/** The concave curve where the tab's right wall flares out onto the video's top
+ *  edge, so the tab reads as a folder tab rather than a box set on the video.
+ *  Its stroke's centreline starts on the wall's and bottoms out half a stroke
+ *  *below* the video's top edge: the video paints over that part, so the line
+ *  tapers to nothing as it lands instead of ending in a flat stub on the edge. */
+const FILLET_R = RADIUS;
+const FILLET_W = BORDER / 2 + FILLET_R;
+const FILLET_H = FILLET_R;
 const HINT_DELAY_MS = 500; // let the window's own entrance land first
 const HINT_HOLD_MS = 5_500; // long enough to read twice, short enough to not nag
 
@@ -377,7 +387,7 @@ export default function PianoPlayer({
           paddingLeft: EDGE_PAD,
           paddingRight: ROW_GAP,
           background: PAPER,
-          border: `${BORDER}px solid ${INK}`,
+          border: `${BORDER}px solid ${LINE}`,
           borderBottomWidth: collapsed ? BORDER : 0,
           // The right side is drawn by the wall element below, not a border,
           // because the hint slides it outward.
@@ -419,8 +429,8 @@ export default function PianoPlayer({
             height: HEADER_H - (collapsed ? BORDER : 0),
             overflow: 'hidden',
             background: PAPER,
-            borderTop: `${BORDER}px solid ${INK}`,
-            borderRight: `${BORDER}px solid ${INK}`,
+            borderTop: `${BORDER}px solid ${LINE}`,
+            borderRight: `${BORDER}px solid ${LINE}`,
             borderTopRightRadius: collapsed ? 0 : RADIUS,
             // Tracks the tab's own corner and bottom border. Width is left out:
             // it is driven by the hint variable, which already transitions.
@@ -460,6 +470,44 @@ export default function PianoPlayer({
             {HINT_TEXT}
           </p>
         </div>
+
+        {/* Folder-tab fillet, just outside the tab's bottom-right corner. After
+            the wall in the tree, so its paper covers the foot of the wall's
+            straight edge and the arc takes over from it. Hidden while the hint
+            is out (the wall has moved on) and while collapsed (there's a bottom
+            border and a thumbnail there instead); it comes back only once the
+            wall or video has landed. */}
+        <svg
+          width={FILLET_W}
+          height={FILLET_H}
+          viewBox={`0 0 ${FILLET_W} ${FILLET_H}`}
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            right: -(FILLET_W - BORDER), // starts on the wall, not beside it
+            bottom: -BORDER / 2, // over the video's edge; the video covers it
+            overflow: 'visible',
+            opacity: collapsed || hintOpen ? 0 : 1,
+            transition: shown
+              ? `opacity ${FADE_MS}ms ease ${collapsed || hintOpen ? 0 : MOVE_MS}ms`
+              : 'none',
+            pointerEvents: 'none',
+            zIndex: -1,
+          }}
+        >
+          <path
+            // A pixel past the wall's outer edge, over the tab's own paper: stopping
+            // exactly on it leaves an antialiased sliver of the straight wall.
+            d={`M-1 0H${BORDER / 2}A${FILLET_R} ${FILLET_R} 0 0 0 ${FILLET_W} ${FILLET_H}H-1Z`}
+            fill={PAPER}
+          />
+          <path
+            d={`M${BORDER / 2} 0A${FILLET_R} ${FILLET_R} 0 0 0 ${FILLET_W} ${FILLET_H}`}
+            fill="none"
+            stroke={LINE}
+            strokeWidth={BORDER}
+          />
+        </svg>
 
         {/* grip */}
         <svg
