@@ -411,6 +411,73 @@ export const TLDR_BULLETS: readonly (readonly TldrSegment[])[] = [
   [{ text: 'some of my favorite artists are fujii kaze, wave to earth, and exo' }],
 ];
 
+export type MobileTldrSection = {
+  label: 'about' | 'now' | 'selected work' | 'previously' | 'outside work';
+  body: readonly TldrSegment[];
+};
+
+// Mobile is the whole portfolio, so its copy is grouped for scanning rather
+// than mirroring the desktop overlay's quick list.
+export const MOBILE_TLDR_SECTIONS: readonly MobileTldrSection[] = [
+  {
+    label: 'about',
+    body: [
+      {
+        text: 'computer engineering student at ubc building things that live between engineering and design',
+      },
+    ],
+  },
+  {
+    label: 'now',
+    body: [
+      {
+        text: 'SWE intern at Superpilot',
+      },
+    ],
+  },
+  {
+    label: 'previously',
+    body: [
+      {
+        text: 'SWE intern at shopify, worked on mobile development for the merchant admin app',
+      },
+    ],
+  },
+  {
+    label: 'selected work',
+    body: [
+      { text: 'built ' },
+      { text: 'rebase', href: 'https://www.tryrebase.io/' },
+      { text: ', an AI-native career dashboard, and ' },
+      {
+        text: 'mango',
+        href: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
+      },
+      {
+        text:
+          ', a full-body game controller that won 1st place at hellohacks 2025. ' +
+          'this website is another project: a hand-drawn world powered by a ' +
+          'custom frame-by-frame scene system.',
+      },
+    ],
+  },
+  {
+    label: 'outside work',
+    body: [
+      { text: 'i play piano; my favorite composer is chopin. here\'s me ' },
+      {
+        text: 'performing his first piano concerto',
+        href: 'https://youtu.be/QSbZHTvbjR4',
+      },
+      {
+        text:
+          ' with the VAMSO orchestra. i also play valorant (peak immortal #4000) ' +
+          'and listen to fujii kaze, wave to earth, and exo.',
+      },
+    ],
+  },
+];
+
 export const TLDR_FOOTER_LINKS: readonly TldrFooterLink[] = [
   { key: 'github', label: 'github', href: 'https://github.com/minjunminji/', icon: '/github.png' },
   {

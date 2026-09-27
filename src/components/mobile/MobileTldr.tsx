@@ -47,7 +47,7 @@ export default function MobileTldr() {
           opacity: 0.55,
         }}
       >
-        view this website on desktop, it&apos;s way cooler!
+        the full interactive version is available on desktop
       </p>
       {/* Outside the padded column so it runs edge to edge. */}
       <LandingLoop />

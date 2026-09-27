@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
+  MOBILE_TLDR_SECTIONS,
   TLDR_BULLETS,
   TLDR_FOOTER_LINKS,
   TLDR_NAME,
@@ -12,13 +14,23 @@ const PAGE_BG = '#f7f7f5';
 const STICKY_TOP_PAD = '1.5rem';
 
 /**
- * The TLDR reader's content: name, bullets, and footer links. Shared by the
+ * The TLDR reader's content: name, copy, and footer links. Shared by the
  * desktop takeover (TldrOverlay) and the mobile page (MobileTldr), which each
- * supply their own container. `mobile` swaps the footer links for a header row
- * — name left, links right — pinned to the top of the page's own scroll, with
- * a fade below it for text to slide under.
+ * supply their own container. Desktop gets the quick bullet list; mobile gets
+ * labeled prose sections and swaps the footer links for a pinned header row.
  */
 export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
+  const [mobileScrolled, setMobileScrolled] = useState(false);
+
+  useEffect(() => {
+    if (!mobile) return;
+
+    const updateScrolled = () => setMobileScrolled(window.scrollY > 0);
+    updateScrolled();
+    window.addEventListener('scroll', updateScrolled, { passive: true });
+    return () => window.removeEventListener('scroll', updateScrolled);
+  }, [mobile]);
+
   const name = (
     <h1
       style={{
@@ -58,8 +70,8 @@ export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '2rem',
-            height: '2rem',
+            width: mobile ? '2.75rem' : '2rem',
+            height: mobile ? '2.75rem' : '2rem',
             color: INK,
             opacity: 0.8,
           }}
@@ -116,7 +128,7 @@ export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
         >
           {name}
           {links}
-          {/* Solid for a short stretch, then eases out, so bullets are hidden
+          {/* Solid for a short stretch, then eases out, so content is hidden
               right under the name and fade back in below it. */}
           <div
             aria-hidden
@@ -127,6 +139,7 @@ export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
               top: '100%',
               height: '2.5rem',
               background: `linear-gradient(${PAGE_BG} 0%, ${PAGE_BG} 15%, rgba(247, 247, 245, 0.85) 35%, rgba(247, 247, 245, 0.45) 65%, rgba(247, 247, 245, 0) 100%)`,
+              opacity: mobileScrolled ? 1 : 0,
               pointerEvents: 'none',
             }}
           />
@@ -135,61 +148,117 @@ export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
         name
       )}
 
-      <ul
-        style={{
-          margin: 0,
-          padding: 0,
-          listStyle: 'none',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.1em',
-          fontSize: 'clamp(0.95rem, 1.15vw, 1.15rem)',
-          lineHeight: 1.7,
-          fontWeight: 400,
-        }}
-      >
-        {TLDR_BULLETS.map((segments, index) => (
-          <li
-            key={index}
-            style={{
-              position: 'relative',
-              paddingLeft: '1.2em',
-            }}
-          >
-            <span
-              aria-hidden="true"
+      {mobile ? (
+        <div>
+          {MOBILE_TLDR_SECTIONS.map((section, index) => (
+            <section
+              key={section.label}
+              aria-labelledby={`mobile-tldr-${section.label.replace(' ', '-')}`}
               style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                opacity: 0.45,
+                padding: index === 0 ? '0 0 1.2rem' : '1.2rem 0',
               }}
             >
-              —
-            </span>
-            {segments.map((segment, segmentIndex) =>
-              segment.href ? (
-                <a
-                  key={segmentIndex}
-                  href={segment.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: 'inherit',
-                    textDecoration: 'underline',
-                    textDecorationThickness: '1.5px',
-                    textUnderlineOffset: '0.18em',
-                  }}
-                >
-                  {segment.text}
-                </a>
-              ) : (
-                <span key={segmentIndex}>{segment.text}</span>
-              ),
-            )}
-          </li>
-        ))}
-      </ul>
+              <h2
+                id={`mobile-tldr-${section.label.replace(' ', '-')}`}
+                style={{
+                  margin: '0 0 0.55rem',
+                  color: 'rgba(31, 24, 18, 0.52)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  lineHeight: 1.2,
+                }}
+              >
+                {section.label}
+              </h2>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '1.05rem',
+                  fontWeight: 400,
+                  lineHeight: 1.6,
+                }}
+              >
+                {section.body.map((segment, segmentIndex) =>
+                  segment.href ? (
+                    <a
+                      key={segmentIndex}
+                      href={segment.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'inherit',
+                        textDecoration: 'underline',
+                        textDecorationThickness: '1.5px',
+                        textUnderlineOffset: '0.18em',
+                      }}
+                    >
+                      {segment.text}
+                    </a>
+                  ) : (
+                    <span key={segmentIndex}>{segment.text}</span>
+                  ),
+                )}
+              </p>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <ul
+          style={{
+            margin: 0,
+            padding: 0,
+            listStyle: 'none',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.1em',
+            fontSize: 'clamp(0.95rem, 1.15vw, 1.15rem)',
+            lineHeight: 1.7,
+            fontWeight: 400,
+          }}
+        >
+          {TLDR_BULLETS.map((segments, index) => (
+            <li
+              key={index}
+              style={{
+                position: 'relative',
+                paddingLeft: '1.2em',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  opacity: 0.45,
+                }}
+              >
+                —
+              </span>
+              {segments.map((segment, segmentIndex) =>
+                segment.href ? (
+                  <a
+                    key={segmentIndex}
+                    href={segment.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'inherit',
+                      textDecoration: 'underline',
+                      textDecorationThickness: '1.5px',
+                      textUnderlineOffset: '0.18em',
+                    }}
+                  >
+                    {segment.text}
+                  </a>
+                ) : (
+                  <span key={segmentIndex}>{segment.text}</span>
+                ),
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {mobile ? null : links}
     </>
