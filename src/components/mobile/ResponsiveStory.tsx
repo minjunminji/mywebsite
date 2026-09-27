@@ -3,12 +3,14 @@
 import { useEffect, useState } from 'react';
 import StoryPlayer from '@/components/StoryPlayer';
 import MobileTldr from '@/components/mobile/MobileTldr';
-
-// Same line the old desktop gate used.
-const MOBILE_QUERY = '(max-width: 1023px)';
+import { usePiano } from '@/components/piano/PianoContext';
+import { MOBILE_QUERY } from '@/components/mobile/breakpoint';
 
 export default function ResponsiveStory() {
+  // null until mounted: the server can't see the viewport, so it sends both
+  // layouts and CSS shows the right one. After mount only that one stays.
   const [mobile, setMobile] = useState<boolean | null>(null);
+  const { close: closePiano } = usePiano();
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_QUERY);
@@ -18,6 +20,24 @@ export default function ResponsiveStory() {
     return () => mq.removeEventListener('change', update);
   }, []);
 
-  if (mobile === null) return null;
-  return mobile ? <MobileTldr /> : <StoryPlayer />;
+  // The player is a desktop-sized window and the mobile page has no ♪ to stop
+  // it, so a resize into the mobile layout closes it.
+  useEffect(() => {
+    if (mobile) closePiano();
+  }, [mobile, closePiano]);
+
+  return (
+    <>
+      {mobile !== true ? (
+        <div className="story-desktop">
+          <StoryPlayer />
+        </div>
+      ) : null}
+      {mobile !== false ? (
+        <div className="story-mobile">
+          <MobileTldr />
+        </div>
+      ) : null}
+    </>
+  );
 }

@@ -81,12 +81,6 @@ main {
   }
 }
 
-.mobile-rotate-overlay {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 260ms ease;
-}
-
 /* Keyboard focus for the experience lens toggle (both words are visible). */
 .exp-lens:focus-visible {
   outline: 2px solid #1f1812;
@@ -134,11 +128,19 @@ main {
   background: rgba(31, 24, 18, 0.45);
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
-  .scene-root {
-    height: 100dvh !important;
-    overflow: hidden !important;
-    touch-action: none;
+/* Both layouts are server-rendered so the first paint has content; this picks
+   one before any JS runs. Keep 1023px in sync with MOBILE_QUERY (breakpoint.ts). */
+.story-mobile {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .story-desktop {
+    display: none;
+  }
+
+  .story-mobile {
+    display: block;
   }
 }
 

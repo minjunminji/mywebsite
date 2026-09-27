@@ -31,6 +31,7 @@ import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
 import { usePiano } from '@/components/piano/PianoContext';
+import { MOBILE_QUERY } from '@/components/mobile/breakpoint';
 
 // Heavy (figures, WebGL) and rarely opened: load on first open only.
 const loadShaderExplainer = () => import('@/components/explainer/ShaderExplainer');
@@ -154,8 +155,10 @@ export default function StoryPlayer() {
     maskImage: projectMask,
   } = useScrollFade({ fadeBottom: true });
 
-  // Preload frame images once.
+  // Preload frame images once. Skipped on phones: this mounts there for one
+  // hydration pass before ResponsiveStory swaps it out.
   useEffect(() => {
+    if (window.matchMedia(MOBILE_QUERY).matches) return;
     ALL_PRELOAD_FRAMES.forEach((src) => {
       const image = new Image();
       image.src = src;
@@ -214,11 +217,13 @@ export default function StoryPlayer() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', overflow: 'hidden', background: PAGE_BG }}>
-      {/* Background layer 1 */}
+      {/* Background layer 1. Lazy so the hidden server-rendered copy on phones
+          doesn't fetch it (see ResponsiveStory); on desktop it's in view anyway. */}
       <img
         src={turnstileBackgroundFrame}
         alt=""
         aria-hidden
+        loading="lazy"
         draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.25 : 0, transition: 'opacity 320ms ease', zIndex: 0 }}
       />
@@ -227,6 +232,7 @@ export default function StoryPlayer() {
         src={turnstileBackgroundFrameTwo}
         alt=""
         aria-hidden
+        loading="lazy"
         draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.2 : 0, transition: 'opacity 320ms ease', zIndex: 0 }}
       />
