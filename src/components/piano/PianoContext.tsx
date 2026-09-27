@@ -20,6 +20,8 @@ type PianoContextValue = {
   summonFrom: (anchor: Rect) => void;
   /** Re-open wherever it was last left, for the corner ♪. */
   restore: () => void;
+  /** Hide and pause, as the window's own close button does. */
+  close: () => void;
 };
 
 const PianoContext = createContext<PianoContextValue | null>(null);
@@ -72,8 +74,8 @@ export function PianoProvider({ children }: { children: ReactNode }) {
   const close = useCallback(() => setVisible(false), []);
 
   const value = useMemo(
-    () => ({ summoned, visible, summonFrom, restore }),
-    [summoned, visible, summonFrom, restore],
+    () => ({ summoned, visible, summonFrom, restore, close }),
+    [summoned, visible, summonFrom, restore, close],
   );
 
   return (

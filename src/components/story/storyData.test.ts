@@ -5,6 +5,7 @@ import {
   EXPERIENCE,
   LENSES,
   NAV,
+  MOBILE_TLDR_SECTIONS,
   PROJECT_CONTENT,
   stopIndexById,
   isExperienceStop,
@@ -57,6 +58,51 @@ describe('nav', () => {
   it('leads with the name as the home entry', () => {
     expect(NAV[0]).toEqual({ label: 'ryan kim', stopId: 'landing' });
     expect(NAV.some((entry) => entry.label === 'home')).toBe(false);
+  });
+});
+
+describe('mobile TLDR', () => {
+  it('groups the portfolio into labeled prose sections', () => {
+    expect(MOBILE_TLDR_SECTIONS.map((section) => section.label)).toEqual([
+      'about',
+      'now',
+      'previously',
+      'selected work',
+      'outside work',
+    ]);
+
+    for (const section of MOBILE_TLDR_SECTIONS) {
+      expect(section.body.map((segment) => segment.text).join('').trim()).not.toBe('');
+    }
+
+    const copyByLabel = Object.fromEntries(
+      MOBILE_TLDR_SECTIONS.map((section) => [
+        section.label,
+        section.body.map((segment) => segment.text).join(''),
+      ]),
+    );
+    expect(copyByLabel.about).toBe(
+      'computer engineering student at ubc building things that live between engineering and design',
+    );
+    expect(copyByLabel.now).toBe('SWE intern at Superpilot');
+    expect(copyByLabel['selected work']).toMatch(/^built rebase/);
+    expect(copyByLabel.previously).toBe(
+      'SWE intern at shopify, worked on mobile development for the merchant admin app',
+    );
+  });
+
+  it('links featured work directly from the selected-work paragraph', () => {
+    const selectedWork = MOBILE_TLDR_SECTIONS.find(
+      (section) => section.label === 'selected work',
+    );
+
+    expect(selectedWork?.body.filter((segment) => segment.href)).toEqual([
+      { text: 'rebase', href: 'https://www.tryrebase.io/' },
+      {
+        text: 'mango',
+        href: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
+      },
+    ]);
   });
 });
 

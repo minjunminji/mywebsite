@@ -1,9 +1,9 @@
-import StoryPlayer from '@/components/StoryPlayer';
+import ResponsiveStory from '@/components/mobile/ResponsiveStory';
 
 export default function HomePage() {
   return (
     <main>
-      <StoryPlayer />
+      <ResponsiveStory />
     </main>
   );
 }

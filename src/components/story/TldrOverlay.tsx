@@ -1,11 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import {
-  TLDR_BULLETS,
-  TLDR_FOOTER_LINKS,
-  TLDR_NAME,
-} from '@/components/story/storyData';
+import TldrContent from '@/components/story/TldrContent';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
 import { useInertOutside } from '@/components/useInertOutside';
@@ -145,128 +141,7 @@ export default function TldrOverlay({ open, onClose }: TldrOverlayProps) {
             padding: 'clamp(4rem, 12vh, 8rem) clamp(1.5rem, 6vw, 4rem)',
           }}
         >
-          <h1
-            style={{
-              margin: '0 0 1.6rem',
-              fontSize: 'clamp(2rem, 4vw, 3rem)',
-              fontWeight: 700,
-              letterSpacing: '0.01em',
-              textTransform: 'lowercase',
-              lineHeight: 1.05,
-            }}
-          >
-            {TLDR_NAME}
-          </h1>
-
-          <ul
-            style={{
-              margin: 0,
-              padding: 0,
-              listStyle: 'none',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1.1em',
-              fontSize: 'clamp(0.95rem, 1.15vw, 1.15rem)',
-              lineHeight: 1.7,
-              fontWeight: 400,
-            }}
-          >
-            {TLDR_BULLETS.map((segments, index) => (
-              <li
-                key={index}
-                style={{
-                  position: 'relative',
-                  paddingLeft: '1.2em',
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    position: 'absolute',
-                    left: 0,
-                    top: 0,
-                    opacity: 0.45,
-                  }}
-                >
-                  —
-                </span>
-                {segments.map((segment, segmentIndex) =>
-                  segment.href ? (
-                    <a
-                      key={segmentIndex}
-                      href={segment.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        color: 'inherit',
-                        textDecoration: 'underline',
-                        textDecorationThickness: '1.5px',
-                        textUnderlineOffset: '0.18em',
-                      }}
-                    >
-                      {segment.text}
-                    </a>
-                  ) : (
-                    <span key={segmentIndex}>{segment.text}</span>
-                  ),
-                )}
-              </li>
-            ))}
-          </ul>
-
-          <div
-            style={{
-              marginTop: '2.6rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
-            }}
-          >
-            {TLDR_FOOTER_LINKS.map((link) => (
-              <a
-                key={link.key}
-                href={link.href}
-                target={link.href.startsWith('mailto:') ? undefined : '_blank'}
-                rel="noopener noreferrer"
-                aria-label={link.label}
-                data-cursor-pad="-4"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '2rem',
-                  height: '2rem',
-                  color: INK,
-                  opacity: 0.8,
-                }}
-              >
-                {link.icon ? (
-                  <img
-                    src={link.icon}
-                    alt=""
-                    width={20}
-                    height={20}
-                    style={{ display: 'block', width: '1.25rem', height: '1.25rem', objectFit: 'contain' }}
-                  />
-                ) : (
-                  // Email has no asset — a filled envelope. Pure black (#000) to
-                  // match the github/linkedin PNGs (not the site's warmer ink),
-                  // and the viewBox is cropped tight to the envelope so it fills
-                  // the box and centers with the full-bleed logos beside it.
-                  <svg
-                    viewBox="2 4 20 16"
-                    aria-hidden="true"
-                    style={{ display: 'block', width: '1.3rem', height: 'auto' }}
-                  >
-                    <path
-                      fill="#000"
-                      d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"
-                    />
-                  </svg>
-                )}
-              </a>
-            ))}
-          </div>
+          <TldrContent />
         </div>
       </div>
     </div>

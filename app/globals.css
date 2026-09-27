@@ -81,42 +81,6 @@ main {
   }
 }
 
-.mobile-rotate-overlay {
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 260ms ease;
-}
-
-/* Below the desktop breakpoint (phones + tablets) the whole site is replaced
-   by a full-screen notice. Pure CSS so there's no hydration flash and it
-   reacts live to resizing/rotating. Change the 1023px below to move the line. */
-.desktop-gate {
-  display: none;
-}
-
-@media (max-width: 1023px) {
-  html,
-  body {
-    overflow: hidden;
-  }
-
-  .desktop-gate {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483647;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background: #f7f7f5;
-    color: #1e1a16;
-    font-family: var(--font-alte-haas-grotesk), Arial, sans-serif;
-    font-weight: 400;
-    font-size: 1rem;
-    text-align: center;
-  }
-}
-
 /* Keyboard focus for the experience lens toggle (both words are visible). */
 .exp-lens:focus-visible {
   outline: 2px solid #1f1812;
@@ -164,22 +128,19 @@ main {
   background: rgba(31, 24, 18, 0.45);
 }
 
-@media (max-width: 900px) and (orientation: portrait) {
-  html,
-  body {
-    overflow: hidden !important;
-    height: 100dvh;
+/* Both layouts are server-rendered so the first paint has content; this picks
+   one before any JS runs. Keep 1023px in sync with MOBILE_QUERY (breakpoint.ts). */
+.story-mobile {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .story-desktop {
+    display: none;
   }
 
-  .scene-root {
-    height: 100dvh !important;
-    overflow: hidden !important;
-    touch-action: none;
-  }
-
-  .mobile-rotate-overlay {
-    opacity: 1;
-    pointer-events: auto;
+  .story-mobile {
+    display: block;
   }
 }
 
