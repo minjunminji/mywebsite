@@ -128,6 +128,21 @@ export default function TldrContent({ mobile = false }: { mobile?: boolean }) {
         >
           {name}
           {links}
+          {/* iOS Safari pins top:0 below the status bar, and content scrolling
+              up shows through that strip. Extend the paper upward to cover it;
+              at rest there's only the page's empty top padding above. */}
+          <div
+            aria-hidden
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: '100%',
+              height: '100vh',
+              background: PAGE_BG,
+              pointerEvents: 'none',
+            }}
+          />
           {/* Solid for a short stretch, then eases out, so content is hidden
               right under the name and fade back in below it. */}
           <div
