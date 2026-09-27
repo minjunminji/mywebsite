@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { shouldReleasePinnedTarget, stepSpring, wrapScaleForTarget, type Spring } from './cursorMath';
+import {
+  SPRING_FRAME_MS,
+  shouldReleasePinnedTarget,
+  stepSpring,
+  stepSpringDt,
+  wrapScaleForTarget,
+  type Spring,
+} from './cursorMath';
 
 describe('stepSpring', () => {
   it('moves toward the target on the first step from rest, staying finite', () => {
@@ -23,6 +30,49 @@ describe('stepSpring', () => {
     for (let i = 0; i < 500; i += 1) stepSpring(s, -20, 0.45, 0.76);
     expect(s.value).toBeCloseTo(-20, 3);
     expect(Math.abs(s.velocity)).toBeLessThan(1e-3);
+  });
+});
+
+describe('stepSpringDt', () => {
+  it('matches stepSpring exactly for one 60Hz frame', () => {
+    const a: Spring = { value: 0, velocity: 0 };
+    const b: Spring = { value: 0, velocity: 0 };
+    stepSpring(a, 100, 0.09, 0.5);
+    stepSpringDt(b, 100, 0.09, 0.5, SPRING_FRAME_MS);
+    expect(b.value).toBeCloseTo(a.value, 10);
+    expect(b.velocity).toBeCloseTo(a.velocity, 10);
+  });
+
+  it.each([
+    ['overdamped engage', 0.09, 0.5],
+    ['bouncy press', 0.35, 0.55],
+  ])('lands on the 60Hz trajectory at 120Hz and 144Hz (%s)', (_, k, d) => {
+    const at60: Spring = { value: 0, velocity: 0 };
+    const at120: Spring = { value: 0, velocity: 0 };
+    const at144: Spring = { value: 0, velocity: 0 };
+    // 100ms of animation.
+    for (let i = 0; i < 6; i += 1) stepSpringDt(at60, 100, k, d, SPRING_FRAME_MS);
+    for (let i = 0; i < 12; i += 1) stepSpringDt(at120, 100, k, d, SPRING_FRAME_MS / 2);
+    for (let i = 0; i < 15; i += 1) stepSpringDt(at144, 100, k, d, 100 / 15);
+    expect(at120.value).toBeCloseTo(at60.value, 6);
+    expect(at144.value).toBeCloseTo(at60.value, 6);
+    expect(at144.velocity).toBeCloseTo(at60.velocity, 6);
+  });
+
+  it('catches up on a dropped frame instead of slowing down', () => {
+    const steady: Spring = { value: 0, velocity: 0 };
+    const dropped: Spring = { value: 0, velocity: 0 };
+    stepSpringDt(steady, 100, 0.09, 0.5, SPRING_FRAME_MS);
+    stepSpringDt(steady, 100, 0.09, 0.5, SPRING_FRAME_MS);
+    stepSpringDt(dropped, 100, 0.09, 0.5, SPRING_FRAME_MS * 2);
+    expect(dropped.value).toBeCloseTo(steady.value, 10);
+  });
+
+  it('clamps a long stall so the spring does not leap past the target', () => {
+    const s: Spring = { value: 0, velocity: 0 };
+    stepSpringDt(s, 100, 0.35, 0.55, 5000);
+    expect(s.value).toBeLessThan(100);
+    expect(Number.isFinite(s.value)).toBe(true);
   });
 });
 
