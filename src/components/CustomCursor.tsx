@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { shouldReleasePinnedTarget, stepSpring, wrapScaleForTarget, type Spring } from './cursorMath';
+import {
+  SPRING_FRAME_MS,
+  shouldReleasePinnedTarget,
+  stepSpringDt,
+  wrapScaleForTarget,
+  type Spring,
+} from './cursorMath';
 
 /*
  * CustomCursor — the site's negative liquid cursor (WebGL2 SDF).
@@ -14,9 +20,12 @@ import { shouldReleasePinnedTarget, stepSpring, wrapScaleForTarget, type Spring 
  * the dot. An fbm domain-warp wobbles the wrapped edge. Geometry is springed /
  * eased on the JS side; the shader renders + wobbles.
  *
- * Gating: activates only on fine-pointer (hover-capable) devices; honors
- * prefers-reduced-motion (the wrap affordance is kept, the liquid motion is
- * stripped); hides the native cursor via the `cursor-hidden` class while active.
+ * Gating: activates only on fine-pointer (hover-capable) devices and stays off
+ * under forced-colors (high contrast) so those users keep the system cursor;
+ * honors prefers-reduced-motion (the wrap affordance is kept, the liquid motion
+ * is stripped); hides the native cursor via the `cursor-hidden` class only while
+ * the WebGL context is alive, so a lost context falls back to the OS cursor.
+ * The rAF loop sleeps whenever nothing is animating and wakes on pointer input.
  * Mounted once in app/layout.tsx inside <body> (which has no
  * transform/filter/isolation ancestor) so it blends against the whole page.
  */
@@ -88,8 +97,9 @@ const WARP_NOISE_SCALE = 0.012;
 /** Noise time speed. */
 const WARP_TIME_SPEED = 0.35;
 
-/** Clickable things the cursor wraps (the site's text labels). */
-const TARGET_SELECTOR = 'a, button, [role="button"]';
+/** Clickable things the cursor wraps (the site's text labels, plus the
+ *  explainer's range sliders). */
+const TARGET_SELECTOR = 'a, button, [role="button"], input[type="range"]';
 /** Marker on clickable non-text controls (icon buttons) that must NOT wrap. */
 const SKIP_SELECTOR = '[data-cursor-skip]';
 
@@ -116,6 +126,8 @@ function clickableTargetFrom(node: EventTarget | null): Element | null {
 const FINE_POINTER_QUERY = '(hover: hover) and (pointer: fine)';
 /** Media query for users who asked the OS to reduce motion. */
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+/** Media query for Windows High Contrast and similar forced-color modes. */
+const FORCED_COLORS_QUERY = '(forced-colors: active)';
 /** Class added to <html> to hide the native cursor while ours is active. */
 const HIDE_NATIVE_CURSOR_CLASS = 'cursor-hidden';
 
@@ -134,7 +146,9 @@ export default function CustomCursor() {
     // Device gating: do nothing on touch / coarse-pointer devices. We neither
     // render a visible cursor nor hide the native one (the blank, transparent,
     // pointer-events:none canvas left in the DOM is inert).
+    // Forced-colors users get the system cursor, which follows their contrast theme.
     if (!window.matchMedia(FINE_POINTER_QUERY).matches) return;
+    if (window.matchMedia(FORCED_COLORS_QUERY).matches) return;
 
     const gl = canvas.getContext('webgl2', {
       alpha: true,
@@ -150,7 +164,6 @@ export default function CustomCursor() {
     }
 
     const root = document.documentElement;
-    root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
 
     // Reduced motion: keep the wrap-on-hover affordance, but snap the engage /
     // release (no spring, no drain) and switch the edge warp off. Tracked live.
@@ -335,33 +348,38 @@ export default function CustomCursor() {
       }
     `;
 
-    const program = createProgram(vs, fs);
-    if (!program) {
-      root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
-      return;
-    }
+    // Build every GL resource. Called once at mount and again after a lost
+    // context is restored (all old handles are dead by then).
+    const initGL = () => {
+      const program = createProgram(vs, fs);
+      if (!program) return null;
+      const u = {
+        resolution: gl.getUniformLocation(program, 'u_resolution'),
+        dpr: gl.getUniformLocation(program, 'u_dpr'),
+        time: gl.getUniformLocation(program, 'u_time'),
+        cursor: gl.getUniformLocation(program, 'u_cursor'),
+        dotRadius: gl.getUniformLocation(program, 'u_dotRadius'),
+        box: gl.getUniformLocation(program, 'u_box'),
+        corner: gl.getUniformLocation(program, 'u_corner'),
+        wrap: gl.getUniformLocation(program, 'u_wrap'),
+        bridge: gl.getUniformLocation(program, 'u_bridge'),
+        sminScale: gl.getUniformLocation(program, 'u_sminScale'),
+        stream: gl.getUniformLocation(program, 'u_stream'),
+        motion: gl.getUniformLocation(program, 'u_motion'),
+        press: gl.getUniformLocation(program, 'u_press'),
+        origin: gl.getUniformLocation(program, 'u_origin'),
+      };
 
-    const u = {
-      resolution: gl.getUniformLocation(program, 'u_resolution'),
-      dpr: gl.getUniformLocation(program, 'u_dpr'),
-      time: gl.getUniformLocation(program, 'u_time'),
-      cursor: gl.getUniformLocation(program, 'u_cursor'),
-      dotRadius: gl.getUniformLocation(program, 'u_dotRadius'),
-      box: gl.getUniformLocation(program, 'u_box'),
-      corner: gl.getUniformLocation(program, 'u_corner'),
-      wrap: gl.getUniformLocation(program, 'u_wrap'),
-      bridge: gl.getUniformLocation(program, 'u_bridge'),
-      sminScale: gl.getUniformLocation(program, 'u_sminScale'),
-      stream: gl.getUniformLocation(program, 'u_stream'),
-      motion: gl.getUniformLocation(program, 'u_motion'),
-      press: gl.getUniformLocation(program, 'u_press'),
-      origin: gl.getUniformLocation(program, 'u_origin'),
+      const quadBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+      const aPos = gl.getAttribLocation(program, 'a_position');
+      return { program, u, quadBuf, aPos };
     };
 
-    const quadBuf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(program, 'a_position');
+    let glRes = initGL();
+    if (!glRes) return;
+    root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
 
     /* -------- cursor state machine --------------------------------- */
     let mode: Mode = 'free';
@@ -376,12 +394,20 @@ export default function CustomCursor() {
     let hasPointer = false;
     // True while a pointer button is held down (drives the press squish).
     let pressed = false;
+    // A range slider being dragged. It stays wrapped while held even if the
+    // pointer drifts off its rect, since the drag still belongs to it.
+    let heldEl: Element | null = null;
     // True while the pointer is inside the window and the window is focused.
     let inWindow = false;
     // Last visibility we wrote, so we only touch the DOM when it flips.
     let lastVisible = false;
     let destroyed = false;
     let rafId: number | null = null;
+    // Timestamp of the last rendered frame, for time-based springs. Reset when
+    // the loop wakes from sleep so the first frame steps one nominal frame.
+    let lastFrame: number | null = null;
+    // Real time since the previous frame (ms), read by settle().
+    let frameDt = SPRING_FRAME_MS;
 
     const cx: Spring = { value: -9999, velocity: 0 };
     const cy: Spring = { value: -9999, velocity: 0 };
@@ -413,13 +439,25 @@ export default function CustomCursor() {
     // Settle a spring toward its target — instant under reduced motion, else spring.
     const settle = (s: Spring, target: number) => {
       if (reducedMotion) snap(s, target);
-      else stepSpring(s, target, SPRING_STIFFNESS, SPRING_DAMPING);
+      else stepSpringDt(s, target, SPRING_STIFFNESS, SPRING_DAMPING, frameDt);
+    };
+
+    // Start the loop if it is asleep. Every input that can change what's drawn
+    // calls this; the loop puts itself back to sleep once the dot is at rest.
+    const wake = () => {
+      if (destroyed || !glRes || rafId !== null) return;
+      lastFrame = null;
+      rafId = requestAnimationFrame(render);
     };
 
     const cursorDpr = () => Math.min(window.devicePixelRatio || 1, CURSOR_MAX_DPR);
 
     const render = (now: number) => {
-      if (destroyed) return;
+      rafId = null;
+      if (destroyed || !glRes) return;
+      const { program, u, quadBuf, aPos } = glRes;
+      frameDt = lastFrame === null ? SPRING_FRAME_MS : now - lastFrame;
+      lastFrame = now;
 
       let rect: DOMRect | null = null;
       if (mode === 'pinned') {
@@ -429,10 +467,8 @@ export default function CustomCursor() {
         rect = target && connected && !inert ? target.getBoundingClientRect() : null;
         const pointerInside =
           rect !== null &&
-          pointerX >= rect.left &&
-          pointerX <= rect.right &&
-          pointerY >= rect.top &&
-          pointerY <= rect.bottom;
+          ((pointerX >= rect.left && pointerX <= rect.right && pointerY >= rect.top && pointerY <= rect.bottom) ||
+            target === heldEl);
         const releaseTarget = shouldReleasePinnedTarget({
           connected,
           inert,
@@ -530,7 +566,9 @@ export default function CustomCursor() {
       // dot and the wrapped blob shrink the same way.
       const pressTarget = pressed ? PRESS_SCALE : 1;
       if (reducedMotion) snap(press, pressTarget);
-      else stepSpring(press, pressTarget, PRESS_STIFFNESS, PRESS_DAMPING);
+      else stepSpringDt(press, pressTarget, PRESS_STIFFNESS, PRESS_DAMPING, frameDt);
+      const pressSettled = Math.abs(press.value - pressTarget) < 1e-3 && Math.abs(press.velocity) < 1e-3;
+      if (pressSettled) snap(press, pressTarget);
 
       // Reveal only once a real pointer position is known and the window is
       // focused/entered, so re-entry/refocus never flashes the cursor at (0,0).
@@ -539,6 +577,8 @@ export default function CustomCursor() {
         canvas.style.opacity = visible ? '1' : '0';
         lastVisible = visible;
       }
+      // Hidden: nothing to draw. Sleep until the pointer comes back.
+      if (!visible) return;
 
       // ---- Fit the canvas to the blob's bounding box ------------------------
       // A full-viewport canvas under mix-blend-mode forces the compositor to
@@ -601,10 +641,29 @@ export default function CustomCursor() {
       gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
+      // A free dot with a settled press looks the same next frame until the
+      // pointer moves, so sleep. Pinned keeps running for the edge warp and to
+      // track the target's rect; releasing runs until it lands.
+      if (mode === 'free' && pressSettled) return;
       rafId = requestAnimationFrame(render);
     };
 
+    // Wrap `target`, reading its optional data-cursor-pad override.
+    const pinTo = (target: Element) => {
+      activeEl = target;
+      const padAttr = target.getAttribute('data-cursor-pad');
+      const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
+      padOverridden = Number.isFinite(parsedPad);
+      activePad = padOverridden ? parsedPad : HOVER_PAD;
+      mode = 'pinned';
+    };
+
+    // Touch input on a hybrid device (touchscreen laptop with a trackpad) must
+    // not drive the cursor: there is no pointer to follow after the finger lifts.
+    const isTouch = (e: PointerEvent) => e.pointerType === 'touch';
+
     const onPointerMove = (e: PointerEvent) => {
+      if (isTouch(e)) return;
       pointerX = e.clientX;
       pointerY = e.clientY;
       if (!hasPointer) {
@@ -616,33 +675,40 @@ export default function CustomCursor() {
 
       // Match the browser's real hit target on every move. The old cursor kept
       // its wrap for 15–30px after leaving a control, which advertised a click
-      // that the browser would send elsewhere.
-      const target = clickableTargetFrom(e.target);
+      // that the browser would send elsewhere. A slider being dragged keeps it.
+      const target = heldEl ?? clickableTargetFrom(e.target);
       if (target) {
-        activeEl = target;
-        const padAttr = target.getAttribute('data-cursor-pad');
-        const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
-        padOverridden = Number.isFinite(parsedPad);
-        activePad = padOverridden ? parsedPad : HOVER_PAD;
-        mode = 'pinned';
+        pinTo(target);
       } else if (mode === 'pinned') {
         activeEl = null;
         mode = 'releasing';
       }
+      wake();
     };
     // Delegated targeting (capture phase): wrap when the pointer enters a clickable
     // text label, ignoring disabled controls and icon controls flagged with
     // data-cursor-skip. Pointer movement above releases the wrap as soon as the
     // browser's hit target is no longer clickable.
     const onPointerOver = (e: PointerEvent) => {
+      if (isTouch(e)) return;
+      // A cross-origin iframe (the YouTube player) swallows pointer events and
+      // shows the native cursor, so hide ours instead of freezing it at the
+      // iframe's edge. The next pointermove back in this document shows it again.
+      if (e.target instanceof HTMLIFrameElement) {
+        inWindow = false;
+        pressed = false;
+        if (mode === 'pinned') {
+          activeEl = null;
+          mode = 'releasing';
+        }
+        wake();
+        return;
+      }
+      if (heldEl) return;
       const target = clickableTargetFrom(e.target);
       if (target) {
-        activeEl = target;
-        const padAttr = target.getAttribute('data-cursor-pad');
-        const parsedPad = padAttr === null ? NaN : parseFloat(padAttr);
-        padOverridden = Number.isFinite(parsedPad);
-        activePad = padOverridden ? parsedPad : HOVER_PAD;
-        mode = 'pinned';
+        pinTo(target);
+        wake();
       }
     };
 
@@ -651,26 +717,59 @@ export default function CustomCursor() {
     // moving the pointer; visibility still gates on hasPointer so it never flashes.
     const onPointerEnter = () => {
       inWindow = true;
+      wake();
     };
     const onPointerLeave = () => {
       inWindow = false;
       pressed = false;
+      heldEl = null;
+      wake();
     };
     const onFocus = () => {
       inWindow = true;
+      wake();
     };
     const onBlur = () => {
       inWindow = false;
       pressed = false;
+      heldEl = null;
+      wake();
     };
     const onReducedMotionChange = (e: MediaQueryListEvent) => {
       reducedMotion = e.matches;
+      wake();
     };
-    const onPointerDown = () => {
+    const onPointerDown = (e: PointerEvent) => {
+      if (isTouch(e)) return;
       pressed = true;
+      const target = clickableTargetFrom(e.target);
+      heldEl = target instanceof HTMLInputElement && target.type === 'range' ? target : null;
+      wake();
     };
     const onPointerUp = () => {
       pressed = false;
+      heldEl = null;
+      wake();
+    };
+
+    // GPU reset, GPU switch, or the browser evicting this context to make room
+    // for newer ones. Without this the native cursor stays hidden while ours can
+    // no longer draw, leaving no cursor at all. preventDefault() opts in to a
+    // webglcontextrestored event.
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      glRes = null;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = null;
+      canvas.style.opacity = '0';
+      lastVisible = false;
+      root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
+    };
+    const onContextRestored = () => {
+      glRes = initGL();
+      if (!glRes) return;
+      root.classList.add(HIDE_NATIVE_CURSOR_CLASS);
+      wake();
     };
 
     window.addEventListener('pointermove', onPointerMove, { passive: true });
@@ -683,7 +782,9 @@ export default function CustomCursor() {
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
     reducedMotionMq.addEventListener('change', onReducedMotionChange);
-    rafId = requestAnimationFrame(render);
+    canvas.addEventListener('webglcontextlost', onContextLost);
+    canvas.addEventListener('webglcontextrestored', onContextRestored);
+    wake();
 
     return () => {
       destroyed = true;
@@ -698,9 +799,13 @@ export default function CustomCursor() {
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('blur', onBlur);
       reducedMotionMq.removeEventListener('change', onReducedMotionChange);
+      canvas.removeEventListener('webglcontextlost', onContextLost);
+      canvas.removeEventListener('webglcontextrestored', onContextRestored);
       root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
-      gl.deleteBuffer(quadBuf);
-      gl.deleteProgram(program);
+      if (glRes) {
+        gl.deleteBuffer(glRes.quadBuf);
+        gl.deleteProgram(glRes.program);
+      }
     };
   }, []);
 
