@@ -162,6 +162,7 @@ export type ProjectContent = {
       }
   )[];
   videoSrc?: string;
+  videoPosterSrc?: string;
   videoTitle?: string;
 };
 
@@ -251,6 +252,7 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
       'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
     ],
     videoSrc: '/mango.mp4',
+    videoPosterSrc: '/mango-poster.jpg',
     videoTitle: 'Mango full-body gesture control demo',
   },
 ];

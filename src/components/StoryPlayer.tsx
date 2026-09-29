@@ -113,6 +113,13 @@ export default function StoryPlayer() {
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
     : null;
+  // Start fetching a project's video when the train heads for it rather than on
+  // arrival, so the frames of the transition cover the download.
+  const incomingProject: ProjectContent | null =
+    player.isTransitioning && isProjectStop(player.target)
+      ? PROJECT_CONTENT[player.target - firstProjectIndex]
+      : null;
+  const incomingVideoSrc = incomingProject?.videoSrc ?? null;
   // Directional project transition: content enters from the side it's heading
   // (forward → in from the right, out to the left) and reverses going back.
   const enterX = player.navDir >= 0 ? '48px' : '-48px';
@@ -500,6 +507,10 @@ export default function StoryPlayer() {
           </div>
         </div>
       </div>
+
+      {incomingVideoSrc ? (
+        <video key={incomingVideoSrc} src={incomingVideoSrc} preload="auto" muted aria-hidden hidden />
+      ) : null}
 
       {/* ===== PORT BLOCK C: projects aside — single active project ===== */}
       {activeProject ? (
@@ -902,6 +913,7 @@ export default function StoryPlayer() {
                           active={onProject && !tldrOpen && !explainerOpen}
                           src={project.videoSrc}
                           title={project.videoTitle ?? `${project.title} video`}
+                          poster={project.videoPosterSrc}
                           muted
                           loop
                           playsInline
@@ -936,7 +948,7 @@ export default function StoryPlayer() {
             zIndex: 4,
           }}
         >
-          <ExperienceSection active={onExperience} />
+          <ExperienceSection />
         </div>
       ) : null}
 
