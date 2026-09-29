@@ -162,6 +162,7 @@ export type ProjectContent = {
       }
   )[];
   videoSrc?: string;
+  videoPosterSrc?: string;
   videoTitle?: string;
 };
 
@@ -251,6 +252,7 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
       'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
     ],
     videoSrc: '/mango.mp4',
+    videoPosterSrc: '/mango-poster.jpg',
     videoTitle: 'Mango full-body gesture control demo',
   },
 ];
@@ -489,7 +491,7 @@ export const TLDR_FOOTER_LINKS: readonly TldrFooterLink[] = [
   { key: 'email', label: 'email', href: 'mailto:ryankim373@gmail.com' },
 ];
 
-// Image frames to preload on mount (videos load on demand).
+// Image frames to preload on mount (videos load on demand; their posters don't).
 export const ALL_PRELOAD_FRAMES: readonly string[] = [
   ...landingFrames,
   ...trainSequenceFrames,
@@ -504,4 +506,5 @@ export const ALL_PRELOAD_FRAMES: readonly string[] = [
   projectStills.rebase,
   projectStills.mango,
   ABOUT_REFERENCE_IMAGE,
+  ...PROJECT_CONTENT.flatMap((project) => (project.videoPosterSrc ? [project.videoPosterSrc] : [])),
 ];
