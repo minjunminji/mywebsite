@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   title: 'ryan kim',
   description: 'Hand-drawn animation personal website',
   icons: {
-    icon: '/favicon.png',
+    icon: '/favicon-48.png',
   },
 };
 

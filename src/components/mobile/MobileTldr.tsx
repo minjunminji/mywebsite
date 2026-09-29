@@ -1,16 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import TldrContent from '@/components/story/TldrContent';
-import { landingFrames } from '@/components/story/storyData';
+import { frameLoader } from '@/components/story/frameLoader';
+import { MOBILE_QUERY } from './breakpoint';
+
+const landingFrames = Array.from({ length: 4 }, (_, i) => `/Animation/mobile/landingloop${i + 1}.webp`);
 
 // Same pace as the desktop landing loop.
 const LOOP_INTERVAL_MS = 180;
-// The station strip inside the 16:9 landing frames, as fractions of the frame.
-// The loop is cropped to exactly this and fit to the full screen width.
-const LANDING_CROP = { x: 0, y: 490 / 1080, w: 1, h: 520 / 1080 };
-const FRAME_ASPECT = 16 / 9;
-
 /**
  * The mobile site: just the TLDR reader as a normal scrolling page, with the
  * landing loop at the bottom. The scene engine is mouse-and-landscape shaped,
@@ -55,45 +53,65 @@ export default function MobileTldr() {
   );
 }
 
-// All frames stay mounted and only the current one is visible, so swapping
-// never waits on a decode.
+// The first frame can load near the viewport. Decode the remaining frames
+// only when this artwork is nearby and the visitor wants animation.
 function LandingLoop() {
+  const root = useRef<HTMLDivElement>(null);
   const [frame, setFrame] = useState(0);
+  const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!window.matchMedia(MOBILE_QUERY).matches) return;
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let cancelled = false;
+    let nearby = false;
+    const update = async () => {
+      if (motion.matches || !nearby) { setAnimate(false); setFrame(0); return; }
+      const ready = await Promise.all(landingFrames.map((src) => frameLoader.load(src)));
+      if (!cancelled && !motion.matches && nearby) setAnimate(ready.every(Boolean));
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      nearby = entry.isIntersecting;
+      void update();
+    }, { rootMargin: '200px' });
+    if (root.current) observer.observe(root.current);
+    motion.addEventListener('change', update);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+      motion.removeEventListener('change', update);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!animate) return;
     const id = window.setInterval(
       () => setFrame((f) => (f + 1) % landingFrames.length),
       LOOP_INTERVAL_MS,
     );
     return () => window.clearInterval(id);
-  }, []);
+  }, [animate]);
 
   return (
     <div
+      ref={root}
       aria-hidden
-      style={{
-        position: 'relative',
-        // Crop box aspect: the crop's share of a 16:9 frame.
-        aspectRatio: `${LANDING_CROP.w * FRAME_ASPECT} / ${LANDING_CROP.h}`,
-        flexShrink: 0,
-        overflow: 'hidden',
-      }}
+      style={{ position: 'relative', aspectRatio: '1920 / 520', flexShrink: 0, overflow: 'hidden' }}
     >
-      {landingFrames.map((src, idx) => (
+      {(animate ? landingFrames : landingFrames.slice(0, 1)).map((src, idx) => (
         <img
           key={src}
           src={src}
           alt=""
+          loading="lazy"
+          width={960}
+          height={260}
           draggable={false}
           style={{
             position: 'absolute',
-            // Scale/offset the full frame so LANDING_CROP fills this box.
-            left: `${(-LANDING_CROP.x / LANDING_CROP.w) * 100}%`,
-            top: `${(-LANDING_CROP.y / LANDING_CROP.h) * 100}%`,
-            width: `${100 / LANDING_CROP.w}%`,
-            height: `${100 / LANDING_CROP.h}%`,
-            maxWidth: 'none',
+            inset: 0,
+            width: '100%',
+            height: '100%',
             visibility: idx === frame ? 'visible' : 'hidden',
           }}
         />

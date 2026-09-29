@@ -6,6 +6,7 @@ import { createRevealRenderer } from '@/components/reveal/revealRenderer';
 
 interface RevealFluidProps {
   referenceImage: string;
+  active?: boolean;
   /** Radius of the reveal blob in UV space (default 0.15) */
   pointerRadius?: number;
   /** How many seconds blobs take to fade (default 2.5) */
@@ -16,6 +17,7 @@ interface RevealFluidProps {
 
 export default function RevealFluid({
   referenceImage,
+  active = true,
   pointerRadius = 0.15,
   fadeDuration = 2.5,
   blobStrength = 0.12,
@@ -24,7 +26,7 @@ export default function RevealFluid({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !active) return;
 
     let destroyed = false;
     let animFrameId: number | null = null;
@@ -151,7 +153,7 @@ export default function RevealFluid({
     const reducedMotionMq = window.matchMedia('(prefers-reduced-motion: reduce)');
 
     function scaleByPixelRatio(v: number) {
-      return Math.floor(v * (window.devicePixelRatio || 1));
+      return Math.floor(v * Math.min(window.devicePixelRatio || 1, 2));
     }
 
     function frame(now: number) {
@@ -216,7 +218,7 @@ export default function RevealFluid({
       window.removeEventListener('touchend', onPointerLeave);
       renderer.dispose();
     };
-  }, [referenceImage, pointerRadius, fadeDuration, blobStrength]);
+  }, [referenceImage, pointerRadius, fadeDuration, blobStrength, active]);
 
   return (
     <div

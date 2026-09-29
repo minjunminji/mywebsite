@@ -488,20 +488,3 @@ export const TLDR_FOOTER_LINKS: readonly TldrFooterLink[] = [
   },
   { key: 'email', label: 'email', href: 'mailto:ryankim373@gmail.com' },
 ];
-
-// Image frames to preload on mount (videos load on demand).
-export const ALL_PRELOAD_FRAMES: readonly string[] = [
-  ...landingFrames,
-  ...trainSequenceFrames,
-  ...trainLoopFrames,
-  ...trans1Frames,
-  ...aboutFrames,
-  ...trans2Frames,
-  ...turnstileFrames,
-  turnstileBackgroundFrame,
-  turnstileBackgroundFrameTwo,
-  projectStills.thisWebsite,
-  projectStills.rebase,
-  projectStills.mango,
-  ABOUT_REFERENCE_IMAGE,
-];
