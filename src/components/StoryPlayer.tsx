@@ -9,7 +9,6 @@ import {
   ABOUT_PIANO_LINE,
   ABOUT_PIANO_LINE_INDEX,
   ABOUT_REFERENCE_IMAGE,
-  ALL_PRELOAD_FRAMES,
   SOCIAL_LINKS,
   PROJECT_CONTENT,
   firstProjectIndex,
@@ -32,6 +31,8 @@ import ExperienceSection from '@/components/experience/ExperienceSection';
 import { useScrollFade } from '@/components/useScrollFade';
 import { usePiano } from '@/components/piano/PianoContext';
 import { MOBILE_QUERY } from '@/components/mobile/breakpoint';
+import { frameLoader } from '@/components/story/frameLoader';
+import ProjectVideo from '@/components/story/ProjectVideo';
 
 // Heavy (figures, WebGL) and rarely opened: load on first open only.
 const loadShaderExplainer = () => import('@/components/explainer/ShaderExplainer');
@@ -109,18 +110,6 @@ export default function StoryPlayer() {
     setExplainerMounted(true);
     setExplainerOpen(true);
   };
-  // The tldr button fades in with the nav on the landing; gate its click (and the
-  // whole corner cluster) on that fade finishing — mirrors the nav's interactive
-  // gate so the cursor doesn't blob a button that hasn't fully appeared yet.
-  const [cornerInteractive, setCornerInteractive] = useState(false);
-  useEffect(() => {
-    if (!introDone) {
-      setCornerInteractive(false);
-      return undefined;
-    }
-    const id = window.setTimeout(() => setCornerInteractive(true), 750 + 800);
-    return () => window.clearTimeout(id);
-  }, [introDone]);
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
     : null;
@@ -162,50 +151,34 @@ export default function StoryPlayer() {
     maskImage: projectMask,
   } = useScrollFade({ fadeBottom: true });
 
-  // Preload frame images once. Skipped on phones: this mounts there for one
-  // hydration pass before ResponsiveStory swaps it out.
+  // Decode a short window ahead. Keep the previous drawing visible while a
+  // slow connection catches up; no unrelated scenes compete with the intro.
   useEffect(() => {
-    if (window.matchMedia(MOBILE_QUERY).matches) return;
-    ALL_PRELOAD_FRAMES.forEach((src) => {
-      const image = new Image();
-      image.src = src;
-    });
-  }, []);
-
-  // Intro: landing loop x2 -> 20-frame train build -> hand off to player.
-  useEffect(() => {
-    if (introPhase === 'landing') {
-      let frame = 0;
-      let loops = 0;
-      setIntroFrame(landingFrames[0]);
-      const id = window.setInterval(() => {
-        frame = (frame + 1) % landingFrames.length;
-        setIntroFrame(landingFrames[frame]);
-        if (frame === 0) {
-          loops += 1;
-          if (loops >= LANDING_LOOP_REPEATS) {
-            window.clearInterval(id);
-            setIntroPhase('trainSequence');
-          }
-        }
-      }, LANDING_LOOP_INTERVAL_MS);
-      return () => window.clearInterval(id);
+    if (introPhase === 'done' || window.matchMedia(MOBILE_QUERY).matches) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIntroPhase('done');
+      return;
     }
-    if (introPhase === 'trainSequence') {
-      let frame = 0;
-      setIntroFrame(trainSequenceFrames[0]);
-      const id = window.setInterval(() => {
-        frame += 1;
-        if (frame >= trainSequenceFrames.length) {
-          window.clearInterval(id);
-          setIntroPhase('done');
-          return;
-        }
-        setIntroFrame(trainSequenceFrames[frame]);
-      }, TRAIN_SEQUENCE_INTERVAL_MS);
-      return () => window.clearInterval(id);
-    }
-    return undefined;
+    const frames = introPhase === 'landing'
+      ? Array.from({ length: LANDING_LOOP_REPEATS }, () => [...landingFrames]).flat()
+      : trainSequenceFrames;
+    const interval = introPhase === 'landing' ? LANDING_LOOP_INTERVAL_MS : TRAIN_SEQUENCE_INTERVAL_MS;
+    let cancelled = false;
+    let timer = 0;
+    let index = 0;
+    const advance = async () => {
+      frameLoader.prefetch(frames, index);
+      const ready = await frameLoader.load(frames[index]);
+      if (cancelled) return;
+      if (ready) setIntroFrame(frames[index]);
+      index += 1;
+      timer = window.setTimeout(() => {
+        if (index < frames.length) void advance();
+        else setIntroPhase(introPhase === 'landing' ? 'trainSequence' : 'done');
+      }, interval);
+    };
+    void advance();
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [introPhase]);
 
   // Train art composites with multiply only during the train build and the
@@ -213,7 +186,7 @@ export default function StoryPlayer() {
   const useTrainBlend =
     introPhase === 'trainSequence' ||
     (introDone && !player.isTransitioning && player.currentStop === 0);
-  const frame = introDone ? player.displayFrame : introFrame;
+  const frame = introDone ? player.displayFrame || introFrame : introFrame;
   // Only show the project backdrop while both ends of the move are projects —
   // so it fades in on arrival (forward) and fades out at the start (backward),
   // and stays put when moving between projects.
@@ -227,7 +200,7 @@ export default function StoryPlayer() {
       {/* Background layer 1. Lazy so the hidden server-rendered copy on phones
           doesn't fetch it (see ResponsiveStory); on desktop it's in view anyway. */}
       <img
-        src={turnstileBackgroundFrame}
+        src={showProjectBg ? turnstileBackgroundFrame : undefined}
         alt=""
         aria-hidden
         loading="lazy"
@@ -236,7 +209,7 @@ export default function StoryPlayer() {
       />
       {/* Background layer 2 */}
       <img
-        src={turnstileBackgroundFrameTwo}
+        src={showProjectBg ? turnstileBackgroundFrameTwo : undefined}
         alt=""
         aria-hidden
         loading="lazy"
@@ -246,6 +219,8 @@ export default function StoryPlayer() {
       {/* Main frame */}
       <img
         src={frame}
+        loading="lazy"
+        fetchPriority="high"
         alt="Hand-drawn animated scene"
         draggable={false}
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', opacity: goingToExperience ? 0 : 1, transition: goingToExperience ? 'opacity 600ms ease' : 'opacity 360ms ease', zIndex: 1 }}
@@ -270,7 +245,7 @@ export default function StoryPlayer() {
       />
 
       {/* Reveal effect — only when parked on about */}
-      {onAbout ? <RevealFluid referenceImage={ABOUT_REFERENCE_IMAGE} /> : null}
+      {onAbout ? <RevealFluid referenceImage={ABOUT_REFERENCE_IMAGE} active={!tldrOpen && !explainerOpen} /> : null}
 
       {/* ===== PORT BLOCK A: about section ===== */}
       {onAbout ? (
@@ -383,7 +358,7 @@ export default function StoryPlayer() {
       ) : null}
 
       {/* ===== Top-right corner cluster: [ tldr ] [ social icons ] =====
-          One right-anchored flex row. tldr fades in with the nav on the landing
+          One right-anchored flex row. tldr is immediately available
           and sits alone in the corner; off-home the social wrapper expands and
           the row grows leftward, sliding tldr aside. */}
       <div
@@ -396,10 +371,9 @@ export default function StoryPlayer() {
           display: 'flex',
           alignItems: 'center',
           gap: '0.4rem',
-          opacity: introDone ? 1 : 0,
-          // Match the nav's intro fade exactly so tldr blooms alongside it.
-          transition: 'opacity 800ms ease 750ms',
-          pointerEvents: cornerInteractive ? 'auto' : 'none',
+          // The readable portfolio is available even while intro frames load.
+          opacity: 1,
+          pointerEvents: 'auto',
           zIndex: 20,
         }}
       >
@@ -819,15 +793,14 @@ export default function StoryPlayer() {
 
                             if (item.kind === 'video') {
                               return (
-                                <video
+                                <ProjectVideo
+                                  active={isActiveMedia && onProject && !tldrOpen && !explainerOpen}
                                   key={`${project.key}-media-video-${item.src}`}
                                   src={item.src}
                                   title={item.title ?? `${project.title} media`}
                                   poster={item.posterSrc}
-                                  preload="auto"
                                   muted
                                   loop
-                                  autoPlay
                                   playsInline
                                   style={{
                                     position: 'absolute',
@@ -936,14 +909,13 @@ export default function StoryPlayer() {
                           aspectRatio: '16 / 9',
                         }}
                       >
-                        <video
+                        <ProjectVideo
+                          active={onProject && !tldrOpen && !explainerOpen}
                           src={project.videoSrc}
                           title={project.videoTitle ?? `${project.title} video`}
                           poster={project.videoPosterSrc}
-                          preload="auto"
                           muted
                           loop
-                          autoPlay
                           playsInline
                           style={{
                             width: '100%',

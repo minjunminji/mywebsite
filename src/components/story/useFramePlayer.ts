@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SEGMENTS, STOPS } from '@/components/story/storyData';
 import { buildFrameQueue } from '@/components/story/frameQueue';
+import { frameLoader } from '@/components/story/frameLoader';
 import { NAV_ASSEMBLY_MS, fillWindowT } from '@/components/story/navTiming';
 
 const LOOP_INTERVAL_MS = 180;
@@ -11,11 +12,6 @@ const SKIP_SPEED_MULTIPLIER = 2;
 // A leg with no frames (mango <-> experience) still runs as a brief timed
 // transition so the outgoing content fades out instead of hard-cutting.
 const EMPTY_SEGMENT_HOLD_MS = 600;
-
-function restFrame(index: number): string {
-  const stop = STOPS[index];
-  return stop.loop?.[0] ?? stop.still ?? '';
-}
 
 // Smooth ease-in-out (cubic) for the nav fill sweep.
 function easeInOut(t: number): number {
@@ -47,7 +43,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
   const [currentStop, setCurrentStop] = useState(0);
   const [target, setTarget] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [displayFrame, setDisplayFrame] = useState(restFrame(0));
+  const [displayFrame, setDisplayFrame] = useState('');
   const [fillProgress, setFillProgress] = useState(0);
   const [navDir, setNavDir] = useState(1);
 
@@ -67,21 +63,23 @@ export function useFramePlayer(active: boolean): FramePlayer {
 
     const stop = STOPS[currentStop];
 
-    if (!stop.loop) {
-      setDisplayFrame(stop.still ?? '');
-      return;
-    }
-
-    const frames = stop.loop;
+    const frames = stop.loop ?? [stop.still ?? ''];
     let frame = 0;
-    setDisplayFrame(frames[0]);
-
-    const id = window.setInterval(() => {
+    let cancelled = false;
+    let timer = 0;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const advance = async () => {
+      if (!reducedMotion) frameLoader.prefetch(frames, frame);
+      const src = frames[frame];
+      const ready = !src || await frameLoader.load(src);
+      if (cancelled) return;
+      if (ready) setDisplayFrame(src);
+      if (!stop.loop || reducedMotion) return;
       frame = (frame + 1) % frames.length;
-      setDisplayFrame(frames[frame]);
-    }, LOOP_INTERVAL_MS);
-
-    return () => window.clearInterval(id);
+      timer = window.setTimeout(() => { void advance(); }, LOOP_INTERVAL_MS);
+    };
+    void advance();
+    return () => { cancelled = true; window.clearTimeout(timer); };
   }, [active, isTransitioning, currentStop]);
 
   // Transitioning: play the frame queue at a fixed FPS, while the nav fill
@@ -95,6 +93,7 @@ export function useFramePlayer(active: boolean): FramePlayer {
     let rafId = 0;
     let frameClock = 0;
     let startTime = 0;
+    let lastTick = 0;
     const from = fillFromRef.current;
     const to = targetRef.current;
     // Skips (2+ stops) run at double speed and fill linearly so the ink tracks
@@ -112,6 +111,19 @@ export function useFramePlayer(active: boolean): FramePlayer {
       if (startTime === 0) {
         startTime = timestamp;
         frameClock = timestamp;
+        lastTick = timestamp;
+      }
+      const elapsed = timestamp - lastTick;
+      lastTick = timestamp;
+      const queue = queueRef.current;
+      const nextFrame = queue[queueIndexRef.current];
+      frameLoader.prefetch(queue, queueIndexRef.current);
+      if (nextFrame && frameLoader.status(nextFrame) === undefined) {
+        // Keep the drawing and nav in sync while the next frame decodes.
+        startTime += elapsed;
+        frameClock += elapsed;
+        rafId = window.requestAnimationFrame(tick);
+        return;
       }
 
       // Fill across the transition window (linear for skips, eased otherwise),
@@ -132,7 +144,9 @@ export function useFramePlayer(active: boolean): FramePlayer {
           return;
         }
 
-        setDisplayFrame(queue[queueIndexRef.current]);
+        if (frameLoader.status(queue[queueIndexRef.current])) {
+          setDisplayFrame(queue[queueIndexRef.current]);
+        }
         queueIndexRef.current += 1;
       }
 

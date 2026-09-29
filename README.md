@@ -12,7 +12,7 @@ I am a junior Computer Engineering student at UBC, and I built this site to comb
 
 This portfolio is one continuous hand-drawn world:
 
-- a custom loading phase that preloads core assets
+- a decoded frame buffer that keeps the current drawing visible while upcoming frames load
 - a landing + train sequence
 - an interactive About section with a cursor-based reveal effect
 - a Projects section whose illustrated scenes you move through
@@ -46,10 +46,11 @@ A persistent story nav — which doubles as a progress indicator — is the only
 Recent improvements:
 
 - Converted heavy scene assets to WebP
-- Added startup preloading before intro playback
-- Added windowed preloading as phases progress
+- Limited frame loading to four concurrent requests with a six-frame playback window
+- Deferred unrelated scenes until navigation and kept TLDR available during the intro
+- Paused hidden project videos and capped the About canvas at 2× pixel density
+- Added a small favicon and cropped mobile artwork that loads near the viewport
 - Switched scene fitting behavior to keep the full drawing visible (`contain`)
-- Added a loading overlay transition so users do not see partially loaded UI
 
 ## Local Development
 

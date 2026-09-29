@@ -85,6 +85,23 @@ const CANVAS_PAD = 28;
  *  is expensive. The extra transparent margin is free under difference. */
 const CANVAS_STEP = 32;
 
+/* ---- Iframe hand-off --------------------------------------------- */
+/** A cross-origin iframe (the YouTube player) runs in its own process under site
+ *  isolation, and the page gets NO event when the pointer crosses into it — no
+ *  pointerover, no pointerout, and :hover stays stale — so the dot would freeze
+ *  at the last position seen, just short of the edge. The only tell is that
+ *  pointermoves stop mid-motion. After this long (ms) without one, probe the
+ *  spots the pointer was heading for. */
+const IFRAME_PROBE_DELAY = 60;
+/** How far ahead to probe, in ms of the last velocity. The final event lands up
+ *  to one event interval (~8–33ms) short of the edge. A hand coming to rest has
+ *  slowed down first, so these points collapse onto the dot and a stop beside
+ *  the iframe doesn't trip it. */
+const IFRAME_PROBE_LOOKAHEAD_MS = [8, 16, 24, 32];
+/** A gap longer than this (ms) between moves means the pointer had stopped;
+ *  velocity from it is treated as zero. */
+const VELOCITY_MAX_GAP = 100;
+
 /* ---- Shader-side tunables (injected as GLSL float literals) ------- */
 /** Smooth-min radius in px (bigger = longer liquid bridge dot↔box). Sized to
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
@@ -397,6 +414,11 @@ export default function CustomCursor() {
     // A range slider being dragged. It stays wrapped while held even if the
     // pointer drifts off its rect, since the drag still belongs to it.
     let heldEl: Element | null = null;
+    // Pointer velocity (px/ms) from the last two moves, for the iframe probe.
+    let velX = 0;
+    let velY = 0;
+    let lastMoveTime: number | null = null;
+    let probeTimer: ReturnType<typeof setTimeout> | null = null;
     // True while the pointer is inside the window and the window is focused.
     let inWindow = false;
     // Last visibility we wrote, so we only touch the DOM when it flips.
@@ -662,8 +684,47 @@ export default function CustomCursor() {
     // not drive the cursor: there is no pointer to follow after the finger lifts.
     const isTouch = (e: PointerEvent) => e.pointerType === 'touch';
 
+    // The pointer went into an iframe, where the native cursor takes over. Hide
+    // ours; the next pointermove back in this document shows it again.
+    const hideForIframe = () => {
+      inWindow = false;
+      pressed = false;
+      if (mode === 'pinned') {
+        activeEl = null;
+        mode = 'releasing';
+      }
+      wake();
+    };
+    const probeForIframe = () => {
+      probeTimer = null;
+      if (!inWindow) return;
+      for (const t of IFRAME_PROBE_LOOKAHEAD_MS) {
+        const hit = document.elementFromPoint(pointerX + velX * t, pointerY + velY * t);
+        if (hit instanceof HTMLIFrameElement) {
+          hideForIframe();
+          return;
+        }
+      }
+    };
+
     const onPointerMove = (e: PointerEvent) => {
       if (isTouch(e)) return;
+      // Some browsers (no site isolation) do report moves over the iframe element.
+      if (e.target instanceof HTMLIFrameElement) {
+        hideForIframe();
+        return;
+      }
+      const gap = lastMoveTime === null ? Infinity : e.timeStamp - lastMoveTime;
+      if (gap > 0 && gap <= VELOCITY_MAX_GAP) {
+        velX = (e.clientX - pointerX) / gap;
+        velY = (e.clientY - pointerY) / gap;
+      } else if (gap > VELOCITY_MAX_GAP) {
+        velX = 0;
+        velY = 0;
+      }
+      lastMoveTime = e.timeStamp;
+      if (probeTimer !== null) clearTimeout(probeTimer);
+      probeTimer = setTimeout(probeForIframe, IFRAME_PROBE_DELAY);
       pointerX = e.clientX;
       pointerY = e.clientY;
       if (!hasPointer) {
@@ -695,13 +756,7 @@ export default function CustomCursor() {
       // shows the native cursor, so hide ours instead of freezing it at the
       // iframe's edge. The next pointermove back in this document shows it again.
       if (e.target instanceof HTMLIFrameElement) {
-        inWindow = false;
-        pressed = false;
-        if (mode === 'pinned') {
-          activeEl = null;
-          mode = 'releasing';
-        }
-        wake();
+        hideForIframe();
         return;
       }
       if (heldEl) return;
@@ -788,6 +843,7 @@ export default function CustomCursor() {
 
     return () => {
       destroyed = true;
+      if (probeTimer !== null) clearTimeout(probeTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
