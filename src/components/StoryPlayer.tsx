@@ -205,7 +205,7 @@ export default function StoryPlayer() {
         aria-hidden
         loading="lazy"
         draggable={false}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.25 : 0, transition: 'opacity 320ms ease', zIndex: 0 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.25 : 0, transition: 'opacity 800ms ease', zIndex: 0 }}
       />
       {/* Background layer 2 */}
       <img
@@ -214,7 +214,7 @@ export default function StoryPlayer() {
         aria-hidden
         loading="lazy"
         draggable={false}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.2 : 0, transition: 'opacity 320ms ease', zIndex: 0 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', pointerEvents: 'none', userSelect: 'none', opacity: showProjectBg ? 0.2 : 0, transition: 'opacity 800ms ease', zIndex: 0 }}
       />
       {/* Main frame */}
       <img
