@@ -109,6 +109,9 @@ export default function StoryPlayer() {
   const activeProject: ProjectContent | null = isProjectStop(player.currentStop)
     ? PROJECT_CONTENT[player.currentStop - firstProjectIndex]
     : null;
+  const nextProject = activeProject
+    ? PROJECT_CONTENT[player.currentStop - firstProjectIndex + 1]
+    : undefined;
   // Start fetching a project's video when the train heads for it rather than on
   // arrival, so the frames of the transition cover the download.
   const incomingProject: ProjectContent | null =
@@ -667,6 +670,10 @@ export default function StoryPlayer() {
                     onAction={openExplainer}
                     // Warm the chunk while the pointer is on its way.
                     onActionIntent={() => void loadShaderExplainer()}
+                    nextProject={nextProject ? {
+                      title: nextProject.title,
+                      onNavigate: () => player.navigateTo(stopIndexById(nextProject.key)),
+                    } : undefined}
                   />
                 </article>
               );

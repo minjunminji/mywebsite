@@ -224,6 +224,16 @@ main {
   border-radius: 2px;
 }
 
+.reader-next {
+  transition: opacity 240ms ease, text-decoration-color 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-next {
+    transition: none;
+  }
+}
+
 /* ---- shader explainer controls ---- */
 .ex-control-shelf {
   display: flex;

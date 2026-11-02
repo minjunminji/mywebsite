@@ -36,6 +36,7 @@ type Props = {
   onActiveChunk: (index: number) => void;
   onAction: (action: 'shaderExplainer') => void;
   onActionIntent?: (action: 'shaderExplainer') => void;
+  nextProject?: { title: string; onNavigate: () => void };
 };
 
 /** True if `target` sits inside something else that can scroll vertically. */
@@ -58,7 +59,7 @@ function ownsKeys(target: EventTarget | null): boolean {
   );
 }
 
-export default function ProjectReader({ chunks, active, onActiveChunk, onAction, onActionIntent }: Props) {
+export default function ProjectReader({ chunks, active, onActiveChunk, onAction, onActionIntent, nextProject }: Props) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLParagraphElement | null>(null);
   const chunkRefs = useRef<(HTMLSpanElement | null)[]>([]);
@@ -69,6 +70,7 @@ export default function ProjectReader({ chunks, active, onActiveChunk, onAction,
   const timelineRef = useRef(timeline);
 
   const readingY = Math.round(height * READING_SPOT);
+  const showNext = active && lit === chunks.length - 1;
 
   /** Place the text and light the chunk for the current scroll position. */
   const sync = () => {
@@ -285,6 +287,28 @@ export default function ProjectReader({ chunks, active, onActiveChunk, onAction,
                 )}{' '}
               </span>
             ))}
+            {nextProject ? (
+              <button
+                type="button"
+                className="inline-trigger reader-next"
+                onClick={nextProject.onNavigate}
+                disabled={!showNext}
+                aria-hidden={!showNext}
+                tabIndex={showNext ? 0 : -1}
+                style={{
+                  display: 'block',
+                  marginTop: '1.5rem',
+                  color: INK,
+                  fontSize: 'clamp(1rem, 1.2vw, 1.125rem)',
+                  lineHeight: 1.4,
+                  textAlign: 'left',
+                  opacity: showNext ? 1 : 0,
+                  visibility: showNext ? 'visible' : 'hidden',
+                }}
+              >
+                next project: {nextProject.title} →
+              </button>
+            ) : null}
           </p>
         </div>
       </div>
