@@ -3,9 +3,9 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NAV_ASSEMBLY_MS, NAV_DRAW_MS, NAV_GLIDE_MS } from '@/components/story/navTiming';
 import { NAV, isProjectStop, stopIndexById } from '@/components/story/storyData';
+import { INK, inkAlpha } from '@/theme';
 
-const INK = '#1f1812';
-const PALE_DOCKED = 'rgba(31, 24, 18, 0.28)';
+const PALE_DOCKED = inkAlpha(0.28);
 // Every fill reads the pale ink through this variable (see globals.css).
 const PALE = 'var(--nav-pale)';
 const EXPAND_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)';

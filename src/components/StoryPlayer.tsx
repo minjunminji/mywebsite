@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import dynamic from 'next/dynamic';
+import { INK, INK_SOFT, MEDIA_BG, PAPER, inkAlpha, paperAlpha } from '@/theme';
 import {
   ABOUT_FADE_DURATION_MS,
   ABOUT_INITIAL_DELAY_MS,
@@ -41,8 +42,8 @@ const ShaderExplainer = dynamic(loadShaderExplainer, { ssr: false });
 const LANDING_LOOP_INTERVAL_MS = 180;
 const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const LANDING_LOOP_REPEATS = 2; // idle loops before the train (~1.4s; was 4 / ~2.9s)
-const PAGE_BG = '#f7f7f5';
-const PAGE_BG_CLEAR = 'rgba(247, 247, 245, 0)';
+const PAGE_BG = PAPER;
+const PAGE_BG_CLEAR = paperAlpha(0);
 // Space under a project's media, lifting it off the bottom of the pane.
 const PROJECT_MEDIA_GAP = 'clamp(3rem, 8vh, 5rem)';
 // Media without carousel dots adds the dots row's height (0.7rem margin +
@@ -181,8 +182,10 @@ export default function StoryPlayer() {
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [introPhase]);
 
-  // Train art composites with multiply only during the train build and the
-  // parked landing loop (matches the original scene).
+  // Train art composites with screen only during the train build and the
+  // parked landing loop (matches the original scene). Those frames are opaque
+  // white; once inverted (.ink-art) screen drops their black ground onto the
+  // blue page.
   const useTrainBlend =
     introPhase === 'trainSequence' ||
     (introDone && !player.isTransitioning && player.currentStop === 0);
@@ -201,6 +204,7 @@ export default function StoryPlayer() {
           doesn't fetch it (see ResponsiveStory); on desktop it's in view anyway. */}
       <img
         src={showProjectBg ? turnstileBackgroundFrame : undefined}
+        className="ink-art-recessed"
         alt=""
         aria-hidden
         loading="lazy"
@@ -210,6 +214,7 @@ export default function StoryPlayer() {
       {/* Background layer 2 */}
       <img
         src={showProjectBg ? turnstileBackgroundFrameTwo : undefined}
+        className="ink-art-recessed"
         alt=""
         aria-hidden
         loading="lazy"
@@ -219,11 +224,12 @@ export default function StoryPlayer() {
       {/* Main frame */}
       <img
         src={frame}
+        className="ink-art"
         loading="lazy"
         fetchPriority="high"
         alt="Hand-drawn animated scene"
         draggable={false}
-        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'multiply' : 'normal', opacity: goingToExperience ? 0 : 1, transition: goingToExperience ? 'opacity 600ms ease' : 'opacity 360ms ease', zIndex: 1 }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center', userSelect: 'none', mixBlendMode: useTrainBlend ? 'screen' : 'normal', opacity: goingToExperience ? 0 : 1, transition: goingToExperience ? 'opacity 600ms ease' : 'opacity 360ms ease', zIndex: 1 }}
       />
 
       {/* Soft edge fade so the train drawing blends into the page. Sized to the
@@ -268,7 +274,7 @@ export default function StoryPlayer() {
             style={{
               width: '100%',
               maxWidth: '28rem',
-              color: '#1f1812',
+              color: INK,
               fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
               fontWeight: 400,
               fontSize: 'clamp(0.95rem, 1.25vw, 1.2rem)',
@@ -407,7 +413,7 @@ export default function StoryPlayer() {
                 fontFamily: 'var(--font-alte-haas-grotesk), Arial, sans-serif',
                 fontSize: 'clamp(1rem, 1.3vw, 1.35rem)',
                 lineHeight: 1,
-                color: '#1f1812',
+                color: INK,
                 opacity: showPianoNote ? 0.9 : 0,
                 transition: `opacity 360ms ease ${showPianoNote ? '120ms' : '0ms'}`,
                 whiteSpace: 'nowrap',
@@ -438,7 +444,7 @@ export default function StoryPlayer() {
             letterSpacing: '0.03em',
             textTransform: 'lowercase',
             lineHeight: 1,
-            color: '#1f1812',
+            color: INK,
             opacity: 0.9,
             whiteSpace: 'nowrap',
             // Lowercase "tldr" has no descenders, so it sits optically high next
@@ -492,11 +498,12 @@ export default function StoryPlayer() {
                   justifyContent: 'center',
                   width: '2rem',
                   height: '2rem',
-                  color: '#1f1812',
+                  color: INK,
                 }}
               >
                 <img
                   src={link.icon}
+                  className="ink-art"
                   alt=""
                   width={18}
                   height={18}
@@ -569,7 +576,7 @@ export default function StoryPlayer() {
                     flex: '1 1 auto',
                     minHeight: 0,
                     gap: '1.1rem',
-                    color: '#1f1812',
+                    color: INK,
                     fontFamily: "var(--font-alte-haas-grotesk), Arial, sans-serif",
                     paddingBottom: '0.5rem',
                     animation: 'projectSlideIn 460ms cubic-bezier(0.16, 1, 0.3, 1) both',
@@ -606,7 +613,7 @@ export default function StoryPlayer() {
                             display: 'inline-flex',
                             alignItems: 'center',
                             gap: '0.35rem',
-                            color: '#1f1812',
+                            color: INK,
                             textDecoration: showUnderline ? 'underline' : 'none',
                             textDecorationThickness: '2px',
                             textUnderlineOffset: '0.2em',
@@ -663,7 +670,7 @@ export default function StoryPlayer() {
                         lineHeight: 1.25,
                         fontWeight: 700,
                         letterSpacing: '0.03em',
-                        color: '#4a3f33',
+                        color: INK_SOFT,
                         pointerEvents: 'none',
                       }}
                     >
@@ -732,10 +739,10 @@ export default function StoryPlayer() {
                       <figure
                         style={{
                           margin: 0,
-                          border: '1.5px solid #1f1812',
+                          border: `1.5px solid ${INK}`,
                           borderRadius: '12px',
                           overflow: 'hidden',
-                          background: '#f0eadf',
+                          background: MEDIA_BG,
                         }}
                       >
                         <img
@@ -756,7 +763,7 @@ export default function StoryPlayer() {
                             margin: '0.35rem 0 0',
                             fontSize: '0.78rem',
                             lineHeight: 1.25,
-                            color: '#4a3f33',
+                            color: INK_SOFT,
                           }}
                         >
                           {project.imageCaption}
@@ -778,7 +785,7 @@ export default function StoryPlayer() {
                           margin: 0,
                           borderRadius: '12px',
                           overflow: 'hidden',
-                          background: '#f0eadf',
+                          background: MEDIA_BG,
                         }}
                       >
                         <div
@@ -849,7 +856,7 @@ export default function StoryPlayer() {
                             margin: '0.35rem 0 0',
                             fontSize: '0.78rem',
                             lineHeight: 1.25,
-                            color: '#4a3f33',
+                            color: INK_SOFT,
                           }}
                         >
                           {activeCarouselItem.caption}
@@ -879,7 +886,7 @@ export default function StoryPlayer() {
                                 height: '0.54rem',
                                 borderRadius: '999px',
                                 border: 'none',
-                                background: isActive ? '#1f1812' : 'rgba(31, 24, 18, 0.32)',
+                                background: isActive ? INK : inkAlpha(0.32),
                                 cursor: 'pointer',
                                 transition: 'width 180ms ease, background-color 180ms ease',
                                 padding: 0,
@@ -899,7 +906,7 @@ export default function StoryPlayer() {
                         flexShrink: 0,
                         borderRadius: '12px',
                         overflow: 'hidden',
-                        background: '#f0eadf',
+                        background: MEDIA_BG,
                         pointerEvents: 'auto',
                       }}
                     >

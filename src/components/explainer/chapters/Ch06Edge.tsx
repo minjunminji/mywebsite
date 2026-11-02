@@ -9,7 +9,7 @@ import { ControlDisclosure, ControlGroup, Slider, Toggle } from '../figure/contr
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
-import { MUTED, PAPER, RULE, SANS } from '../tokens';
+import { MUTED, PAPER, RULE, SANS, TEXT } from '../tokens';
 import { useRevealCanvas } from '../useRevealCanvas';
 
 type Octaves = 0 | 1 | 2 | 3 | 4;
@@ -106,8 +106,7 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
     const sy = py - REGION / 2;
 
     lctx.imageSmoothingEnabled = false;
-    lctx.fillStyle = PAPER;
-    lctx.fillRect(0, 0, loupe.width, loupe.height);
+    lctx.clearRect(0, 0, loupe.width, loupe.height);
 
     // The underlay <img> beneath the WebGL canvas, cropped to the same
     // window. Both show exactly ABOUT_CROP of the frame, so canvas pixels map
@@ -120,7 +119,16 @@ function EdgeFigure({ edge, view }: { edge: EdgeParams; view: ViewMode }) {
       const iw = (REGION / canvas.width) * cw * img.naturalWidth;
       const ih = (REGION / canvas.height) * ch * img.naturalHeight;
       lctx.drawImage(img, ix, iy, iw, ih, 0, 0, loupe.width, loupe.height);
+      // drawImage ignores the underlay's CSS invert, so recolor its dark
+      // strokes to the ink here: keep their alpha, swap in white.
+      lctx.globalCompositeOperation = 'source-in';
+      lctx.fillStyle = TEXT;
+      lctx.fillRect(0, 0, loupe.width, loupe.height);
     }
+    lctx.globalCompositeOperation = 'destination-over';
+    lctx.fillStyle = PAPER;
+    lctx.fillRect(0, 0, loupe.width, loupe.height);
+    lctx.globalCompositeOperation = 'source-over';
     lctx.drawImage(canvas, sx, sy, REGION, REGION, 0, 0, loupe.width, loupe.height);
   }, []);
 

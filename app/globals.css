@@ -1,5 +1,9 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+  /* White ink on blueprint blue. Keep in sync with src/theme.ts. */
+  --paper: #0041ba;
+  --ink: #ffffff;
+  --muted: #a6bce7;
 }
 
 * {
@@ -22,9 +26,21 @@ body::-webkit-scrollbar {
 }
 
 body {
-  background: #f7f7f5;
-  color: #1e1a16;
+  background: var(--paper);
+  color: var(--ink);
   font-family: var(--font-alte-haas-grotesk), Arial, sans-serif;
+}
+
+/* Hand-drawn frames and the black icon PNGs are dark ink on transparent;
+   inverting turns them into white ink on the blue page. */
+.ink-art {
+  filter: invert(1);
+}
+
+/* Backdrop linework sits behind the scene as dark navy rather than white:
+   black strokes at low opacity over the blue, so white stays the foreground's. */
+.ink-art-recessed {
+  filter: brightness(0);
 }
 
 /* When the custom cursor is active it adds this class to <html>. The
@@ -83,7 +99,7 @@ main {
 
 /* Keyboard focus for the experience lens toggle (both words are visible). */
 .exp-lens:focus-visible {
-  outline: 2px solid #1f1812;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -107,7 +123,7 @@ main {
    position. */
 .custom-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(31, 24, 18, 0.28) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
   scrollbar-gutter: stable;
 }
 
@@ -120,12 +136,12 @@ main {
 }
 
 .custom-scroll::-webkit-scrollbar-thumb {
-  background: rgba(31, 24, 18, 0.28);
+  background: rgba(255, 255, 255, 0.28);
   border-radius: 999px;
 }
 
 .custom-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(31, 24, 18, 0.45);
+  background: rgba(255, 255, 255, 0.45);
 }
 
 /* Both layouts are server-rendered so the first paint has content; this picks
@@ -150,7 +166,7 @@ main {
 @property --nav-pale {
   syntax: '<color>';
   inherits: true;
-  initial-value: rgba(31, 24, 18, 0.28);
+  initial-value: rgba(255, 255, 255, 0.28);
 }
 
 /* The piano player's first-open hint animates this one value: how far the
@@ -196,7 +212,7 @@ main {
 }
 
 .inline-trigger:focus-visible {
-  outline: 2px solid #1f1812;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -208,9 +224,9 @@ main {
   align-items: flex-start;
   gap: 1.1rem 2.4rem;
   padding: 1rem 1.1rem 1.05rem;
-  border-top: 1px solid rgba(31, 24, 18, 0.12);
-  border-bottom: 1px solid rgba(31, 24, 18, 0.08);
-  background: rgba(31, 24, 18, 0.025);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .ex-control-group {
@@ -220,7 +236,7 @@ main {
 .ex-control-group-label,
 .ex-control-disclosure > summary {
   margin-bottom: 0.65rem;
-  color: #6f655a;
+  color: var(--muted);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -243,14 +259,14 @@ main {
 }
 
 .ex-control-label {
-  color: #6f655a;
+  color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.2;
 }
 
 .ex-readout {
   display: inline-block;
-  color: #1f1812;
+  color: var(--ink);
   font-family: var(--font-inconsolata), monospace;
   font-size: 0.86rem;
   font-variant-numeric: tabular-nums;
@@ -268,9 +284,9 @@ main {
   display: inline-flex;
   overflow: hidden;
   padding: 2px;
-  border: 1px solid rgba(31, 24, 18, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 4px;
-  background: rgba(247, 247, 245, 0.7);
+  background: rgba(0, 65, 186, 0.7);
 }
 
 .ex-toggle {
@@ -286,20 +302,20 @@ main {
   min-height: 1.85rem;
   padding: 0.28rem 0.65rem;
   border-radius: 2px;
-  color: #6f655a;
+  color: var(--muted);
   font-size: 0.75rem;
   line-height: 1;
   transition: color 140ms ease, background-color 140ms ease;
 }
 
 .ex-segmented .ex-toggle:not(:disabled):hover {
-  color: #1f1812;
+  color: var(--ink);
 }
 
 .ex-segmented .ex-toggle[aria-pressed='true'] {
-  color: #1f1812;
-  background: rgba(31, 24, 18, 0.1);
-  box-shadow: inset 0 -2px #c8412b;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 -2px var(--ink);
 }
 
 .ex-toggle:disabled {
@@ -312,7 +328,7 @@ main {
 
 .ex-toggle:focus-visible,
 .ex-range:focus-visible {
-  outline: 2px solid #1f1812;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -338,12 +354,12 @@ main {
 
 .ex-range::-webkit-slider-runnable-track {
   height: 2px;
-  background: rgba(31, 24, 18, 0.35);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .ex-range::-moz-range-track {
   height: 2px;
-  background: rgba(31, 24, 18, 0.35);
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .ex-range::-webkit-slider-thumb {
@@ -352,21 +368,21 @@ main {
   height: 12px;
   margin-top: -5px;
   border-radius: 50%;
-  background: #f7f7f5;
-  border: 1.5px solid #1f1812;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
 }
 
 .ex-range::-moz-range-thumb {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #f7f7f5;
-  border: 1.5px solid #1f1812;
+  background: var(--paper);
+  border: 1.5px solid var(--ink);
 }
 
 .ex-control-disclosure {
   flex-basis: 100%;
-  border-top: 1px solid rgba(31, 24, 18, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 0.8rem;
 }
 
@@ -385,7 +401,7 @@ main {
 
 .ex-control-disclosure > summary::after {
   content: '+';
-  color: #c8412b;
+  color: var(--ink);
   font-size: 0.85rem;
 }
 
@@ -439,7 +455,7 @@ main {
   text-decoration-color: currentColor;
 }
 .ex-link:focus-visible {
-  outline: 2px solid #1f1812;
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: 2px;
 }

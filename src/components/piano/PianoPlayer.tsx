@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { INK, PAPER } from '@/theme';
 import { clampToViewport, type Point } from './pianoGeometry';
 import { useYouTubePlayer } from './useYouTubePlayer';
 
@@ -61,10 +62,9 @@ const SLOW_MS = 2_500;
 /** Where the fallback sends people when the embed can't load. */
 const WATCH_URL = `https://www.youtube.com/watch?v=${PIANO_VIDEO_ID}`;
 
-const INK = '#1f1812';
-/** The tab's outline: its border, the hint's walls, and the fillet. */
-const LINE = '#858585';
-const PAPER = '#f7f7f5';
+/** The tab's outline: its border, the hint's walls, and the fillet. Opaque
+ *  (white about halfway into the blue) so the overlapping strokes don't double up. */
+const LINE = '#8ca9e0';
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const MOVE_MS = 340;
 /** The window's opacity fade, in and out. */

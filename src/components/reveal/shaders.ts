@@ -17,8 +17,8 @@ export const DEFAULT_EDGE: EdgeParams = { threshold: 0.15, noiseAmp: 0.14, octav
 /** Display shader output: 0 = composite, 1 = raw mask, 2 = mask + noise field. */
 export type RevealView = 0 | 1 | 2;
 
-/** The explainer's accent (#c8412b) as linear-ish 0..1 RGB for u_accent. */
-export const ACCENT_RGB: readonly [number, number, number] = [0.784, 0.255, 0.169];
+/** The explainer's accent (white) as 0..1 RGB for u_accent. */
+export const ACCENT_RGB: readonly [number, number, number] = [1, 1, 1];
 
 export const QUAD_VS = `#version 300 es
   in vec2 a_position;
@@ -115,8 +115,8 @@ export const DISPLAY_FS = `#version 300 es
   uniform int u_view;
   uniform vec3 u_accent;
 
-  const vec3 PAPER = vec3(0.969, 0.969, 0.961); // #f7f7f5
-  const vec3 INK = vec3(0.122, 0.094, 0.071);   // #1f1812
+  const vec3 PAPER = vec3(0.0, 0.255, 0.729);   // #0041ba (src/theme.ts)
+  const vec3 INK = vec3(0.749, 0.816, 0.933);   // #bfd0ee (explainer INK)
 
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));

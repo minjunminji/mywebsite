@@ -14,7 +14,7 @@ import Ch06Edge from './chapters/Ch06Edge';
 import Hero from './chapters/Hero';
 import Outro from './chapters/Outro';
 import { ExplainerOpenContext } from './explainerContext';
-import { INK, PAGE_MAX, PAGE_TOP, PAPER, SANS } from './tokens';
+import { PAGE_MAX, PAGE_TOP, PAPER, SANS, TEXT } from './tokens';
 import { P, Prose, Row } from './layout';
 
 type ShaderExplainerProps = {
@@ -87,7 +87,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
           inset: 0,
           zIndex: 50,
           background: PAPER,
-          color: INK,
+          color: TEXT,
           opacity: visible ? 1 : 0,
           transition: 'opacity 300ms ease',
           pointerEvents: open ? 'auto' : 'none',
@@ -111,7 +111,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
             placeItems: 'center',
             border: 'none',
             background: 'transparent',
-            color: INK,
+            color: TEXT,
             cursor: 'pointer',
             padding: 0,
           }}
@@ -143,7 +143,7 @@ export default function ShaderExplainer({ open, onClose }: ShaderExplainerProps)
               fontFamily: SANS,
               fontSize: '1.25rem',
               lineHeight: 1.6,
-              color: INK,
+              color: TEXT,
             }}
           >
             <Row

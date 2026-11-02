@@ -2,8 +2,8 @@
 
 import { EXPERIENCE } from '@/components/story/storyData';
 import { useScrollFade } from '@/components/useScrollFade';
+import { INK } from '@/theme';
 
-const INK = '#1f1812';
 const FONT = "var(--font-alte-haas-grotesk), Arial, sans-serif";
 
 // The résumé is one column centered horizontally.

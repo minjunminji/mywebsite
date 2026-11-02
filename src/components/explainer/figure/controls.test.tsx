@@ -29,10 +29,10 @@ describe('figure controls', () => {
     expect(source).toContain('<summary>{label}</summary>');
   });
 
-  it('keeps selected text dark so the difference-blend cursor cannot erase it', () => {
+  it('keeps selected toggle text in full ink, not the page color', () => {
     const selectedRule = styles.match(/\.ex-segmented \.ex-toggle\[aria-pressed='true'\] \{([^}]+)\}/)?.[1];
     expect(selectedRule).toBeDefined();
-    expect(selectedRule).toContain('color: #1f1812');
-    expect(selectedRule).not.toContain('color: #f7f7f5');
+    expect(selectedRule).toContain('color: var(--ink)');
+    expect(selectedRule).not.toContain('color: var(--paper)');
   });
 });

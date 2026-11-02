@@ -5,9 +5,9 @@ import TldrContent from '@/components/story/TldrContent';
 import { DOCKED_CENTER_Y } from '@/components/story/StoryNav';
 import { useScrollFade } from '@/components/useScrollFade';
 import { useInertOutside } from '@/components/useInertOutside';
+import { INK, PAPER } from '@/theme';
 
-const INK = '#1f1812';
-const PAGE_BG = '#f7f7f5';
+const PAGE_BG = PAPER;
 
 type TldrOverlayProps = {
   open: boolean;

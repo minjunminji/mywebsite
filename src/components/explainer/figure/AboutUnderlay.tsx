@@ -29,6 +29,7 @@ export function AboutUnderlay({ imgRef }: { imgRef?: Ref<HTMLImageElement> }) {
     <img
       ref={imgRef}
       src={aboutFrames[0]}
+      className="ink-art"
       alt=""
       draggable={false}
       style={{

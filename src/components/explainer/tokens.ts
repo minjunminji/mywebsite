@@ -1,16 +1,22 @@
 // src/components/explainer/tokens.ts
-// Shared look for the shader explainer: the site's ink-on-paper, one accent.
-export const INK = '#1f1812';
-export const PAPER = '#f7f7f5';
-export const MUTED = '#6f655a';
-export const RULE = 'rgba(31, 24, 18, 0.12)';
-export const FAINT = 'rgba(31, 24, 18, 0.35)';
-/** The one accent: "the thing under discussion" in every figure. */
-export const ACCENT = '#c8412b';
+// Shared look for the shader explainer: the site's white-on-blueprint, with
+// figure ink knocked back so full white can mark the thing under discussion.
+import { INK as SITE_INK, PAPER, PAPER_RGB } from '@/theme';
+
+export { PAPER, PAPER_RGB };
+/** Prose: the site's full ink. */
+export const TEXT = SITE_INK;
+/** Figure ink: white ~75% of the way out of the blue, opaque for canvas use. */
+export const INK = '#bfd0ee';
+export const MUTED = '#a6bce7';
+export const RULE = 'rgba(255, 255, 255, 0.18)';
+export const FAINT = 'rgba(255, 255, 255, 0.4)';
+/** The one accent: "the thing under discussion" in every figure. Full white. */
+export const ACCENT = SITE_INK;
 
 /** ACCENT / INK as 0..255 RGB triples, for canvas fillStyle alpha compositing. */
-export const ACCENT_RGB: readonly [number, number, number] = [200, 65, 43];
-export const INK_RGB: readonly [number, number, number] = [31, 24, 18];
+export const ACCENT_RGB: readonly [number, number, number] = [255, 255, 255];
+export const INK_RGB: readonly [number, number, number] = [191, 208, 238];
 
 export const SANS = 'var(--font-alte-haas-grotesk), Arial, sans-serif';
 export const MONO = 'var(--font-inconsolata), monospace';
