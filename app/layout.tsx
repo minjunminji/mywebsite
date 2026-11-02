@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import type { Viewport } from 'next';
 import type { ReactNode } from 'react';
-import { Inconsolata } from 'next/font/google';
+import { Caveat, Inconsolata } from 'next/font/google';
 import localFont from 'next/font/local';
 import { Analytics } from '@vercel/analytics/react';
 import CustomCursor from '@/components/CustomCursor';
@@ -32,6 +32,16 @@ const inconsolata = Inconsolata({
   display: 'swap',
 });
 
+// Handwriting for the rebase diagram's margin notes. Not preloaded: the file
+// only downloads once something is drawn in it.
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['600'],
+  variable: '--font-hand',
+  display: 'swap',
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: 'ryan kim',
   description: 'Hand-drawn animation personal website',
@@ -52,7 +62,7 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" className={`${alteHaasGrotesk.variable} ${inconsolata.variable}`}>
+    <html lang="en" className={`${alteHaasGrotesk.variable} ${inconsolata.variable} ${caveat.variable}`}>
       <body>
         {/* The player lives outside the story so it survives every navigation.
             There is no routing here, but this also keeps it out of the story's

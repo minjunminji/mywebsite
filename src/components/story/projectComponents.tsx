@@ -6,10 +6,13 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import type { ProjectComponentId } from './storyData';
 import { INK, inkAlpha } from '@/theme';
+import RebaseBlobs from './RebaseBlobs';
 
 export type ProjectComponentProps = {
   /** True while the component is on screen and should animate. */
   active: boolean;
+  /** The lit chunk's `state` for this component, if it gives one. */
+  state?: string;
 };
 
 const LANDING_FRAMES = [1, 2, 3, 4].map((i) => `/Animation/landingloop${i}.webp`);
@@ -98,4 +101,5 @@ function SceneFrames({ active }: ProjectComponentProps) {
 
 export const PROJECT_COMPONENTS: Record<ProjectComponentId, ComponentType<ProjectComponentProps>> = {
   sceneFrames: SceneFrames,
+  rebaseBlobs: RebaseBlobs,
 };

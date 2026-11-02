@@ -1,6 +1,8 @@
 // Pure data model for the nav-driven story. No React here.
 // Content + asset paths are consumed by StoryPlayer.
 
+import type { RebaseState } from './rebaseScene';
+
 // --- Frame asset lists (webp) ---
 export const landingFrames = [
   '/Animation/landingloop1.webp',
@@ -132,7 +134,7 @@ export const ABOUT_GROUP_GAP_MS = 800;
 export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
 
 /** Live, interactive components that can stand in for an image or video. */
-export type ProjectComponentId = 'sceneFrames';
+export type ProjectComponentId = 'sceneFrames' | 'rebaseBlobs';
 
 /** Media a chunk brings onto the left of the screen while it's lit. Width and
  *  height are the intrinsic size, used for the frame's aspect ratio before the
@@ -140,7 +142,16 @@ export type ProjectComponentId = 'sceneFrames';
 export type ProjectMedia =
   | { kind: 'image'; src: string; alt: string; width: number; height: number }
   | { kind: 'video'; src: string; title: string; posterSrc?: string; width: number; height: number }
-  | { kind: 'component'; id: ProjectComponentId; label: string; width: number; height: number };
+  | {
+      kind: 'component';
+      id: ProjectComponentId;
+      label: string;
+      width: number;
+      height: number;
+      /** Which moment the component should show. Changing it morphs the
+       *  component in place; it doesn't count as new media. */
+      state?: string;
+    };
 
 export type ProjectChunk = {
   /** Plain text, or runs when part of it is interactive. */
@@ -164,6 +175,16 @@ export function chunkSegments(chunk: ProjectChunk): readonly ProjectBodySegment[
 }
 
 const SCREENSHOT = { width: 1920, height: 1038 } as const;
+
+/** The rebase diagram at one of its moments (see rebaseScene.ts). */
+const rebaseScene = (state: RebaseState): ProjectMedia => ({
+  kind: 'component',
+  id: 'rebaseBlobs',
+  state,
+  label: 'Diagram of rebase: resume files become reusable experience blobs, tailored into a resume',
+  width: 16,
+  height: 10,
+});
 
 export const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
@@ -207,39 +228,56 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     key: 'rebase',
     title: 'rebase',
     techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
-    linkHref: 'http://tryrebase.io/',
+    linkHref: 'https://www.tryrebase.io/',
     chunks: [
+      { text: 'rebase is a resume builder that treats your career like a database, not a document.' },
       {
-        text: 'an ai-native resume builder that treats your career as a structured database instead of a folder of near-identical files.',
-        media: { kind: 'image', src: '/rebase1.webp', alt: 'Rebase resume list', width: 1920, height: 1041 },
-      },
-      { text: 'the core is a data model i designed around one idea: every experience should live exactly once.' },
-      {
-        text: 'each experience is an atomic "blob" with two layers: the "base content" is the raw source of truth, everything you\'ve ever done in that role, written as loosely as you want, and "bullet versions" are polished, version-controlled phrasings you can mix and match across resumes.',
-        media: { kind: 'image', src: '/rebase2.webp', alt: 'Rebase blobs with their bullet versions', ...SCREENSHOT },
-      },
-      { text: 'for a user, that means one place to see and edit each experience. for an LLM writing your resume bullets, it means clean, scoped context.' },
-      {
-        text: 'the main flow is input a job description, then, via a multi-model routing layer, an LLM model of your choice picks your most relevant experiences, and writes fresh bullets from the full base content instead of from whatever limited phrasing you used last time.',
+        text: 'most people keep a folder of near-identical resumes, one for every job they apply to.',
+        media: rebaseScene('files'),
       },
       {
-        text: 'since bullets are only as good as their source, rebase keeps that base content growing. i built the "quick add" feature to minimize the friction it takes to log a win on one of your experiences.',
+        text: 'i designed rebase around one idea: every experience should live exactly once.',
+        media: rebaseScene('blobs'),
       },
       {
-        text: 'the "refine" feature asks you targeted questions about your existing blobs to turn vagueness into specifics (this also reduced hallucination by a lot!).',
-        media: { kind: 'image', src: '/rebase4.webp', alt: 'Rebase refine questions', width: 1920, height: 1041 },
+        text: 'each experience is a "blob": everything you did in that role, written as loosely as you want.',
+        media: rebaseScene('baseContent'),
       },
       {
-        text: 'this all culminates in a custom Typst-based rendering engine. structured resume data flows through a template adapter layer that turns each selected experience and bullet version into Typst source.',
+        text: 'polished phrasings sit on top as "bullet versions" you can reuse on any resume.',
+        media: rebaseScene('versions'),
+      },
+      { text: 'a resume, then, is just a view: a few blobs picked for one job.', media: rebaseScene('view') },
+      {
+        text: 'paste a job description, and the model of your choice picks your most relevant blobs.',
+        media: rebaseScene('tailor'),
+      },
+      {
+        text: "then it writes fresh bullets from the full base content, not last time's wording.",
+        media: rebaseScene('bullets'),
+      },
+      { text: "but bullets are only as good as what's behind them.", media: rebaseScene('vague') },
+      {
+        text: '"refine" spots vague blobs and asks you pointed questions about them.',
+        media: rebaseScene('refine'),
+      },
+      {
+        text: 'your answers turn into specifics, which cut down hallucination a lot.',
+        media: rebaseScene('refined'),
+      },
+      {
+        text: '"quick add" lets you log a win the moment it happens, before you forget it.',
+        media: rebaseScene('quickAdd'),
+      },
+      {
+        text: 'everything renders through a custom typst engine, compiled in the browser with webassembly.',
+        media: rebaseScene('typst'),
+      },
+      {
+        text: 'so the live preview is exactly the pdf you download.',
         media: { kind: 'image', src: '/rebase3.webp', alt: 'Rebase editor with live resume preview', ...SCREENSHOT },
       },
-      { text: 'that same source powers both a live SVG preview and client-side PDF export, so what you see is what you download.' },
-      {
-        text: 'the engine supports multiple templates, custom fonts, configurable contact links and formatting, user-defined section ordering, and a one-page overflow warning.',
-      },
-      {
-        text: 'because compilation happens entirely in the browser through WebAssembly, exporting a resume requires no server-side document generation.',
-      },
+      { text: "it's in private beta now, with 20+ users building their resumes on it.", media: null },
     ],
   },
   {
@@ -249,7 +287,7 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
     chunks: [
       {
-        text: 'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
+        text: 'mango turns any webcam into a full-body game controller.',
         media: {
           kind: 'video',
           src: '/mango.mp4',
@@ -259,9 +297,19 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
           height: 720,
         },
       },
-      { text: 'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.' },
+      { text: 'you play minecraft with your whole body, no vr headset or external sensors needed.' },
+      { text: 'mediapipe tracks your body from the camera in real time.' },
+      { text: 'each movement maps straight to a keyboard or mouse input, so it works with any game.' },
+      { text: 'we built it in 12 hours with opencv, mediapipe, and python.' },
       {
-        text: 'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
+        text: 'it won 1st place at hellohacks 2025.',
+        media: {
+          kind: 'image',
+          src: '/mango-hellohacks.webp',
+          alt: 'The mango team holding first place certificates at HelloHacks 2025',
+          width: 1280,
+          height: 853,
+        },
       },
     ],
   },

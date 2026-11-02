@@ -1,19 +1,53 @@
-// Pure logic for reading a project one chunk at a time: which chunk is lit,
-// which media is up, and how that media enters and leaves. No React, no DOM.
+// Pure logic for reading a project one chunk at a time: how scrolling maps to
+// the lit chunk and the text's travel, which media is up, and how that media
+// enters and leaves. No React, no DOM.
 
 import type { ProjectChunk, ProjectMedia } from './storyData';
 
+/* ---- Reading timeline --------------------------------------------------- */
+
 /**
- * The lit chunk: the last one whose first line has reached the reading spot.
- * `tops` are each chunk's first-line top, relative to the text viewport.
- * Before anything reaches the spot, the first chunk is lit.
+ * How scrolling maps onto the text. Scrolling moves along a track; each chunk
+ * owns a stretch of it, and while you're in a chunk's stretch that chunk is
+ * lit and the text travels from where the chunk sits on the reading spot to
+ * where the next one does. A stretch is the chunk's natural travel, but never
+ * less than `minDwell`, so a chunk that shares its first line with the next
+ * (no travel at all) still stays lit for a fair amount of scroll.
  */
-export function activeChunkIndex(tops: readonly number[], readingY: number): number {
-  let active = 0;
-  tops.forEach((top, index) => {
-    if (top <= readingY) active = index;
-  });
-  return active;
+export type ReadingTimeline = {
+  /** Text travel (px) at which each chunk's first line sits on the reading spot. */
+  starts: readonly number[];
+  /** Scroll (px) each chunk stays lit for. */
+  budgets: readonly number[];
+  /** Total scroll from the first chunk to the end of the last. */
+  total: number;
+};
+
+export function readingTimeline(rawStarts: readonly number[], minDwell: number): ReadingTimeline {
+  // Never backwards, never above the top.
+  const starts: number[] = [];
+  rawStarts.forEach((start, i) => starts.push(Math.max(start, i ? starts[i - 1] : 0)));
+  const budgets = starts.map((start, i) =>
+    i + 1 < starts.length ? Math.max(starts[i + 1] - start, minDwell) : minDwell,
+  );
+  return { starts, budgets, total: budgets.reduce((sum, b) => sum + b, 0) };
+}
+
+/** The lit chunk and how far the text has travelled at `scroll` along the track. */
+export function readingAt(t: ReadingTimeline, scroll: number): { chunk: number; offset: number } {
+  const n = t.starts.length;
+  if (!n) return { chunk: 0, offset: 0 };
+  let from = 0;
+  for (let i = 0; i < n; i++) {
+    const budget = t.budgets[i];
+    if (scroll < from + budget || i === n - 1) {
+      const next = i + 1 < n ? t.starts[i + 1] : t.starts[i];
+      const along = Math.min(Math.max((scroll - from) / budget, 0), 1);
+      return { chunk: i, offset: t.starts[i] + (next - t.starts[i]) * along };
+    }
+    from += budget;
+  }
+  return { chunk: n - 1, offset: t.starts[n - 1] };
 }
 
 /**
@@ -88,4 +122,31 @@ export function wheelDeltaPx(deltaY: number, deltaMode: number, pageHeight: numb
   if (deltaMode === 1) return deltaY * 16; // lines
   if (deltaMode === 2) return deltaY * pageHeight; // pages
   return deltaY;
+}
+
+/** Wheel input eases toward its target this much per frame. */
+export const GLIDE_EASE = 0.22;
+
+/**
+ * One frame of the eased wheel glide, given where the text is `now`, where
+ * it's headed, and what the last frame read and wrote. Returns where to
+ * scroll (`done` when that's the target), or null to let go without writing:
+ * when the last step didn't move the text at all (pinned against an edge the
+ * browser won't pass, e.g. a computed bottom a fraction of a px past the real
+ * one), or when something else moved it (the reader scrolling by hand), since
+ * holding on would drag the text back against them.
+ */
+export function glideStep(
+  now: number,
+  target: number,
+  last: { read: number; wrote: number } | null,
+  ease = GLIDE_EASE,
+): { to: number; done: boolean } | null {
+  if (last) {
+    if (Math.abs(now - last.wrote) > 2) return null;
+    if (Math.abs(now - last.read) < 0.01) return null;
+  }
+  const next = now + (target - now) * ease;
+  if (Math.abs(target - next) < 0.5) return { to: target, done: true };
+  return { to: next, done: false };
 }

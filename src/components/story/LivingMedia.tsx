@@ -213,6 +213,14 @@ export default function LivingMedia({ media, playing }: Props) {
   const size = shown && area.w > 0 ? frameSize(shown, area) : { w: 0, h: 0 };
   const live = playing && shown !== null && mediaKey(shown) === mediaKey(media);
   const Component = shown?.kind === 'component' ? PROJECT_COMPONENTS[shown.id] : null;
+  // A component's state comes from the wanted media while it's the same
+  // component, so stepping through states morphs it without a re-entrance.
+  const componentState =
+    shown?.kind !== 'component'
+      ? undefined
+      : media?.kind === 'component' && mediaKey(media) === mediaKey(shown)
+        ? media.state
+        : shown.state;
 
   return (
     <div
@@ -269,7 +277,7 @@ export default function LivingMedia({ media, playing }: Props) {
               style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : null}
-          {Component ? <Component active={live} /> : null}
+          {Component ? <Component active={live} state={componentState} /> : null}
           {/* Creases from the crumple, fading out as the sheet flattens. */}
           <svg
             ref={creasesRef}
