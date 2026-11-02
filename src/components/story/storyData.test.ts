@@ -3,7 +3,6 @@ import {
   STOPS,
   SEGMENTS,
   EXPERIENCE,
-  LENSES,
   NAV,
   MOBILE_TLDR_SECTIONS,
   PROJECT_CONTENT,
@@ -41,16 +40,14 @@ describe('experience stop', () => {
 });
 
 describe('experience content', () => {
-  it('has three entries, each with both lenses populated', () => {
-    expect(EXPERIENCE).toHaveLength(3);
+  it('leads with the current role, and every role has bullets', () => {
+    expect(EXPERIENCE.map((entry) => entry.key)).toEqual(['superpilot', 'shopify', 'sailbot', 'paladin']);
+    expect(EXPERIENCE[0].year).toBe('2026-present');
     for (const entry of EXPERIENCE) {
       expect(entry.year).toBeTruthy();
       expect(entry.company).toBeTruthy();
       expect(entry.title).toBeTruthy();
-      for (const lens of LENSES) {
-        expect(Array.isArray(entry.bullets[lens])).toBe(true);
-        expect(entry.bullets[lens].length).toBeGreaterThan(0);
-      }
+      expect(entry.bullets.length).toBeGreaterThan(0);
     }
   });
 });

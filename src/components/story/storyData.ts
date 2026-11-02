@@ -315,69 +315,58 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
   },
 ];
 
-// --- Experience content (text-only stop; two lenses over the same roles) ---
-export type Lens = 'software' | 'product';
-export const LENSES: readonly Lens[] = ['software', 'product'];
-
+// --- Experience content (text-only stop) ---
 export type ExperienceEntry = {
-  key: 'shopify' | 'sailbot' | 'paladin';
+  key: 'superpilot' | 'shopify' | 'sailbot' | 'paladin';
   year: string; // anchor + ripple origin
   company: string;
-  title: string; // fixed across lenses
-  bullets: Record<Lens, readonly string[]>;
+  title: string;
+  bullets: readonly string[];
 };
 
-// Bullet count may differ per lens.
 export const EXPERIENCE: readonly ExperienceEntry[] = [
+  {
+    key: 'superpilot',
+    year: '2026-present',
+    company: 'superpilot',
+    title: 'software engineering intern',
+    bullets: [
+      'prototyped an AI agent that researches brands, builds landing pages, and reviews its own work across desktop and mobile',
+      'cut generation costs by 55% and roughly halved runtime through prompt optimization, caching, and model selection',
+      "evaluated the prototype against the existing generator to help shape the team's approach to page generation",
+    ],
+  },
   {
     key: 'shopify',
     year: '2026',
     company: 'shopify',
-    title: 'software engineer intern',
-    bullets: {
-      software: [
-        'drove delivery of an AI storefront-generation experience across 17 merged PRs from prototype to release readiness, building the TypeScript and GraphQL generation flows, real-time server-driven progress, generated-theme navigation, and accessible cross-device UI',
-        'shipped merchant-facing changes in a large full-stack TypeScript/GraphQL web application, scoping a fix in a shared UI component to 1 of its 5 call sites to avoid regressions and correcting a responsive-breakpoint failure, each with new unit tests and reviewer instructions requiring no local setup',
-        'fixed an intermittent Skia/JSI crash caused by the canvas mounting mid-navigation while the JavaScript runtime was busy starting AI generation; rendered a static fallback through the transition and deferred the live canvas until interactions settled',
-      ],
-      product: [
-        'redesigned the AI theme-generation experience, converting a blocking 2-minute synchronous wait into an asynchronous background workflow with real-time toast notifications on completion — keeping merchants unblocked throughout.',
-        'assumed full product ownership of the mobile experience, coordinating alignment across design, product, and engineering leadership to ship a multi-surface interface (including a custom Skia-based motion loader reused across full-screen and inline states) now rolling out as a core experiment on track to become the default mobile theme-generation flow.',
-      ],
-    },
+    title: 'software engineering intern',
+    bullets: [
+      'shipped mobile experiences that let merchants turn a description of their business into an AI-generated storefront',
+      'built custom Skia animations for iOS and Android, working with designers to refine motion, accessibility, and loading states',
+      'made the generation flow more reliable, fixing stale results, stuck progress, and an intermittent graphics crash',
+    ],
   },
   {
     key: 'sailbot',
     year: '2025-2026',
     company: 'ubc sailbot',
-    title: 'software website lead',
-    bullets: {
-      software: [
-        'built an end-to-end AIS ship-tracking data pipeline using MongoDB, Redis caching, and webhooks, replacing a commercial vendor and saving $25k/year in subscription fees',
-        'engineered a real-time React telemetry dashboard that visualizes autonomous sailboat sensor data, designing the ingestion layer to consume streaming telemetry and store in MongoDB for low-latency frontend fetching',
-      ],
-      product: [
-        'lead a cross-functional subteam of 7 full-stack developers and UI designers, managing deliverables and aligning technical roadmaps with the mechanical and electrical engineering subteams.',
-        "owning the product lifecycle for a new recruitment and hiring portal, gathering cross-subteam requirements to streamline the team's engineering onboarding and applicant tracking.",
-      ],
-    },
+    title: 'website team lead',
+    bullets: [
+      'lead seven developers and designers, translating team needs into scoped projects and coordinating implementation',
+      'identified a gap in recruiting and built a portal prototype with shared applications and team-specific review boards',
+      'built a ship-tracking pipeline for roughly 200 vessels, avoiding the need for a $25k/year external service',
+    ],
   },
   {
     key: 'paladin',
     year: '2025',
     company: 'paladin technologies',
     title: 'systems engineering intern',
-    bullets: {
-      software: [
-        'built a parallelized Python (Pandas) ETL pipeline that automated a manual geospatial workflow, reducing processing time from 8 hours to under 30 seconds (>1,000× speedup) through optimized file I/O and vectorization',
-        'developed automated web scrapers to ingest, normalize, and schema-map unstructured vendor data from 200+ hardware platforms into a centralized database for technical evaluation',
-      ],
-      product: [
-        'led technical requirements gathering with City of Vancouver IT and field engineering teams to scope a 250+ site city-wide surveillance upgrade',
-        'designed a standardized KMZ metadata specification adopted as the official municipal requirement across all deployment sites to ensure uniform geospatial data logging',
-        'synthesized complex hardware capabilities into a structured technical decision matrix, streamlining the procurement process across 200+ vendors',
-      ],
-    },
+    bullets: [
+      'automated an eight-hour geospatial workflow in Python, bringing processing time down to under 30 seconds',
+      'developed a standardized mapping format adopted across 250+ City of Vancouver surveillance deployment sites',
+    ],
   },
 ];
 
