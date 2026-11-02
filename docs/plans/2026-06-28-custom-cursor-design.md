@@ -1,7 +1,21 @@
 # Custom Cursor — Design
 
 **Date:** 2026-06-28
-**Status:** Implemented (reworked twice — now a WebGL SDF metaball; see Revisions below)
+**Status:** Implemented (reworked three times — now a sketched WebGL SDF metaball; see Revisions below)
+
+> **Revision (2026-11-01): sketched blueprint look.** With the site moving to
+> white ink on blueprint blue (`#0041ba`), the `difference` blend turned the
+> cursor orange. The shape and all of its motion (dot, liquid wrap, tablecloth
+> release, press squish, gating, iframe hand-off) are unchanged; only the shading
+> was rewritten. The canvas now composites normally and draws a **white pencil
+> outline** (~1.4px, page-anchored noise wobble + grain) filled with a **grid at
+> 30% opacity, 10px spacing, pinned to the viewport**, so the cursor reveals one
+> fixed sheet of graph paper. The line **boils** (re-seeds its wobble) at 8fps; while the free dot is idle the loop sleeps between boil
+> steps on a timer, and under reduced motion the line holds still and the loop
+> sleeps fully. The old fbm edge warp is gone (the pencil wobble replaces it).
+> Over white project media (containers marked `data-cursor-ink="paper"`) the ink
+> fades to the page blue so it stays visible. Chosen from a live prototype
+> comparing hatching vs. grid fills.
 
 > **Revision (2026-06-28): WebGL SDF metaball rework.** The DOM sticky-blob (the
 > revision below, and the whole "Behavior"/"Architecture" body) was replaced with a

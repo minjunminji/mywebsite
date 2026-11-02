@@ -737,6 +737,7 @@ export default function StoryPlayer() {
                   {project.imageSrc ? (
                     <div style={{ marginTop: '0.4rem', marginBottom: PROJECT_MEDIA_GAP_NO_DOTS, flexShrink: 0 }}>
                       <figure
+                        data-cursor-ink="paper"
                         style={{
                           margin: 0,
                           border: `1.5px solid ${INK}`,
@@ -781,6 +782,7 @@ export default function StoryPlayer() {
                       }}
                     >
                       <figure
+                        data-cursor-ink="paper"
                         style={{
                           margin: 0,
                           borderRadius: '12px',
@@ -899,6 +901,7 @@ export default function StoryPlayer() {
                   ) : null}
                   {project.videoSrc ? (
                     <figure
+                      data-cursor-ink="paper"
                       style={{
                         margin: 0,
                         marginTop: '0.4rem',
