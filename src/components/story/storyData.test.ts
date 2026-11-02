@@ -3,14 +3,14 @@ import {
   STOPS,
   SEGMENTS,
   EXPERIENCE,
-  LENSES,
   NAV,
   MOBILE_TLDR_SECTIONS,
   PROJECT_CONTENT,
   stopIndexById,
   isExperienceStop,
-  isProjectBodyList,
+  chunkSegments,
 } from './storyData';
+import { isRebaseState } from './rebaseScene';
 
 describe('experience stop', () => {
   it('is the last stop', () => {
@@ -40,16 +40,14 @@ describe('experience stop', () => {
 });
 
 describe('experience content', () => {
-  it('has three entries, each with both lenses populated', () => {
-    expect(EXPERIENCE).toHaveLength(3);
+  it('leads with the current role, and every role has bullets', () => {
+    expect(EXPERIENCE.map((entry) => entry.key)).toEqual(['superpilot', 'shopify', 'sailbot', 'paladin']);
+    expect(EXPERIENCE[0].year).toBe('2026-present');
     for (const entry of EXPERIENCE) {
       expect(entry.year).toBeTruthy();
       expect(entry.company).toBeTruthy();
       expect(entry.title).toBeTruthy();
-      for (const lens of LENSES) {
-        expect(Array.isArray(entry.bullets[lens])).toBe(true);
-        expect(entry.bullets[lens].length).toBeGreaterThan(0);
-      }
+      expect(entry.bullets.length).toBeGreaterThan(0);
     }
   });
 });
@@ -106,17 +104,63 @@ describe('mobile TLDR', () => {
   });
 });
 
-describe('project body', () => {
+describe('project chunks', () => {
   it('has exactly one shader explainer trigger, in "this website"', () => {
     const triggers = PROJECT_CONTENT.flatMap((project) =>
-      project.body.flatMap((paragraph) =>
-        typeof paragraph === 'string' || isProjectBodyList(paragraph)
-          ? []
-          : paragraph
-              .filter((segment) => segment.action === 'shaderExplainer')
-              .map((segment) => ({ project: project.key, text: segment.text })),
+      project.chunks.flatMap((chunk) =>
+        chunkSegments(chunk)
+          .filter((segment) => segment.action === 'shaderExplainer')
+          .map((segment) => ({ project: project.key, text: segment.text })),
       ),
     );
     expect(triggers).toEqual([{ project: 'thisWebsite', text: "here's how it works →" }]);
+  });
+
+  it('gives every chunk some text and every media a real size', () => {
+    for (const project of PROJECT_CONTENT) {
+      expect(project.chunks.length).toBeGreaterThan(0);
+      for (const chunk of project.chunks) {
+        expect(chunkSegments(chunk).map((segment) => segment.text).join('').trim()).not.toBe('');
+        if (chunk.media) {
+          expect(chunk.media.width).toBeGreaterThan(0);
+          expect(chunk.media.height).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('shows these images and videos (rebase is mostly its live diagram)', () => {
+    const sources = PROJECT_CONTENT.flatMap((project) =>
+      project.chunks.flatMap((chunk) =>
+        chunk.media && chunk.media.kind !== 'component' ? [chunk.media.src] : [],
+      ),
+    );
+    expect(sources.sort()).toEqual(
+      [
+        '/animationtimelapse.mp4',
+        '/oldwebsite.webp',
+        '/rebase3.webp',
+        '/mango.mp4',
+        '/mango-hellohacks.webp',
+      ].sort(),
+    );
+  });
+  it('keeps rebase and mango to one short sentence per chunk', () => {
+    const projects = PROJECT_CONTENT.filter((project) => project.key === 'rebase' || project.key === 'mango');
+    for (const chunk of projects.flatMap((project) => project.chunks)) {
+      const text = chunkSegments(chunk).map((segment) => segment.text).join('');
+      expect(text.split(/\s+/).length, text).toBeLessThanOrEqual(18);
+      expect(text.match(/[.!?](\s|$)/g)?.length ?? 0, text).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('only asks the rebase diagram for states it has', () => {
+    const states = PROJECT_CONTENT.flatMap((project) =>
+      project.chunks.flatMap((chunk) =>
+        chunk.media?.kind === 'component' && chunk.media.id === 'rebaseBlobs' ? [chunk.media.state] : [],
+      ),
+    );
+    expect(states.length).toBeGreaterThan(0);
+    for (const state of states) expect(isRebaseState(state), String(state)).toBe(true);
   });
 });

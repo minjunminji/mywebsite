@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import TldrContent from '@/components/story/TldrContent';
 import { frameLoader } from '@/components/story/frameLoader';
+import { INK } from '@/theme';
 import { MOBILE_QUERY } from './breakpoint';
 
 const landingFrames = Array.from({ length: 4 }, (_, i) => `/Animation/mobile/landingloop${i + 1}.webp`);
@@ -21,7 +22,7 @@ export default function MobileTldr() {
         minHeight: '100dvh',
         display: 'flex',
         flexDirection: 'column',
-        color: '#1f1812',
+        color: INK,
       }}
     >
       {/* Same column as the desktop takeover; margin:auto centres it when it
@@ -102,6 +103,7 @@ function LandingLoop() {
         <img
           key={src}
           src={src}
+          className="ink-art"
           alt=""
           loading="lazy"
           width={960}

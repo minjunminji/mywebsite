@@ -64,7 +64,7 @@ export function Code({ children, label }: { children: string; label?: string }) 
           fontSize: '0.86rem',
           lineHeight: 1.55,
           borderLeft: `2px solid ${RULE}`,
-          background: 'rgba(31, 24, 18, 0.035)',
+          background: 'rgba(255, 255, 255, 0.06)',
           overflowX: 'auto',
         }}
       >

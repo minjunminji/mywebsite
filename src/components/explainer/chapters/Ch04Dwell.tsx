@@ -9,7 +9,7 @@ import { ControlDisclosure, ControlGroup, Slider, Toggle } from '../figure/contr
 import { Code, Eq, MathToggle } from '../figure/MathToggle';
 import { prepareCanvas2D, useAnimationFrame, useElementSize, useReducedMotion } from '../hooks';
 import { C, Chapter, P, Prose } from '../layout';
-import { ACCENT, ACCENT_RGB, INK, INK_RGB, MUTED, RULE, SANS } from '../tokens';
+import { ACCENT, ACCENT_RGB, INK, INK_RGB, MUTED, PAPER_RGB, RULE, SANS } from '../tokens';
 
 type DwellMode = 'on' | 'off';
 type ViewMode = 'field' | 'reveal';
@@ -32,10 +32,6 @@ const viewOptions: readonly { value: ViewMode; label: string }[] = [
   { value: 'field', label: 'mask' },
   { value: 'reveal', label: 'reveal' },
 ];
-
-// tokens.ts only gives PAPER as a hex string; the mask-to-pixel blend below
-// needs it as an RGB triple, same value as tokens.PAPER (#f7f7f5).
-const PAPER_RGB: readonly [number, number, number] = [247, 247, 245];
 
 /** A fixed-size circular buffer of floats — pushing never allocates. */
 type Ring = { data: Float32Array; head: number; filled: number };

@@ -10,15 +10,18 @@ import {
 } from './cursorMath';
 
 /*
- * CustomCursor — the site's negative liquid cursor (WebGL2 SDF).
+ * CustomCursor — the site's sketched liquid cursor (WebGL2 SDF).
  *
- * Replaces the OS cursor with one solid white shape rendered by a full-viewport
- * <canvas> under mix-blend-mode:difference, so it shows the negative of whatever
- * it covers. Free movement is a plain round dot; on hover it smooth-min's with a
- * rounded box that springs to wrap the element (one liquid body); on leave the
- * box drains off along the direction you left, down a tapering stream, back into
- * the dot. An fbm domain-warp wobbles the wrapped edge. Geometry is springed /
- * eased on the JS side; the shader renders + wobbles.
+ * Replaces the OS cursor with one shape drawn like the blueprint around it: a
+ * wobbly white pencil outline filled with a faint grid. The grid is pinned to
+ * the viewport, so moving the cursor reveals one fixed sheet of graph paper.
+ * Free movement is a round dot; on hover it smooth-min's with a rounded box that
+ * springs to wrap the element (one liquid body); on leave the box drains off
+ * along the direction you left, down a tapering stream, back into the dot. The
+ * pencil line "boils" (its wobble re-seeds) at 8fps, a hand-drawn "on twos/threes" pace.
+ * Over white project media ([data-cursor-ink="paper"]) the ink fades to the
+ * page blue so it stays visible. Geometry is springed / eased on the JS side;
+ * the shader draws the outline + grid.
  *
  * Gating: activates only on fine-pointer (hover-capable) devices and stays off
  * under forced-colors (high contrast) so those users keep the system cursor;
@@ -74,15 +77,15 @@ const PRESS_DAMPING = 0.55;
  *  during the frame-by-frame scene transitions). */
 const CURSOR_MAX_DPR = 1.5;
 
-/** The canvas is sized to the blob's bounding box (not the viewport), so the
- *  mix-blend-mode:difference recomposite stays a small rect instead of the whole
- *  screen every frame. CANVAS_PAD is the margin (px) around the dot/box union for
- *  the smin bridge bulge (~SMIN_K/4 ≈ 12), the edge warp (WARP_AMP), and AA, so
- *  the shape never clips at the canvas edge. */
+/** The canvas is sized to the blob's bounding box (not the viewport), so each
+ *  frame shades and composites a small rect instead of the whole screen.
+ *  CANVAS_PAD is the margin (px) around the dot/box union for the smin bridge
+ *  bulge (~SMIN_K/4 ≈ 12), the pencil wobble, and AA, so the shape never clips
+ *  at the canvas edge. */
 const CANVAS_PAD = 28;
 /** Quantize the canvas CSS size to this step (px) so the backing store is only
  *  reallocated when it crosses a bucket — resizing the drawing buffer every frame
- *  is expensive. The extra transparent margin is free under difference. */
+ *  is expensive. The extra transparent margin costs next to nothing. */
 const CANVAS_STEP = 32;
 
 /* ---- Iframe hand-off --------------------------------------------- */
@@ -107,12 +110,24 @@ const VELOCITY_MAX_GAP = 100;
  *  ~RELEASE_DISTANCE so the wrap stays visibly connected to the cursor while it
  *  "holds on" past the edge, instead of detaching before it lets go. */
 const SMIN_K = 48;
-/** Domain-warp amplitude in px when fully wrapped (subtle!). */
-const WARP_AMP = 4;
-/** Noise spatial scale (smaller = larger, lazier warp). */
-const WARP_NOISE_SCALE = 0.012;
-/** Noise time speed. */
-const WARP_TIME_SPEED = 0.35;
+
+/* ---- Pencil look ---------------------------------------------------- */
+/** Grid fill: line spacing (px) and opacity, fainter than the white outline. */
+const GRID_SPACING = 10;
+const GRID_ALPHA = 0.3;
+/** Pencil wobble of the outline, in px (two noise octaves: broad + fine). */
+const WOBBLE_AMP = 3.2;
+const WOBBLE_FINE_AMP = 1.1;
+/** The line re-seeds its wobble at this rate (slower than the 12fps scene frames). */
+const BOIL_FPS = 8;
+/** Ink colors (0..1 RGB): white on the page, page blue over white media.
+ *  Keep in sync with INK / PAPER in src/theme.ts. */
+const INK_WHITE = [1, 1, 1] as const;
+const INK_PAPER = [0, 65 / 255, 186 / 255] as const;
+/** How fast the ink fades between white and blue (ms, ~time constant). */
+const INK_FADE_MS = 90;
+/** Containers whose white media need the blue ink. */
+const PAPER_INK_SELECTOR = '[data-cursor-ink="paper"]';
 
 /** Clickable things the cursor wraps (the site's text labels, plus the
  *  explainer's range sliders). */
@@ -183,7 +198,7 @@ export default function CustomCursor() {
     const root = document.documentElement;
 
     // Reduced motion: keep the wrap-on-hover affordance, but snap the engage /
-    // release (no spring, no drain) and switch the edge warp off. Tracked live.
+    // release (no spring, no drain) and hold the pencil line still. Tracked live.
     const reducedMotionMq = window.matchMedia(REDUCED_MOTION_QUERY);
     let reducedMotion = reducedMotionMq.matches;
 
@@ -230,16 +245,15 @@ export default function CustomCursor() {
 
       uniform vec2  u_resolution; // CSS px
       uniform float u_dpr;
-      uniform float u_time;
+      uniform float u_boil;       // pencil wobble seed; steps at BOIL_FPS (fixed under reduced motion)
+      uniform vec3  u_ink;        // line color (white, or page blue over white media)
       uniform vec2  u_cursor;     // DOM px, dot center
       uniform float u_dotRadius;  // px
       uniform vec4  u_box;        // cx, cy, halfW, halfH (DOM px)
       uniform float u_corner;     // px
-      uniform float u_wrap;       // 0..1 — box edge warp + size gate
       uniform float u_bridge;     // 0..1 — dot↔box smooth-min strength
       uniform float u_sminScale;  // 0..1 — shrinks the smin radius on small targets
       uniform float u_stream;     // 0..1 — release drain stream (cursor→bulk cone)
-      uniform float u_motion;     // 1 normal, 0 under prefers-reduced-motion
       uniform float u_press;      // press squish scale (1 = none, <1 = smaller)
       uniform vec2  u_origin;     // canvas top-left in viewport CSS px
 
@@ -291,40 +305,24 @@ export default function CustomCursor() {
         vec2 u = f * f * (3.0 - 2.0 * f);
         return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
       }
-      float fbm(vec2 p) {
-        float v = 0.0, amp = 0.5;
-        for (int i = 0; i < 3; i++) {
-          v += amp * noise(p);
-          p *= 2.0;
-          amp *= 0.5;
-        }
-        return v;
-      }
 
       void main() {
         // physical, bottom-left  ->  CSS px, top-left (canvas-local), then offset
         // by the canvas origin so all the geometry below stays in viewport coords
         // even though the canvas only covers the blob's bounding box.
-        vec2 p = gl_FragCoord.xy / u_dpr;
-        p.y = u_resolution.y - p.y;
-        p += u_origin;
+        vec2 page = gl_FragCoord.xy / u_dpr;
+        page.y = u_resolution.y - page.y;
+        page += u_origin;
 
         // Press squish: domain-scale the whole shape around the box center, so the
         // free dot and the wrapped blob shrink uniformly while the pointer is held.
-        p = u_box.xy + (p - u_box.xy) / u_press;
-
-        // Subtle domain warp of the box sample, gated by wrap (free dot stays
-        // crisp) and by motion (off under prefers-reduced-motion).
-        vec2 warp = vec2(
-          fbm(p * ${glf(WARP_NOISE_SCALE)} + u_time * ${glf(WARP_TIME_SPEED)}),
-          fbm(p * ${glf(WARP_NOISE_SCALE)} + 11.3 - u_time * ${glf(WARP_TIME_SPEED)})
-        ) - 0.5;
-        vec2 pb = p + warp * (${glf(WARP_AMP)} * u_wrap * u_motion);
+        // (The pencil texture below samples the unsquished page position.)
+        vec2 p = u_box.xy + (page - u_box.xy) / u_press;
 
         vec2 boxCenter = u_box.xy;
         vec2 boxHalf = u_box.zw;
         float corner = min(u_corner, min(boxHalf.x, boxHalf.y));
-        float dBox = sdRoundBox(pb - boxCenter, boxHalf, corner);
+        float dBox = sdRoundBox(p - boxCenter, boxHalf, corner);
 
         // Cursor dot: a plain circle at the live pointer (no trail). All the gooey
         // behaviour lives in the box wrap and the release stream below.
@@ -356,12 +354,31 @@ export default function CustomCursor() {
         // Undo the press domain scale so distances are back in real px.
         d *= u_press;
 
-        // ~1 physical px anti-aliased edge.
-        float aa = 1.0 / u_dpr;
-        float alpha = 1.0 - smoothstep(-aa, aa, d);
+        // Pencil wobble: page-anchored noise nudges the distance field, re-seeded
+        // each boil step so the line jitters like the hand-drawn frames.
+        vec2 seed = vec2(u_boil * 17.31, u_boil * 9.13);
+        float dw = d
+          + (noise(page * 0.07 + seed) - 0.5) * ${glf(WOBBLE_AMP)}
+          + (noise(page * 0.21 + seed * 1.7) - 0.5) * ${glf(WOBBLE_FINE_AMP)};
 
-        // Premultiplied white (premultipliedAlpha:true).
-        fragColor = vec4(vec3(alpha), alpha);
+        // Outline: a ~1.4px pencil line with grain, so it reads drawn, not vector.
+        float line = 1.0 - smoothstep(0.55, 1.45, abs(dw));
+        line *= 0.72 + 0.28 * noise(page * 0.85 + seed * 3.0);
+
+        // Grid fill, pinned to the page: horizontal + vertical lines, slightly
+        // wavy, fainter than the outline, and only inside the shape.
+        vec2 gp = page + (vec2(noise(page * 0.05 + seed), noise(page * 0.05 - seed)) - 0.5) * 1.2;
+        vec2 gf = fract(gp / ${glf(GRID_SPACING)});
+        vec2 gd = min(gf, 1.0 - gf) * ${glf(GRID_SPACING)}; // px to the nearest line, per axis
+        vec2 onGrid = 1.0 - smoothstep(vec2(0.2), vec2(0.85), gd);
+        float inside = 1.0 - smoothstep(-1.5, 0.0, dw);
+        float grid = max(onGrid.x, onGrid.y) * inside * ${glf(GRID_ALPHA)};
+        grid *= 0.8 + 0.2 * noise(page * 0.6 + seed * 2.0);
+
+        float alpha = max(line, grid);
+
+        // Premultiplied ink (premultipliedAlpha:true).
+        fragColor = vec4(u_ink * alpha, alpha);
       }
     `;
 
@@ -373,16 +390,15 @@ export default function CustomCursor() {
       const u = {
         resolution: gl.getUniformLocation(program, 'u_resolution'),
         dpr: gl.getUniformLocation(program, 'u_dpr'),
-        time: gl.getUniformLocation(program, 'u_time'),
+        boil: gl.getUniformLocation(program, 'u_boil'),
+        ink: gl.getUniformLocation(program, 'u_ink'),
         cursor: gl.getUniformLocation(program, 'u_cursor'),
         dotRadius: gl.getUniformLocation(program, 'u_dotRadius'),
         box: gl.getUniformLocation(program, 'u_box'),
         corner: gl.getUniformLocation(program, 'u_corner'),
-        wrap: gl.getUniformLocation(program, 'u_wrap'),
         bridge: gl.getUniformLocation(program, 'u_bridge'),
         sminScale: gl.getUniformLocation(program, 'u_sminScale'),
         stream: gl.getUniformLocation(program, 'u_stream'),
-        motion: gl.getUniformLocation(program, 'u_motion'),
         press: gl.getUniformLocation(program, 'u_press'),
         origin: gl.getUniformLocation(program, 'u_origin'),
       };
@@ -425,6 +441,12 @@ export default function CustomCursor() {
     let lastVisible = false;
     let destroyed = false;
     let rafId: number | null = null;
+    // While the free dot is idle the loop sleeps between boil steps on a timer
+    // instead of running every frame.
+    let boilTimer: ReturnType<typeof setTimeout> | null = null;
+    // 0 = white ink, 1 = page-blue ink (over white media); eased toward overPaper.
+    let overPaper = false;
+    let inkMix = 0;
     // Timestamp of the last rendered frame, for time-based springs. Reset when
     // the loop wakes from sleep so the first frame steps one nominal frame.
     let lastFrame: number | null = null;
@@ -467,6 +489,10 @@ export default function CustomCursor() {
     // Start the loop if it is asleep. Every input that can change what's drawn
     // calls this; the loop puts itself back to sleep once the dot is at rest.
     const wake = () => {
+      if (boilTimer !== null) {
+        clearTimeout(boilTimer);
+        boilTimer = null;
+      }
       if (destroyed || !glRes || rafId !== null) return;
       lastFrame = null;
       rafId = requestAnimationFrame(render);
@@ -592,6 +618,13 @@ export default function CustomCursor() {
       const pressSettled = Math.abs(press.value - pressTarget) < 1e-3 && Math.abs(press.velocity) < 1e-3;
       if (pressSettled) snap(press, pressTarget);
 
+      // Ink: fade between white and page blue as the pointer crosses white media.
+      const inkTarget = overPaper ? 1 : 0;
+      if (reducedMotion) inkMix = inkTarget;
+      else inkMix += (inkTarget - inkMix) * (1 - Math.exp(-frameDt / INK_FADE_MS));
+      if (Math.abs(inkTarget - inkMix) < 1e-3) inkMix = inkTarget;
+      const inkSettled = inkMix === inkTarget;
+
       // Reveal only once a real pointer position is known and the window is
       // focused/entered, so re-entry/refocus never flashes the cursor at (0,0).
       const visible = hasPointer && inWindow;
@@ -603,12 +636,12 @@ export default function CustomCursor() {
       if (!visible) return;
 
       // ---- Fit the canvas to the blob's bounding box ------------------------
-      // A full-viewport canvas under mix-blend-mode forces the compositor to
-      // re-blend the WHOLE screen every frame (worst when the scene behind it is
-      // also animating). Sizing it to the union of the dot and the wrapped/
-      // draining box — padded for the smin bulge + edge warp — shrinks that blend
-      // to a small rect. Move it with a compositor-only transform every frame;
-      // only reallocate the backing store when the quantized size changes.
+      // A full-viewport canvas would shade and composite the WHOLE screen every
+      // frame (worst when the scene behind it is also animating). Sizing it to
+      // the union of the dot and the wrapped/draining box — padded for the smin
+      // bulge + pencil wobble — shrinks that to a small rect. Move it with a
+      // compositor-only transform every frame; only reallocate the backing store
+      // when the quantized size changes.
       const dpr = cursorDpr();
       const dotR = DOT_SIZE / 2;
       const halfW = w.value / 2;
@@ -639,13 +672,19 @@ export default function CustomCursor() {
       gl.uniform2f(u.resolution, pxW / dpr, pxH / dpr);
       gl.uniform2f(u.origin, originX, originY);
       gl.uniform1f(u.dpr, dpr);
-      gl.uniform1f(u.time, now * 0.001);
+      // Under reduced motion the seed holds, so the pencil line stays still.
+      gl.uniform1f(u.boil, reducedMotion ? 0 : Math.floor(now / (1000 / BOIL_FPS)) % 997);
+      gl.uniform3f(
+        u.ink,
+        INK_WHITE[0] + (INK_PAPER[0] - INK_WHITE[0]) * inkMix,
+        INK_WHITE[1] + (INK_PAPER[1] - INK_WHITE[1]) * inkMix,
+        INK_WHITE[2] + (INK_PAPER[2] - INK_WHITE[2]) * inkMix,
+      );
       // Hide the shape until a real pointer position is known.
       gl.uniform2f(u.cursor, hasPointer ? pointerX : -9999, hasPointer ? pointerY : -9999);
       gl.uniform1f(u.dotRadius, DOT_SIZE / 2);
       gl.uniform4f(u.box, cx.value, cy.value, w.value / 2, h.value / 2);
       gl.uniform1f(u.corner, MAX_RADIUS);
-      gl.uniform1f(u.wrap, grow.value);
       // Bridge tracks grow in EVERY mode (including release). A polynomial smin
       // doesn't just connect shapes, it inflates their union by ~k/4 of radius;
       // letting bridge deflate with grow keeps it ~1 early (box still big/offset →
@@ -655,7 +694,6 @@ export default function CustomCursor() {
       gl.uniform1f(u.sminScale, sminScale.value);
       // Stream cone only while releasing — it forms the draining tablecloth neck.
       gl.uniform1f(u.stream, mode === 'releasing' ? 1.0 : 0.0);
-      gl.uniform1f(u.motion, reducedMotion ? 0.0 : 1.0);
       gl.uniform1f(u.press, Math.max(press.value, 0.4));
 
       gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
@@ -663,10 +701,17 @@ export default function CustomCursor() {
       gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-      // A free dot with a settled press looks the same next frame until the
-      // pointer moves, so sleep. Pinned keeps running for the edge warp and to
-      // track the target's rect; releasing runs until it lands.
-      if (mode === 'free' && pressSettled) return;
+      // A free dot with a settled press and ink only changes at the next boil
+      // step, so sleep until then (or until input wakes it; for good under
+      // reduced motion). Pinned keeps running to track the target's rect;
+      // releasing runs until it lands.
+      if (mode === 'free' && pressSettled && inkSettled) {
+        if (!reducedMotion) {
+          const step = 1000 / BOIL_FPS;
+          boilTimer = setTimeout(wake, step - (now % step) + 1);
+        }
+        return;
+      }
       rafId = requestAnimationFrame(render);
     };
 
@@ -727,6 +772,7 @@ export default function CustomCursor() {
       probeTimer = setTimeout(probeForIframe, IFRAME_PROBE_DELAY);
       pointerX = e.clientX;
       pointerY = e.clientY;
+      overPaper = e.target instanceof Element && e.target.closest(PAPER_INK_SELECTOR) !== null;
       if (!hasPointer) {
         cx.value = pointerX;
         cy.value = pointerY;
@@ -816,6 +862,8 @@ export default function CustomCursor() {
       glRes = null;
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = null;
+      if (boilTimer !== null) clearTimeout(boilTimer);
+      boilTimer = null;
       canvas.style.opacity = '0';
       lastVisible = false;
       root.classList.remove(HIDE_NATIVE_CURSOR_CLASS);
@@ -844,6 +892,7 @@ export default function CustomCursor() {
     return () => {
       destroyed = true;
       if (probeTimer !== null) clearTimeout(probeTimer);
+      if (boilTimer !== null) clearTimeout(boilTimer);
       if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
@@ -874,7 +923,7 @@ export default function CustomCursor() {
         left: 0,
         top: 0,
         // Size + position are driven each frame by the rAF loop so the canvas only
-        // covers the blob (keeps the difference recomposite off the full viewport).
+        // covers the blob (keeps per-frame shading + compositing to a small rect).
         // Start tiny and off-screen until the first frame places it.
         width: '1px',
         height: '1px',
@@ -882,7 +931,6 @@ export default function CustomCursor() {
         transformOrigin: 'top left',
         willChange: 'transform',
         display: 'block',
-        mixBlendMode: 'difference',
         pointerEvents: 'none',
         // Hidden until the rAF loop sees a real pointer position inside the window.
         opacity: 0,

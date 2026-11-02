@@ -3,6 +3,19 @@
 **Date:** 2026-09-14
 **Status:** Implemented on `piano-player-marquee`; this document describes what shipped
 
+> **Revision (2026-11-01): living outline.** The tab's borders, the hint wall's
+> borders and the folder-tab fillet SVG are gone. One pencil line, the same look
+> as the cursor, now runs around the tab, the fillet and the video as a single
+> shape, re-wobbling 8 times a second (1.25x the cursor's wobble; held still
+> under reduced motion). A paper layer and the video frame are both clipped to
+> that wobbled loop, so the video's edge wobbles with the line, and the frame's
+> border-radius is replaced by the clip. The outline reads the live layout
+> (tab/hint right edge, frame rect) instead of re-deriving the transitions, so it
+> follows collapse and the first-open hint as they animate. Geometry lives in
+> `sketchOutline.ts` (rounded-box union SDF, marching-squares trace, noise
+> wobble, clip-path string). Controls, sizes and the never-unmount rule are
+> unchanged. Sections below describe the original borders and fillet.
+
 ## Intent
 
 Let visitors listen to Ryan's Chopin Piano Concerto No. 1 (mvt. 1) performance while

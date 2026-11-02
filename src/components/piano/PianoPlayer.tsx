@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { INK, PAPER } from '@/theme';
 import { clampToViewport, type Point } from './pianoGeometry';
+import { createPencilStroke } from '@/components/pencilStroke';
+import { clipPathFor, outlineSdf, traceLoop, wobbleLoop, type Pt } from './sketchOutline';
 import { useYouTubePlayer } from './useYouTubePlayer';
 
 /** The recording. Bare id only — a `list` param would queue unrelated videos. */
@@ -61,10 +64,6 @@ const SLOW_MS = 2_500;
 /** Where the fallback sends people when the embed can't load. */
 const WATCH_URL = `https://www.youtube.com/watch?v=${PIANO_VIDEO_ID}`;
 
-const INK = '#1f1812';
-/** The tab's outline: its border, the hint's walls, and the fillet. */
-const LINE = '#858585';
-const PAPER = '#f7f7f5';
 const EASE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 const MOVE_MS = 340;
 /** The window's opacity fade, in and out. */
@@ -82,20 +81,33 @@ const HINT_PANEL_W = WINDOW_W - TAB_EDGE;
  *  transition on the root alongside the window's own transform. */
 const HINT_VAR = '--piano-hint-w';
 const HINT_W = `var(${HINT_VAR})`;
-/** Width of the box that draws the tab's top-right corner and right wall: enough
- *  to hold the arc plus a run of straight edge over the border beneath. The hint
- *  widens this same box, so the corner never has to be redrawn or rounded off. */
+/** Width of the box at the tab's right end that the hint widens. Its right edge
+ *  is the tab's right edge as far as the outline is concerned. */
 const CORNER_BOX_W = 2 * RADIUS;
-/** The concave curve where the tab's right wall flares out onto the video's top
- *  edge, so the tab reads as a folder tab rather than a box set on the video.
- *  Its stroke's centreline starts on the wall's and bottoms out half a stroke
- *  *below* the video's top edge: the video paints over that part, so the line
- *  tapers to nothing as it lands instead of ending in a flat stub on the edge. */
-const FILLET_R = RADIUS;
-const FILLET_W = BORDER / 2 + FILLET_R;
-const FILLET_H = FILLET_R;
 const HINT_DELAY_MS = 500; // let the window's own entrance land first
 const HINT_HOLD_MS = 5_500; // long enough to read twice, short enough to not nag
+
+/* ---- The living outline (see sketchOutline.ts) -------------------- */
+/** One pencil line around tab + video, the same look as the cursor: it re-wobbles
+ *  BOIL_FPS times a second, and the paper and video are cropped to it. */
+const BOIL_FPS = 8;
+/** Wobble amplitudes, px: the cursor's, at 1.25x for the much bigger shape. */
+const WOBBLE_AMP = 4;
+const WOBBLE_FINE_AMP = 1.375;
+const LINE_WIDTH = 1.4;
+/** Canvas margin around the window, so the wobble never clips at its edge. */
+const OUTLINE_PAD = 10;
+/** Where the outline is traced, in window coords. */
+const OUTLINE_BOUNDS = {
+  left: -OUTLINE_PAD,
+  top: -OUTLINE_PAD,
+  width: WINDOW_W + 2 * OUTLINE_PAD,
+  height: EXPANDED_H + 2 * OUTLINE_PAD,
+};
+/** After a collapse or hint change, re-measure every frame for this long so the
+ *  outline follows the CSS transitions; otherwise it only redraws on the boil. */
+const RESHAPE_MS = MOVE_MS + 120;
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 type PianoPlayerProps = {
   visible: boolean;
@@ -302,6 +314,103 @@ export default function PianoPlayer({
   }, [collapsed]);
 
   /* ---------------------------------------------------------------- */
+  /*  Living outline                                                   */
+  /* ---------------------------------------------------------------- */
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const wallRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const paperRef = useRef<HTMLDivElement | null>(null);
+  const lineRef = useRef<HTMLCanvasElement | null>(null);
+
+  // One pencil line around the whole window, redrawn on the boil. The tab, the
+  // hint and the video all move by CSS transition, so rather than re-derive
+  // their in-between geometry this reads the live layout: every frame while a
+  // collapse or hint change is settling, then only on each boil step. The
+  // paper layer and the video frame are clipped to the same wobbled loop the
+  // canvas strokes, so the crop and the line always agree. A layout effect so
+  // the window never paints a frame with the crop missing.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const wall = wallRef.current;
+    const frameEl = frameRef.current;
+    const paper = paperRef.current;
+    const canvas = lineRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!shown || !root || !wall || !frameEl || !paper || !canvas || !ctx) return undefined;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const cssW = OUTLINE_BOUNDS.width;
+    const cssH = OUTLINE_BOUNDS.height;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+
+    const strokePencil = createPencilStroke(ctx);
+
+    const reduceMotion = window.matchMedia(REDUCED_MOTION_QUERY).matches;
+    const reshapeUntil = performance.now() + RESHAPE_MS;
+    let base: Pt[] = [];
+    let baseKey = '';
+    let lastSeed = -1;
+    let raf = 0;
+    let timer = 0;
+
+    const draw = (now: number) => {
+      const r = root.getBoundingClientRect();
+      const w = wall.getBoundingClientRect();
+      const f = frameEl.getBoundingClientRect();
+      const frame = { left: f.left - r.left, top: f.top - r.top, width: f.width, height: f.height };
+      const layout = {
+        tabRight: w.right - r.left,
+        tabHeight: HEADER_H,
+        frame,
+        collapse: Math.min(Math.max((VIDEO_W - f.width) / (VIDEO_W - THUMB_W), 0), 1),
+        radius: RADIUS,
+      };
+      const key = [layout.tabRight, frame.left, frame.top, frame.width, frame.height]
+        .map((n) => n.toFixed(1))
+        .join();
+      if (key !== baseKey) {
+        baseKey = key;
+        base = traceLoop((x, y) => outlineSdf(x, y, layout), OUTLINE_BOUNDS);
+        lastSeed = -1;
+      }
+      // Under reduced motion the line holds one shape.
+      const seed = reduceMotion ? 0 : Math.floor(now / (1000 / BOIL_FPS)) % 997;
+      if (seed === lastSeed) return;
+      lastSeed = seed;
+
+      const loop = wobbleLoop(base, seed, WOBBLE_AMP, WOBBLE_FINE_AMP);
+      paper.style.clipPath = clipPathFor(loop, { x: 0, y: 0 });
+      frameEl.style.clipPath = clipPathFor(loop, { x: frame.left, y: frame.top });
+
+      ctx.setTransform(dpr, 0, 0, dpr, OUTLINE_PAD * dpr, OUTLINE_PAD * dpr);
+      ctx.clearRect(-OUTLINE_PAD, -OUTLINE_PAD, cssW, cssH);
+      strokePencil(loop, seed, LINE_WIDTH);
+    };
+
+    const tick = (now: number) => {
+      draw(now);
+      if (now < reshapeUntil) {
+        raf = requestAnimationFrame(tick);
+      } else if (!reduceMotion) {
+        // Settled: sleep until the next boil step.
+        const step = 1000 / BOIL_FPS;
+        timer = window.setTimeout(() => {
+          raf = requestAnimationFrame(tick);
+        }, step - (now % step) + 1);
+      }
+    };
+
+    draw(performance.now());
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+    };
+  }, [shown, collapsed, hintOpen]);
+
+  /* ---------------------------------------------------------------- */
   /*  Frame geometry                                                   */
   /* ---------------------------------------------------------------- */
 
@@ -309,23 +418,18 @@ export default function PianoPlayer({
   // and merely scaled, so YouTube never sees a resize and never relayouts.
   const frame = collapsed
     ? {
-        // Tucks in beside the tab, starting *on* its right border rather than
-        // after it. Its right corners take the window's full outer radius since
-        // they land on the outer edge. The higher z-index below is what lets it
-        // paint over the tab's border.
+        // Tucks in beside the tab, overlapping it by a pixel so the outline
+        // traces the two as one shape.
         left: TAB_EDGE,
         top: 0,
         width: THUMB_W,
         height: THUMB_H,
-        radius: `0 ${RADIUS}px ${RADIUS}px 0`,
       }
     : {
-        // Square only at top-left, where the tab sits on it.
         left: 0,
         top: HEADER_H,
         width: VIDEO_W,
         height: VIDEO_H,
-        radius: `0 ${RADIUS}px ${RADIUS}px ${RADIUS}px`,
       };
 
   const iconButton: React.CSSProperties = {
@@ -343,6 +447,7 @@ export default function PianoPlayer({
 
   return (
     <div
+      ref={rootRef}
       data-piano-player
       // Full-screen takeovers inert everything else; the player stays usable.
       data-keep-interactive
@@ -371,6 +476,22 @@ export default function PianoPlayer({
         ...({ [HINT_VAR]: `${hintOpen ? HINT_PANEL_W : 0}px` } as React.CSSProperties),
       }}
     >
+      {/* ---- paper: fills the outline (tab, fillet, hint), clipped to it ---- */}
+      <div
+        ref={paperRef}
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: WINDOW_W,
+          height: EXPANDED_H,
+          background: PAPER,
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {/* ---- tab: drag surface + window controls ---- */}
       <div
         onPointerDown={onHeaderPointerDown}
@@ -386,57 +507,28 @@ export default function PianoPlayer({
           gap: ROW_GAP,
           paddingLeft: EDGE_PAD,
           paddingRight: ROW_GAP,
-          background: PAPER,
-          border: `${BORDER}px solid ${LINE}`,
-          borderBottomWidth: collapsed ? BORDER : 0,
-          // The right side is drawn by the wall element below, not a border,
-          // because the hint slides it outward.
-          borderRightWidth: 0,
-          // Top-left is always the window's outer corner. Top-right squares off
-          // when the collapsed thumbnail attaches there. Bottom-right always sits
-          // on the video or the thumbnail. Bottom-left is an outer corner only
-          // when collapsed. Both changes, and the bottom border appearing, ease
-          // in step with the frame so the outline reshapes as the video moves
-          // rather than snapping at the start.
-          borderRadius: `${RADIUS}px ${collapsed ? 0 : RADIUS}px 0 ${collapsed ? RADIUS : 0}px`,
-          // No easing while hidden: the post-close collapse reset must snap.
-          transition: shown
-            ? `border-radius ${MOVE_MS}ms ${EASE}, border-bottom-width ${MOVE_MS}ms ${EASE}`
-            : 'none',
+          // No border or paper of its own: the outline and the paper layer
+          // draw the tab as part of the one window shape.
           cursor: 'grab',
           touchAction: 'none',
           pointerEvents: shown ? 'auto' : 'none',
           zIndex: 1,
         }}
       >
-        {/* The tab's right wall and top-right corner, in place of a border —
-            and, stretched, the first-open hint. At rest it is exactly the border
-            it replaces. The hint widens it rightward, carrying the corner and wall
-            with it to the window's full width; its paper fills the space it opens
-            and continues the tab's own, so tab and hint stay one shape at the
-            tab's height. Its top border overlies the tab's; same ink. z-index -1
-            puts it above the tab's background but under the controls, which the
-            paper would otherwise cover near the right edge. */}
+        {/* The tab's right end, and, stretched, the first-open hint. The hint
+            widens it rightward to the window's full width; the outline reads
+            its right edge as the tab's, so the line and paper follow it out and
+            back. It clips the hint text, which is uncovered as it widens. */}
         <div
+          ref={wallRef}
           aria-hidden={!hintOpen}
           style={{
             position: 'absolute',
-            top: -BORDER, // on the tab's border box, not inside it
+            top: 0,
             right: `calc(0px - ${HINT_W})`,
             width: `calc(${CORNER_BOX_W}px + ${HINT_W})`,
-            // Collapsed, stop short of the tab's bottom border, which the paper
-            // would otherwise paint over.
-            height: HEADER_H - (collapsed ? BORDER : 0),
+            height: HEADER_H,
             overflow: 'hidden',
-            background: PAPER,
-            borderTop: `${BORDER}px solid ${LINE}`,
-            borderRight: `${BORDER}px solid ${LINE}`,
-            borderTopRightRadius: collapsed ? 0 : RADIUS,
-            // Tracks the tab's own corner and bottom border. Width is left out:
-            // it is driven by the hint variable, which already transitions.
-            transition: shown
-              ? `border-top-right-radius ${MOVE_MS}ms ${EASE}, height ${MOVE_MS}ms ${EASE}`
-              : 'none',
             pointerEvents: 'none',
             zIndex: -1,
           }}
@@ -450,8 +542,8 @@ export default function PianoPlayer({
               left: CORNER_BOX_W - BORDER,
               top: 0,
               margin: 0,
-              width: HINT_PANEL_W - BORDER, // inside the right border
-              height: HEADER_H - BORDER, // inside the top border
+              width: HINT_PANEL_W - BORDER,
+              height: HEADER_H,
               padding: `0 ${ROW_GAP}px`,
               display: 'grid',
               placeItems: 'center',
@@ -470,44 +562,6 @@ export default function PianoPlayer({
             {HINT_TEXT}
           </p>
         </div>
-
-        {/* Folder-tab fillet, just outside the tab's bottom-right corner. After
-            the wall in the tree, so its paper covers the foot of the wall's
-            straight edge and the arc takes over from it. Hidden while the hint
-            is out (the wall has moved on) and while collapsed (there's a bottom
-            border and a thumbnail there instead); it comes back only once the
-            wall or video has landed. */}
-        <svg
-          width={FILLET_W}
-          height={FILLET_H}
-          viewBox={`0 0 ${FILLET_W} ${FILLET_H}`}
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            right: -(FILLET_W - BORDER), // starts on the wall, not beside it
-            bottom: -BORDER / 2, // over the video's edge; the video covers it
-            overflow: 'visible',
-            opacity: collapsed || hintOpen ? 0 : 1,
-            transition: shown
-              ? `opacity ${FADE_MS}ms ease ${collapsed || hintOpen ? 0 : MOVE_MS}ms`
-              : 'none',
-            pointerEvents: 'none',
-            zIndex: -1,
-          }}
-        >
-          <path
-            // A pixel past the wall's outer edge, over the tab's own paper: stopping
-            // exactly on it leaves an antialiased sliver of the straight wall.
-            d={`M-1 0H${BORDER / 2}A${FILLET_R} ${FILLET_R} 0 0 0 ${FILLET_W} ${FILLET_H}H-1Z`}
-            fill={PAPER}
-          />
-          <path
-            d={`M${BORDER / 2} 0A${FILLET_R} ${FILLET_R} 0 0 0 ${FILLET_W} ${FILLET_H}`}
-            fill="none"
-            stroke={LINE}
-            strokeWidth={BORDER}
-          />
-        </svg>
 
         {/* grip */}
         <svg
@@ -560,27 +614,27 @@ export default function PianoPlayer({
 
       {/* ---- video frame: absolutely positioned, never re-parented ---- */}
       <div
+        ref={frameRef}
         style={{
           position: 'absolute',
           left: frame.left,
           top: frame.top,
           width: frame.width,
           height: frame.height,
-          borderRadius: frame.radius,
+          // The living outline sets this element's clip-path to its wobbled
+          // loop; overflow keeps the scaled embed inside the box regardless.
           overflow: 'hidden',
           background: PAPER,
           pointerEvents: shown ? 'auto' : 'none',
-          // Must out-rank the tab: when collapsed the thumbnail sits on the
-          // tab's right border, and the tab paints an opaque paper background.
+          // Above the tab, which it overlaps by a pixel when collapsed.
           zIndex: 2,
-          // Safari drops the overflow clip on transformed descendants without
-          // its own compositing layer, letting square corners poke out.
+          // Safari drops the clip on transformed descendants without its own
+          // compositing layer, letting the embed poke out mid-animation.
           transform: 'translateZ(0)',
           // No easing while hidden: the post-close collapse reset must snap.
           transition: shown
             ? `left ${MOVE_MS}ms ${EASE}, top ${MOVE_MS}ms ${EASE}, ` +
-              `width ${MOVE_MS}ms ${EASE}, height ${MOVE_MS}ms ${EASE}, ` +
-              `border-radius ${MOVE_MS}ms ${EASE}`
+              `width ${MOVE_MS}ms ${EASE}, height ${MOVE_MS}ms ${EASE}`
             : 'none',
         }}
       >
@@ -734,6 +788,21 @@ export default function PianoPlayer({
           </div>
         ) : null}
       </div>
+
+      {/* ---- the living outline, over everything ---- */}
+      <canvas
+        ref={lineRef}
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: -OUTLINE_PAD,
+          top: -OUTLINE_PAD,
+          width: OUTLINE_BOUNDS.width,
+          height: OUTLINE_BOUNDS.height,
+          pointerEvents: 'none',
+          zIndex: 3,
+        }}
+      />
     </div>
   );
 }

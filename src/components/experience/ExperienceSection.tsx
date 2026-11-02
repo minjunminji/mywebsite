@@ -2,8 +2,8 @@
 
 import { EXPERIENCE } from '@/components/story/storyData';
 import { useScrollFade } from '@/components/useScrollFade';
+import { INK } from '@/theme';
 
-const INK = '#1f1812';
 const FONT = "var(--font-alte-haas-grotesk), Arial, sans-serif";
 
 // The résumé is one column centered horizontally.
@@ -63,7 +63,7 @@ export default function ExperienceSection() {
               <div
                 style={{
                   flex: '0 0 auto',
-                  width: '9ch',
+                  width: '12ch', // fits "2026-present"
                   fontSize: ROW_SIZE,
                   lineHeight: 1.4,
                   whiteSpace: 'nowrap',
@@ -76,7 +76,7 @@ export default function ExperienceSection() {
                   <span style={{ fontWeight: 700 }}>{entry.company}</span> / {entry.title}
                 </div>
                 <ul style={{ margin: '0.5rem 0 0', padding: 0, listStyle: 'none' }}>
-                  {entry.bullets.software.map((b, i) => (
+                  {entry.bullets.map((b, i) => (
                     <li
                       key={`${entry.key}-${i}`}
                       style={{

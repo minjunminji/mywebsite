@@ -1,6 +1,8 @@
 // Pure data model for the nav-driven story. No React here.
 // Content + asset paths are consumed by StoryPlayer.
 
+import type { RebaseState } from './rebaseScene';
+
 // --- Frame asset lists (webp) ---
 export const landingFrames = [
   '/Animation/landingloop1.webp',
@@ -123,122 +125,159 @@ export const ABOUT_FADE_DURATION_MS = 600;
 export const ABOUT_GROUP_GAP_MS = 800;
 
 // --- Project content ---
-// A run of text in a project paragraph; `action` makes it an in-page trigger.
-export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
-export type ProjectBodyList = { items: readonly string[] };
-// A body block is a paragraph, a list of runs when part of it is interactive,
-// or a bulleted list.
-export type ProjectBodyParagraph =
-  | string
-  | readonly ProjectBodySegment[]
-  | ProjectBodyList;
+// A project reads as one continuous block of text, lit one chunk at a time as
+// it scrolls past the reading spot (see ProjectReader). A chunk is usually one
+// sentence, sometimes two short ones; the copy declares the breaks, the
+// renderer never splits text itself.
 
-export function isProjectBodyList(block: ProjectBodyParagraph): block is ProjectBodyList {
-  return typeof block === 'object' && !Array.isArray(block) && 'items' in block;
-}
+// A run of text in a chunk; `action` makes it an in-page trigger.
+export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
+
+/** Live, interactive components that can stand in for an image or video. */
+export type ProjectComponentId = 'sceneFrames' | 'rebaseBlobs';
+
+/** Media a chunk brings onto the left of the screen while it's lit. Width and
+ *  height are the intrinsic size, used for the frame's aspect ratio before the
+ *  media loads. */
+export type ProjectMedia =
+  | { kind: 'image'; src: string; alt: string; width: number; height: number }
+  | { kind: 'video'; src: string; title: string; posterSrc?: string; width: number; height: number }
+  | {
+      kind: 'component';
+      id: ProjectComponentId;
+      label: string;
+      width: number;
+      height: number;
+      /** Which moment the component should show. Changing it morphs the
+       *  component in place; it doesn't count as new media. */
+      state?: string;
+    };
+
+export type ProjectChunk = {
+  /** Plain text, or runs when part of it is interactive. */
+  text: string | readonly ProjectBodySegment[];
+  /** Media to bring on while this chunk is lit. Left out, the media before it
+   *  stays up; `null` clears it from here on. */
+  media?: ProjectMedia | null;
+};
 
 export type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
   title: string;
   techStack: readonly string[];
-  body: readonly ProjectBodyParagraph[];
+  chunks: readonly ProjectChunk[];
   linkHref?: string;
-  imageSrc?: string;
-  imageAlt?: string;
-  imageCaption?: string;
-  carouselImages?: readonly (
-    | {
-        kind: 'image';
-        src: string;
-        alt: string;
-        caption?: string;
-      }
-    | {
-        kind: 'video';
-        src: string;
-        title?: string;
-        posterSrc?: string;
-        caption?: string;
-      }
-  )[];
-  videoSrc?: string;
-  videoPosterSrc?: string;
-  videoTitle?: string;
 };
+
+/** A chunk's text as plain runs. */
+export function chunkSegments(chunk: ProjectChunk): readonly ProjectBodySegment[] {
+  return typeof chunk.text === 'string' ? [{ text: chunk.text }] : chunk.text;
+}
+
+const SCREENSHOT = { width: 1920, height: 1038 } as const;
+
+/** The rebase diagram at one of its moments (see rebaseScene.ts). */
+const rebaseScene = (state: RebaseState): ProjectMedia => ({
+  kind: 'component',
+  id: 'rebaseBlobs',
+  state,
+  label: 'Diagram of rebase: resume files become reusable experience blobs, tailored into a resume',
+  width: 16,
+  height: 10,
+});
 
 export const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'thisWebsite',
     title: 'this website',
     techStack: ['Next.js', 'React', 'TypeScript', 'WebGL2'],
-    body: [
-      [
-        {
-          text:
-            'remember painting over my drawing on the about page? ' +
-            "that's a custom webgl2 shader i wrote. ",
+    chunks: [
+      { text: 'remember painting over my drawing on the about page?' },
+      {
+        text: [
+          { text: "that's a custom webgl2 shader i wrote. " },
+          { text: "here's how it works →", action: 'shaderExplainer' },
+        ],
+      },
+      {
+        text: 'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static.',
+        media: { kind: 'image', src: '/oldwebsite.webp', alt: 'My old portfolio website', ...SCREENSHOT },
+      },
+      {
+        text: 'so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
+        media: {
+          kind: 'video',
+          src: '/animationtimelapse.mp4',
+          title: 'Timelapse of drawing the scenes',
+          posterSrc: '/oldwebsite.webp',
+          width: 1280,
+          height: 720,
         },
-        { text: "here's how it works →", action: 'shaderExplainer' },
-      ],
-      'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static. so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
-      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react. clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
-      'this project is where my love for illustration, design, and frontend engineering all meet.',
-    ],
-    carouselImages: [
-      {
-        kind: 'video',
-        src: '/animationtimelapse.mp4',
-        title: 'Timelapse of drawing',
-        posterSrc: '/oldwebsite.webp',
-        caption: 'timelapse of drawing',
       },
       {
-        kind: 'image',
-        src: '/oldwebsite.webp',
-        alt: 'Old portfolio website screenshot',
-        caption: 'my old website',
+        text: 'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react.',
+        media: { kind: 'component', id: 'sceneFrames', label: 'The landing scene, frame by frame', width: 16, height: 10 },
       },
+      {
+        text: 'clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
+      },
+      { text: 'this project is where my love for illustration, design, and frontend engineering all meet.', media: null },
     ],
   },
   {
     key: 'rebase',
     title: 'rebase',
     techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
-    linkHref: 'http://tryrebase.io/',
-    body: [
-      'an ai-native resume builder that treats your career as a structured database instead of a folder of near-identical files.',
-      'the core is a data model i designed around one idea: every experience should live exactly once. each experience is an atomic "blob" with two layers:',
+    linkHref: 'https://www.tryrebase.io/',
+    chunks: [
+      { text: 'rebase is a resume builder that treats your career like a database, not a document.' },
       {
-        items: [
-          'the "base content" is the raw source of truth, everything you\'ve ever done in that role, written as loosely as you want.',
-          '"bullet versions" are polished, version-controlled phrasings you can mix and match across resumes.',
-        ],
-      },
-      'for a user, that means one place to see and edit each experience. for an LLM writing your resume bullets, it means clean, scoped context. the main flow is input a job description, then, via a multi-model routing layer, an LLM model of your choice picks your most relevant experiences, and writes fresh bullets from the full base content instead of from whatever limited phrasing you used last time.',
-      'since bullets are only as good as their source, rebase keeps that base content growing. i built the "quick add" feature to minimize the friction it takes to log a win on one of your experiences, and the "refine" feature asks you targeted questions about your existing blobs to turn vagueness into specifics (this also reduced hallucination by a lot!).',
-      'this all culminates in a custom Typst-based rendering engine. structured resume data flows through a template adapter layer that turns each selected experience and bullet version into Typst source. that same source powers both a live SVG preview and client-side PDF export, so what you see is what you download. the engine supports multiple templates, custom fonts, configurable contact links and formatting, user-defined section ordering, and a one-page overflow warning. because compilation happens entirely in the browser through WebAssembly, exporting a resume requires no server-side document generation.',
-    ],
-    carouselImages: [
-      {
-        kind: 'image',
-        src: '/rebase3.webp',
-        alt: 'Rebase screenshot 3',
+        text: 'most people keep a folder of near-identical resumes, one for every job they apply to.',
+        media: rebaseScene('files'),
       },
       {
-        kind: 'image',
-        src: '/rebase2.webp',
-        alt: 'Rebase screenshot 2',
+        text: 'i designed rebase around one idea: every experience should live exactly once.',
+        media: rebaseScene('blobs'),
       },
       {
-        kind: 'image',
-        src: '/rebase1.webp',
-        alt: 'Rebase screenshot 1',
+        text: 'each experience is a "blob": everything you did in that role, written as loosely as you want.',
+        media: rebaseScene('baseContent'),
       },
       {
-        kind: 'image',
-        src: '/rebase4.webp',
-        alt: 'Rebase screenshot 4',
+        text: 'polished phrasings sit on top as "bullet versions" you can reuse on any resume.',
+        media: rebaseScene('versions'),
       },
+      { text: 'a resume, then, is just a view: a few blobs picked for one job.', media: rebaseScene('view') },
+      {
+        text: 'paste a job description, and the model of your choice picks your most relevant blobs.',
+        media: rebaseScene('tailor'),
+      },
+      {
+        text: "then it writes fresh bullets from the full base content, not last time's wording.",
+        media: rebaseScene('bullets'),
+      },
+      { text: "but bullets are only as good as what's behind them.", media: rebaseScene('vague') },
+      {
+        text: '"refine" spots vague blobs and asks you pointed questions about them.',
+        media: rebaseScene('refine'),
+      },
+      {
+        text: 'your answers turn into specifics, which cut down hallucination a lot.',
+        media: rebaseScene('refined'),
+      },
+      {
+        text: '"quick add" lets you log a win the moment it happens, before you forget it.',
+        media: rebaseScene('quickAdd'),
+      },
+      {
+        text: 'everything renders through a custom typst engine, compiled in the browser with webassembly.',
+        media: rebaseScene('typst'),
+      },
+      {
+        text: 'so the live preview is exactly the pdf you download.',
+        media: { kind: 'image', src: '/rebase3.webp', alt: 'Rebase editor with live resume preview', ...SCREENSHOT },
+      },
+      { text: "it's in private beta now, with 20+ users building their resumes on it.", media: null },
     ],
   },
   {
@@ -246,80 +285,88 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     title: 'mango',
     techStack: ['Python', 'PyAutoGUI', 'OpenCV', 'MediaPipe'],
     linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
-    body: [
-      'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
-      'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.',
-      'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
+    chunks: [
+      {
+        text: 'mango turns any webcam into a full-body game controller.',
+        media: {
+          kind: 'video',
+          src: '/mango.mp4',
+          title: 'Mango full-body gesture control demo',
+          posterSrc: '/mango-poster.jpg',
+          width: 1150,
+          height: 720,
+        },
+      },
+      { text: 'you play minecraft with your whole body, no vr headset or external sensors needed.' },
+      { text: 'mediapipe tracks your body from the camera in real time.' },
+      { text: 'each movement maps straight to a keyboard or mouse input, so it works with any game.' },
+      { text: 'we built it in 12 hours with opencv, mediapipe, and python.' },
+      {
+        text: 'it won 1st place at hellohacks 2025.',
+        media: {
+          kind: 'image',
+          src: '/mango-hellohacks.webp',
+          alt: 'The mango team holding first place certificates at HelloHacks 2025',
+          width: 1280,
+          height: 853,
+        },
+      },
     ],
-    videoSrc: '/mango.mp4',
-    videoPosterSrc: '/mango-poster.jpg',
-    videoTitle: 'Mango full-body gesture control demo',
   },
 ];
 
-// --- Experience content (text-only stop; two lenses over the same roles) ---
-export type Lens = 'software' | 'product';
-export const LENSES: readonly Lens[] = ['software', 'product'];
-
+// --- Experience content (text-only stop) ---
 export type ExperienceEntry = {
-  key: 'shopify' | 'sailbot' | 'paladin';
+  key: 'superpilot' | 'shopify' | 'sailbot' | 'paladin';
   year: string; // anchor + ripple origin
   company: string;
-  title: string; // fixed across lenses
-  bullets: Record<Lens, readonly string[]>;
+  title: string;
+  bullets: readonly string[];
 };
 
-// Bullet count may differ per lens.
 export const EXPERIENCE: readonly ExperienceEntry[] = [
+  {
+    key: 'superpilot',
+    year: '2026-present',
+    company: 'superpilot',
+    title: 'software engineering intern',
+    bullets: [
+      'prototyped an AI agent that researches brands, builds landing pages, and reviews its own work across desktop and mobile',
+      'cut generation costs by 55% and roughly halved runtime through prompt optimization, caching, and model selection',
+      "evaluated the prototype against the existing generator to help shape the team's approach to page generation",
+    ],
+  },
   {
     key: 'shopify',
     year: '2026',
     company: 'shopify',
-    title: 'software engineer intern',
-    bullets: {
-      software: [
-        'drove delivery of an AI storefront-generation experience across 17 merged PRs from prototype to release readiness, building the TypeScript and GraphQL generation flows, real-time server-driven progress, generated-theme navigation, and accessible cross-device UI',
-        'shipped merchant-facing changes in a large full-stack TypeScript/GraphQL web application, scoping a fix in a shared UI component to 1 of its 5 call sites to avoid regressions and correcting a responsive-breakpoint failure, each with new unit tests and reviewer instructions requiring no local setup',
-        'fixed an intermittent Skia/JSI crash caused by the canvas mounting mid-navigation while the JavaScript runtime was busy starting AI generation; rendered a static fallback through the transition and deferred the live canvas until interactions settled',
-      ],
-      product: [
-        'redesigned the AI theme-generation experience, converting a blocking 2-minute synchronous wait into an asynchronous background workflow with real-time toast notifications on completion — keeping merchants unblocked throughout.',
-        'assumed full product ownership of the mobile experience, coordinating alignment across design, product, and engineering leadership to ship a multi-surface interface (including a custom Skia-based motion loader reused across full-screen and inline states) now rolling out as a core experiment on track to become the default mobile theme-generation flow.',
-      ],
-    },
+    title: 'software engineering intern',
+    bullets: [
+      'shipped mobile experiences that let merchants turn a description of their business into an AI-generated storefront',
+      'built custom Skia animations for iOS and Android, working with designers to refine motion, accessibility, and loading states',
+      'made the generation flow more reliable, fixing stale results, stuck progress, and an intermittent graphics crash',
+    ],
   },
   {
     key: 'sailbot',
     year: '2025-2026',
     company: 'ubc sailbot',
-    title: 'software website lead',
-    bullets: {
-      software: [
-        'built an end-to-end AIS ship-tracking data pipeline using MongoDB, Redis caching, and webhooks, replacing a commercial vendor and saving $25k/year in subscription fees',
-        'engineered a real-time React telemetry dashboard that visualizes autonomous sailboat sensor data, designing the ingestion layer to consume streaming telemetry and store in MongoDB for low-latency frontend fetching',
-      ],
-      product: [
-        'lead a cross-functional subteam of 7 full-stack developers and UI designers, managing deliverables and aligning technical roadmaps with the mechanical and electrical engineering subteams.',
-        "owning the product lifecycle for a new recruitment and hiring portal, gathering cross-subteam requirements to streamline the team's engineering onboarding and applicant tracking.",
-      ],
-    },
+    title: 'website team lead',
+    bullets: [
+      'lead seven developers and designers, translating team needs into scoped projects and coordinating implementation',
+      'identified a gap in recruiting and built a portal prototype with shared applications and team-specific review boards',
+      'built a ship-tracking pipeline for roughly 200 vessels, avoiding the need for a $25k/year external service',
+    ],
   },
   {
     key: 'paladin',
     year: '2025',
     company: 'paladin technologies',
     title: 'systems engineering intern',
-    bullets: {
-      software: [
-        'built a parallelized Python (Pandas) ETL pipeline that automated a manual geospatial workflow, reducing processing time from 8 hours to under 30 seconds (>1,000× speedup) through optimized file I/O and vectorization',
-        'developed automated web scrapers to ingest, normalize, and schema-map unstructured vendor data from 200+ hardware platforms into a centralized database for technical evaluation',
-      ],
-      product: [
-        'led technical requirements gathering with City of Vancouver IT and field engineering teams to scope a 250+ site city-wide surveillance upgrade',
-        'designed a standardized KMZ metadata specification adopted as the official municipal requirement across all deployment sites to ensure uniform geospatial data logging',
-        'synthesized complex hardware capabilities into a structured technical decision matrix, streamlining the procurement process across 200+ vendors',
-      ],
-    },
+    bullets: [
+      'automated an eight-hour geospatial workflow in Python, bringing processing time down to under 30 seconds',
+      'developed a standardized mapping format adopted across 250+ City of Vancouver surveillance deployment sites',
+    ],
   },
 ];
 
