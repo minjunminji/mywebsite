@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import dynamic from 'next/dynamic';
-import { INK, INK_SOFT, MEDIA_BG, PAPER, inkAlpha, paperAlpha } from '@/theme';
+import { INK, INK_SOFT, PAPER, paperAlpha } from '@/theme';
 import {
   ABOUT_FADE_DURATION_MS,
   ABOUT_INITIAL_DELAY_MS,
@@ -14,7 +14,6 @@ import {
   PROJECT_CONTENT,
   firstProjectIndex,
   isExperienceStop,
-  isProjectBodyList,
   isProjectStop,
   landingFrames,
   stopIndexById,
@@ -29,11 +28,12 @@ import { NAV_DRAW_MS, NAV_GLIDE_MS } from '@/components/story/navTiming';
 import TldrOverlay from '@/components/story/TldrOverlay';
 import RevealFluid from '@/components/RevealFluid';
 import ExperienceSection from '@/components/experience/ExperienceSection';
-import { useScrollFade } from '@/components/useScrollFade';
 import { usePiano } from '@/components/piano/PianoContext';
 import { MOBILE_QUERY } from '@/components/mobile/breakpoint';
 import { frameLoader } from '@/components/story/frameLoader';
-import ProjectVideo from '@/components/story/ProjectVideo';
+import LivingMedia from '@/components/story/LivingMedia';
+import ProjectReader from '@/components/story/ProjectReader';
+import { mediaForChunk } from '@/components/story/projectReading';
 
 // Heavy (figures, WebGL) and rarely opened: load on first open only.
 const loadShaderExplainer = () => import('@/components/explainer/ShaderExplainer');
@@ -44,11 +44,6 @@ const TRAIN_SEQUENCE_INTERVAL_MS = 1000 / 12;
 const LANDING_LOOP_REPEATS = 2; // idle loops before the train (~1.4s; was 4 / ~2.9s)
 const PAGE_BG = PAPER;
 const PAGE_BG_CLEAR = paperAlpha(0);
-// Space under a project's media, lifting it off the bottom of the pane.
-const PROJECT_MEDIA_GAP = 'clamp(3rem, 8vh, 5rem)';
-// Media without carousel dots adds the dots row's height (0.7rem margin +
-// 0.54rem dot) so its bottom edge lines up with a carousel's.
-const PROJECT_MEDIA_GAP_NO_DOTS = `calc(${PROJECT_MEDIA_GAP} + 1.24rem)`;
 // Soft vignette that feathers the page background inward on every edge, so the
 // train drawing dissolves into the page instead of ending on a hard cutoff.
 const EDGE_FADE =
@@ -120,7 +115,8 @@ export default function StoryPlayer() {
     player.isTransitioning && isProjectStop(player.target)
       ? PROJECT_CONTENT[player.target - firstProjectIndex]
       : null;
-  const incomingVideoSrc = incomingProject?.videoSrc ?? null;
+  const incomingVideo = incomingProject?.chunks.map((chunk) => chunk.media).find((media) => media?.kind === 'video');
+  const incomingVideoSrc = incomingVideo?.kind === 'video' ? incomingVideo.src : null;
   // Directional project transition: content enters from the side it's heading
   // (forward → in from the right, out to the left) and reverses going back.
   const enterX = player.navDir >= 0 ? '48px' : '-48px';
@@ -133,24 +129,12 @@ export default function StoryPlayer() {
     }
   }, [onAbout]);
 
-  // --- project carousel state (ported) ---
   const [hoveredProjectLink, setHoveredProjectLink] = useState<ProjectContent['key'] | null>(null);
-  const [projectCarouselIndex, setProjectCarouselIndex] = useState<Record<ProjectContent['key'], number>>({
-    thisWebsite: 0,
-    rebase: 0,
-    mango: 0,
-  });
-  const jumpProjectCarousel = (key: ProjectContent['key'], index: number) => {
-    setProjectCarouselIndex((previous) => ({ ...previous, [key]: index }));
-  };
-
-  // The project pane scrolls independently — thin scrollbar + edge fade.
-  const {
-    scrollRef: projectScrollRef,
-    contentRef: projectContentRef,
-    onScroll: onProjectScroll,
-    maskImage: projectMask,
-  } = useScrollFade({ fadeBottom: true });
+  // The lit chunk of the project on screen; its reader reports it (and resets
+  // to the first chunk whenever a project mounts).
+  const [activeChunk, setActiveChunk] = useState(0);
+  const projectMedia =
+    onProject && activeProject ? mediaForChunk(activeProject.chunks, activeChunk) : null;
 
   // Decode a short window ahead. Keep the previous drawing visible while a
   // slow connection catches up; no unrelated scenes compete with the intro.
@@ -519,6 +503,9 @@ export default function StoryPlayer() {
         <video key={incomingVideoSrc} src={incomingVideoSrc} preload="auto" muted aria-hidden hidden />
       ) : null}
 
+      {/* ===== project media: the lit chunk's media, over the drawing ===== */}
+      <LivingMedia media={projectMedia} playing={!tldrOpen && !explainerOpen} />
+
       {/* ===== PORT BLOCK C: projects aside — single active project ===== */}
       {activeProject ? (
         <aside
@@ -560,17 +547,13 @@ export default function StoryPlayer() {
               const project = activeProject;
               const isLinked = Boolean(project.linkHref);
               const showUnderline = hoveredProjectLink === project.key;
-              const carouselImages = project.carouselImages ?? [];
-              const carouselLength = carouselImages.length;
-              const activeCarouselIndex = projectCarouselIndex[project.key] ?? 0;
-              const activeCarouselItem = carouselImages[activeCarouselIndex];
 
               return (
                 <article
                   key={project.key}
                   style={{
-                    // Fills the pane: header pinned top, media pinned bottom, and
-                    // the body takes the space between (scrolling if it overflows).
+                    // Fills the pane: header pinned top, and the reader takes the
+                    // rest. Media lives on the left (LivingMedia), not in here.
                     display: 'flex',
                     flexDirection: 'column',
                     flex: '1 1 auto',
@@ -677,268 +660,14 @@ export default function StoryPlayer() {
                       {project.techStack.join(', ')}
                     </p>
                   </div>
-                  <div
-                    ref={projectScrollRef}
-                    className="custom-scroll"
-                    onScroll={onProjectScroll}
-                    style={{
-                      flex: '1 1 auto',
-                      minHeight: 0,
-                      overflowY: 'auto',
-                      overflowX: 'hidden',
-                      WebkitMaskImage: projectMask,
-                      maskImage: projectMask,
-                    }}
-                  >
-                    <div
-                      ref={projectContentRef}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.8rem',
-                        fontSize: 'clamp(0.9rem, 1.05vw, 1rem)',
-                        lineHeight: 1.65,
-                        fontWeight: 400,
-                      }}
-                    >
-                      {project.body.map((paragraph, index) =>
-                        isProjectBodyList(paragraph) ? (
-                          <ul key={index} style={{ margin: 0, paddingLeft: '1.4em' }}>
-                            {paragraph.items.map((item) => (
-                              <li key={item}>{item}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p key={index} style={{ margin: 0 }}>
-                            {typeof paragraph === 'string'
-                              ? paragraph
-                              : paragraph.map((segment, segmentIndex) =>
-                                  segment.action === 'shaderExplainer' ? (
-                                    <button
-                                      key={segmentIndex}
-                                      type="button"
-                                      className="inline-trigger"
-                                      onClick={openExplainer}
-                                      // Warm the chunk while the pointer is on its way.
-                                      onPointerEnter={() => void loadShaderExplainer()}
-                                      onFocus={() => void loadShaderExplainer()}
-                                    >
-                                      {segment.text}
-                                    </button>
-                                  ) : (
-                                    <span key={segmentIndex}>{segment.text}</span>
-                                  ),
-                                )}
-                          </p>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                  {project.imageSrc ? (
-                    <div style={{ marginTop: '0.4rem', marginBottom: PROJECT_MEDIA_GAP_NO_DOTS, flexShrink: 0 }}>
-                      <figure
-                        data-cursor-ink="paper"
-                        style={{
-                          margin: 0,
-                          border: `1.5px solid ${INK}`,
-                          borderRadius: '12px',
-                          overflow: 'hidden',
-                          background: MEDIA_BG,
-                        }}
-                      >
-                        <img
-                          src={project.imageSrc}
-                          alt={project.imageAlt ?? `${project.title} media`}
-                          draggable={false}
-                          style={{
-                            display: 'block',
-                            width: '100%',
-                            height: 'auto',
-                            userSelect: 'none',
-                          }}
-                        />
-                      </figure>
-                      {project.imageCaption ? (
-                        <p
-                          style={{
-                            margin: '0.35rem 0 0',
-                            fontSize: '0.78rem',
-                            lineHeight: 1.25,
-                            color: INK_SOFT,
-                          }}
-                        >
-                          {project.imageCaption}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {carouselLength > 0 ? (
-                    <div
-                      style={{
-                        marginTop: '0.4rem',
-                        marginBottom: PROJECT_MEDIA_GAP,
-                        flexShrink: 0,
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <figure
-                        data-cursor-ink="paper"
-                        style={{
-                          margin: 0,
-                          borderRadius: '12px',
-                          overflow: 'hidden',
-                          background: MEDIA_BG,
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: 'relative',
-                            width: '100%',
-                            aspectRatio: '16 / 9',
-                          }}
-                        >
-                          {carouselImages.map((item, mediaIndex) => {
-                            const isActiveMedia = mediaIndex === activeCarouselIndex;
-
-                            if (item.kind === 'video') {
-                              return (
-                                <ProjectVideo
-                                  active={isActiveMedia && onProject && !tldrOpen && !explainerOpen}
-                                  key={`${project.key}-media-video-${item.src}`}
-                                  src={item.src}
-                                  title={item.title ?? `${project.title} media`}
-                                  poster={item.posterSrc}
-                                  muted
-                                  loop
-                                  playsInline
-                                  style={{
-                                    position: 'absolute',
-                                    inset: 0,
-                                    display: 'block',
-                                    width: '100%',
-                                    height: '100%',
-                                    objectFit: 'cover',
-                                    objectPosition: 'center',
-                                    userSelect: 'none',
-                                    opacity: isActiveMedia ? 1 : 0,
-                                    zIndex: isActiveMedia ? 2 : 1,
-                                    pointerEvents: 'none',
-                                  }}
-                                />
-                              );
-                            }
-
-                            return (
-                              <img
-                                key={`${project.key}-media-image-${item.src}`}
-                                src={item.src}
-                                alt={item.alt}
-                                draggable={false}
-                                style={{
-                                  position: 'absolute',
-                                  inset: 0,
-                                  display: 'block',
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                  objectPosition: 'center',
-                                  userSelect: 'none',
-                                  opacity: isActiveMedia ? 1 : 0,
-                                  zIndex: isActiveMedia ? 2 : 1,
-                                  pointerEvents: 'none',
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                      </figure>
-                      {activeCarouselItem?.caption ? (
-                        <p
-                          style={{
-                            margin: '0.35rem 0 0',
-                            fontSize: '0.78rem',
-                            lineHeight: 1.25,
-                            color: INK_SOFT,
-                          }}
-                        >
-                          {activeCarouselItem.caption}
-                        </p>
-                      ) : null}
-                      <div
-                        style={{
-                          marginTop: '0.7rem',
-                          display: 'flex',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: '0.45rem',
-                        }}
-                      >
-                        {carouselImages.map((_, dotIndex) => {
-                          const isActive = dotIndex === activeCarouselIndex;
-
-                          return (
-                            <button
-                              key={`${project.key}-dot-${dotIndex}`}
-                              type="button"
-                              data-cursor-skip
-                              aria-label={`Show ${project.title} media ${dotIndex + 1}`}
-                              onClick={() => jumpProjectCarousel(project.key, dotIndex)}
-                              style={{
-                                width: isActive ? '0.92rem' : '0.54rem',
-                                height: '0.54rem',
-                                borderRadius: '999px',
-                                border: 'none',
-                                background: isActive ? INK : inkAlpha(0.32),
-                                cursor: 'pointer',
-                                transition: 'width 180ms ease, background-color 180ms ease',
-                                padding: 0,
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : null}
-                  {project.videoSrc ? (
-                    <figure
-                      data-cursor-ink="paper"
-                      style={{
-                        margin: 0,
-                        marginTop: '0.4rem',
-                        marginBottom: PROJECT_MEDIA_GAP_NO_DOTS,
-                        flexShrink: 0,
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                        background: MEDIA_BG,
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: '100%',
-                          aspectRatio: '16 / 9',
-                        }}
-                      >
-                        <ProjectVideo
-                          active={onProject && !tldrOpen && !explainerOpen}
-                          src={project.videoSrc}
-                          title={project.videoTitle ?? `${project.title} video`}
-                          poster={project.videoPosterSrc}
-                          muted
-                          loop
-                          playsInline
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            border: 0,
-                            display: 'block',
-                            objectFit: 'cover',
-                            objectPosition: 'center',
-                          }}
-                        />
-                      </div>
-                    </figure>
-                  ) : null}
+                  <ProjectReader
+                    chunks={project.chunks}
+                    active={onProject && !tldrOpen && !explainerOpen}
+                    onActiveChunk={setActiveChunk}
+                    onAction={openExplainer}
+                    // Warm the chunk while the pointer is on its way.
+                    onActionIntent={() => void loadShaderExplainer()}
+                  />
                 </article>
               );
             })()}

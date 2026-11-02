@@ -123,81 +123,84 @@ export const ABOUT_FADE_DURATION_MS = 600;
 export const ABOUT_GROUP_GAP_MS = 800;
 
 // --- Project content ---
-// A run of text in a project paragraph; `action` makes it an in-page trigger.
-export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
-export type ProjectBodyList = { items: readonly string[] };
-// A body block is a paragraph, a list of runs when part of it is interactive,
-// or a bulleted list.
-export type ProjectBodyParagraph =
-  | string
-  | readonly ProjectBodySegment[]
-  | ProjectBodyList;
+// A project reads as one continuous block of text, lit one chunk at a time as
+// it scrolls past the reading spot (see ProjectReader). A chunk is usually one
+// sentence, sometimes two short ones; the copy declares the breaks, the
+// renderer never splits text itself.
 
-export function isProjectBodyList(block: ProjectBodyParagraph): block is ProjectBodyList {
-  return typeof block === 'object' && !Array.isArray(block) && 'items' in block;
-}
+// A run of text in a chunk; `action` makes it an in-page trigger.
+export type ProjectBodySegment = { text: string; action?: 'shaderExplainer' };
+
+/** Live, interactive components that can stand in for an image or video. */
+export type ProjectComponentId = 'sceneFrames';
+
+/** Media a chunk brings onto the left of the screen while it's lit. Width and
+ *  height are the intrinsic size, used for the frame's aspect ratio before the
+ *  media loads. */
+export type ProjectMedia =
+  | { kind: 'image'; src: string; alt: string; width: number; height: number }
+  | { kind: 'video'; src: string; title: string; posterSrc?: string; width: number; height: number }
+  | { kind: 'component'; id: ProjectComponentId; label: string; width: number; height: number };
+
+export type ProjectChunk = {
+  /** Plain text, or runs when part of it is interactive. */
+  text: string | readonly ProjectBodySegment[];
+  /** Media to bring on while this chunk is lit. Left out, the media before it
+   *  stays up; `null` clears it from here on. */
+  media?: ProjectMedia | null;
+};
 
 export type ProjectContent = {
   key: 'thisWebsite' | 'rebase' | 'mango';
   title: string;
   techStack: readonly string[];
-  body: readonly ProjectBodyParagraph[];
+  chunks: readonly ProjectChunk[];
   linkHref?: string;
-  imageSrc?: string;
-  imageAlt?: string;
-  imageCaption?: string;
-  carouselImages?: readonly (
-    | {
-        kind: 'image';
-        src: string;
-        alt: string;
-        caption?: string;
-      }
-    | {
-        kind: 'video';
-        src: string;
-        title?: string;
-        posterSrc?: string;
-        caption?: string;
-      }
-  )[];
-  videoSrc?: string;
-  videoPosterSrc?: string;
-  videoTitle?: string;
 };
+
+/** A chunk's text as plain runs. */
+export function chunkSegments(chunk: ProjectChunk): readonly ProjectBodySegment[] {
+  return typeof chunk.text === 'string' ? [{ text: chunk.text }] : chunk.text;
+}
+
+const SCREENSHOT = { width: 1920, height: 1038 } as const;
 
 export const PROJECT_CONTENT: readonly ProjectContent[] = [
   {
     key: 'thisWebsite',
     title: 'this website',
     techStack: ['Next.js', 'React', 'TypeScript', 'WebGL2'],
-    body: [
-      [
-        {
-          text:
-            'remember painting over my drawing on the about page? ' +
-            "that's a custom webgl2 shader i wrote. ",
+    chunks: [
+      { text: 'remember painting over my drawing on the about page?' },
+      {
+        text: [
+          { text: "that's a custom webgl2 shader i wrote. " },
+          { text: "here's how it works →", action: 'shaderExplainer' },
+        ],
+      },
+      {
+        text: 'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static.',
+        media: { kind: 'image', src: '/oldwebsite.webp', alt: 'My old portfolio website', ...SCREENSHOT },
+      },
+      {
+        text: 'so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
+        media: {
+          kind: 'video',
+          src: '/animationtimelapse.mp4',
+          title: 'Timelapse of drawing the scenes',
+          posterSrc: '/oldwebsite.webp',
+          width: 1280,
+          height: 720,
         },
-        { text: "here's how it works →", action: 'shaderExplainer' },
-      ],
-      'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static. so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.',
-      'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react. clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
-      'this project is where my love for illustration, design, and frontend engineering all meet.',
-    ],
-    carouselImages: [
-      {
-        kind: 'video',
-        src: '/animationtimelapse.mp4',
-        title: 'Timelapse of drawing',
-        posterSrc: '/oldwebsite.webp',
-        caption: 'timelapse of drawing',
       },
       {
-        kind: 'image',
-        src: '/oldwebsite.webp',
-        alt: 'Old portfolio website screenshot',
-        caption: 'my old website',
+        text: 'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react.',
+        media: { kind: 'component', id: 'sceneFrames', label: 'The landing scene, frame by frame', width: 16, height: 10 },
       },
+      {
+        text: 'clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.',
+      },
+      { text: 'this project is where my love for illustration, design, and frontend engineering all meet.', media: null },
     ],
   },
   {
@@ -205,39 +208,37 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     title: 'rebase',
     techStack: ['React.js', 'Next.js', 'Supabase', 'Typst', 'Inngest', 'Redis'],
     linkHref: 'http://tryrebase.io/',
-    body: [
-      'an ai-native resume builder that treats your career as a structured database instead of a folder of near-identical files.',
-      'the core is a data model i designed around one idea: every experience should live exactly once. each experience is an atomic "blob" with two layers:',
+    chunks: [
       {
-        items: [
-          'the "base content" is the raw source of truth, everything you\'ve ever done in that role, written as loosely as you want.',
-          '"bullet versions" are polished, version-controlled phrasings you can mix and match across resumes.',
-        ],
+        text: 'an ai-native resume builder that treats your career as a structured database instead of a folder of near-identical files.',
+        media: { kind: 'image', src: '/rebase1.webp', alt: 'Rebase resume list', width: 1920, height: 1041 },
       },
-      'for a user, that means one place to see and edit each experience. for an LLM writing your resume bullets, it means clean, scoped context. the main flow is input a job description, then, via a multi-model routing layer, an LLM model of your choice picks your most relevant experiences, and writes fresh bullets from the full base content instead of from whatever limited phrasing you used last time.',
-      'since bullets are only as good as their source, rebase keeps that base content growing. i built the "quick add" feature to minimize the friction it takes to log a win on one of your experiences, and the "refine" feature asks you targeted questions about your existing blobs to turn vagueness into specifics (this also reduced hallucination by a lot!).',
-      'this all culminates in a custom Typst-based rendering engine. structured resume data flows through a template adapter layer that turns each selected experience and bullet version into Typst source. that same source powers both a live SVG preview and client-side PDF export, so what you see is what you download. the engine supports multiple templates, custom fonts, configurable contact links and formatting, user-defined section ordering, and a one-page overflow warning. because compilation happens entirely in the browser through WebAssembly, exporting a resume requires no server-side document generation.',
-    ],
-    carouselImages: [
+      { text: 'the core is a data model i designed around one idea: every experience should live exactly once.' },
       {
-        kind: 'image',
-        src: '/rebase3.webp',
-        alt: 'Rebase screenshot 3',
+        text: 'each experience is an atomic "blob" with two layers: the "base content" is the raw source of truth, everything you\'ve ever done in that role, written as loosely as you want, and "bullet versions" are polished, version-controlled phrasings you can mix and match across resumes.',
+        media: { kind: 'image', src: '/rebase2.webp', alt: 'Rebase blobs with their bullet versions', ...SCREENSHOT },
+      },
+      { text: 'for a user, that means one place to see and edit each experience. for an LLM writing your resume bullets, it means clean, scoped context.' },
+      {
+        text: 'the main flow is input a job description, then, via a multi-model routing layer, an LLM model of your choice picks your most relevant experiences, and writes fresh bullets from the full base content instead of from whatever limited phrasing you used last time.',
       },
       {
-        kind: 'image',
-        src: '/rebase2.webp',
-        alt: 'Rebase screenshot 2',
+        text: 'since bullets are only as good as their source, rebase keeps that base content growing. i built the "quick add" feature to minimize the friction it takes to log a win on one of your experiences.',
       },
       {
-        kind: 'image',
-        src: '/rebase1.webp',
-        alt: 'Rebase screenshot 1',
+        text: 'the "refine" feature asks you targeted questions about your existing blobs to turn vagueness into specifics (this also reduced hallucination by a lot!).',
+        media: { kind: 'image', src: '/rebase4.webp', alt: 'Rebase refine questions', width: 1920, height: 1041 },
       },
       {
-        kind: 'image',
-        src: '/rebase4.webp',
-        alt: 'Rebase screenshot 4',
+        text: 'this all culminates in a custom Typst-based rendering engine. structured resume data flows through a template adapter layer that turns each selected experience and bullet version into Typst source.',
+        media: { kind: 'image', src: '/rebase3.webp', alt: 'Rebase editor with live resume preview', ...SCREENSHOT },
+      },
+      { text: 'that same source powers both a live SVG preview and client-side PDF export, so what you see is what you download.' },
+      {
+        text: 'the engine supports multiple templates, custom fonts, configurable contact links and formatting, user-defined section ordering, and a one-page overflow warning.',
+      },
+      {
+        text: 'because compilation happens entirely in the browser through WebAssembly, exporting a resume requires no server-side document generation.',
       },
     ],
   },
@@ -246,14 +247,23 @@ export const PROJECT_CONTENT: readonly ProjectContent[] = [
     title: 'mango',
     techStack: ['Python', 'PyAutoGUI', 'OpenCV', 'MediaPipe'],
     linkHref: 'https://devpost.com/software/mango-full-body-gesture-control-for-any-game',
-    body: [
-      'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
-      'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.',
-      'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
+    chunks: [
+      {
+        text: 'mango turns any webcam into a full-body game controller, so you can play minecraft with gestures and movement, no vr headset or external sensors required.',
+        media: {
+          kind: 'video',
+          src: '/mango.mp4',
+          title: 'Mango full-body gesture control demo',
+          posterSrc: '/mango-poster.jpg',
+          width: 1150,
+          height: 720,
+        },
+      },
+      { text: 'it tracks body motion in real time and maps your movements directly to in-game inputs for a hands-free, immersive control experience.' },
+      {
+        text: 'built in 12 hours with opencv, mediapipe holistic, python, and pyinput, this project won 1st place at hellohacks 2025.',
+      },
     ],
-    videoSrc: '/mango.mp4',
-    videoPosterSrc: '/mango-poster.jpg',
-    videoTitle: 'Mango full-body gesture control demo',
   },
 ];
 

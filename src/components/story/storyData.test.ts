@@ -9,7 +9,7 @@ import {
   PROJECT_CONTENT,
   stopIndexById,
   isExperienceStop,
-  isProjectBodyList,
+  chunkSegments,
 } from './storyData';
 
 describe('experience stop', () => {
@@ -106,17 +106,47 @@ describe('mobile TLDR', () => {
   });
 });
 
-describe('project body', () => {
+describe('project chunks', () => {
   it('has exactly one shader explainer trigger, in "this website"', () => {
     const triggers = PROJECT_CONTENT.flatMap((project) =>
-      project.body.flatMap((paragraph) =>
-        typeof paragraph === 'string' || isProjectBodyList(paragraph)
-          ? []
-          : paragraph
-              .filter((segment) => segment.action === 'shaderExplainer')
-              .map((segment) => ({ project: project.key, text: segment.text })),
+      project.chunks.flatMap((chunk) =>
+        chunkSegments(chunk)
+          .filter((segment) => segment.action === 'shaderExplainer')
+          .map((segment) => ({ project: project.key, text: segment.text })),
       ),
     );
     expect(triggers).toEqual([{ project: 'thisWebsite', text: "here's how it works →" }]);
+  });
+
+  it('gives every chunk some text and every media a real size', () => {
+    for (const project of PROJECT_CONTENT) {
+      expect(project.chunks.length).toBeGreaterThan(0);
+      for (const chunk of project.chunks) {
+        expect(chunkSegments(chunk).map((segment) => segment.text).join('').trim()).not.toBe('');
+        if (chunk.media) {
+          expect(chunk.media.width).toBeGreaterThan(0);
+          expect(chunk.media.height).toBeGreaterThan(0);
+        }
+      }
+    }
+  });
+
+  it('brings in every project media the old carousels showed', () => {
+    const sources = PROJECT_CONTENT.flatMap((project) =>
+      project.chunks.flatMap((chunk) =>
+        chunk.media && chunk.media.kind !== 'component' ? [chunk.media.src] : [],
+      ),
+    );
+    expect(sources.sort()).toEqual(
+      [
+        '/animationtimelapse.mp4',
+        '/oldwebsite.webp',
+        '/rebase1.webp',
+        '/rebase2.webp',
+        '/rebase3.webp',
+        '/rebase4.webp',
+        '/mango.mp4',
+      ].sort(),
+    );
   });
 });
