@@ -21,7 +21,18 @@ const FRAME_MS = 180; // the landing loop's own pace
 /** The landing scene's loop, playable and steppable frame by frame. */
 function SceneFrames({ active }: ProjectComponentProps) {
   const [frame, setFrame] = useState(0);
-  const [playing, setPlaying] = useState(true);
+  // Wait for the preference before autoplaying; explicit play still works.
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPlaying(!motion.matches);
+    const onChange = () => {
+      if (motion.matches) setPlaying(false);
+    };
+    motion.addEventListener('change', onChange);
+    return () => motion.removeEventListener('change', onChange);
+  }, []);
 
   useEffect(() => {
     if (!active || !playing) return undefined;
@@ -86,7 +97,7 @@ function SceneFrames({ active }: ProjectComponentProps) {
         >
           step
         </button>
-        <span aria-live="polite">
+        <span aria-live={playing ? 'off' : 'polite'}>
           frame {frame + 1}/{LANDING_FRAMES.length}
         </span>
         <span aria-hidden="true" style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
