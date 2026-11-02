@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Living media</title>
+<style>
+  :root { --paper: #0041ba; --ink: #ffffff; --soft: rgba(255,255,255,0.72); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #002f88; color: var(--ink); font-family: "Helvetica Neue", Arial, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 20px 60px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--soft); font-size: 14px; margin: 0 0 14px; line-height: 1.5; max-width: 900px; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+  .tab { font: inherit; font-size: 13px; color: var(--soft); background: transparent; border: 1px solid rgba(255,255,255,0.3); border-radius: 999px; padding: 7px 14px; cursor: pointer; }
+  .tab[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-color: var(--ink); }
+  .bar .count { margin-left: auto; color: var(--soft); font: 12px ui-monospace, Menlo, monospace; }
+
+  .screen { position: relative; width: 1200px; height: 750px; background: var(--paper); overflow: hidden; transform-origin: 0 0; }
+  .backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: brightness(0); opacity: 0.25; }
+  .drawing { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: invert(1); }
+  .nav { position: absolute; left: 26px; top: 22px; display: flex; gap: 12px; align-items: center; font-size: 16px; }
+  .nav .r { width: 22px; height: 1px; background: #fff; } .nav .dim { opacity: 0.45; }
+  .kids { position: absolute; left: 236px; top: 50px; font-size: 13px; line-height: 1.6; }
+  .kids div { opacity: 0.45; } .kids .on { opacity: 1; }
+
+  .panel { position: absolute; right: 48px; top: 96px; bottom: 40px; width: 470px; display: flex; flex-direction: column; }
+  .head h2 { margin: 0; font-size: 36px; line-height: 1; }
+  .head p { margin: 8px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--soft); }
+  .viewport { position: relative; flex: 1; min-height: 0; margin-top: 22px; overflow-y: auto; scrollbar-width: none; }
+  .viewport::-webkit-scrollbar { display: none; }
+  .text { font-size: 30px; line-height: 1.22; font-weight: 700; letter-spacing: -0.01em; padding: 120px 0 380px; }
+  .s { color: rgba(255,255,255,0.22); transition: color 240ms ease; }
+  .s.on { color: #fff; }
+  .s .link { text-decoration: underline; text-underline-offset: 0.15em; text-decoration-thickness: 2px; }
+
+  /* The living frame. Its box is the full media size; the shape inside it animates. */
+  .frame { position: absolute; left: 110px; top: 300px; width: 440px; height: 248px; pointer-events: none; transform-origin: 50% 50%; }
+  .creases { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .frame .media { position: absolute; inset: 0; background: var(--paper); pointer-events: auto; }
+  .frame .media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .frame .media img.inv { filter: invert(1); }
+  .frame svg { position: absolute; left: -20px; top: -20px; width: 480px; height: 288px; overflow: visible; }
+  .comp { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .comp .view { flex: 1; min-height: 0; position: relative; }
+  .comp .view img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: invert(1); }
+  .comp .ctl { height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-top: 1px solid rgba(255,255,255,0.4); font: 12px ui-monospace, Menlo, monospace; }
+  .comp button { font: inherit; color: #fff; background: none; border: 1px solid rgba(255,255,255,0.6); border-radius: 4px; padding: 3px 8px; cursor: pointer; }
+  .comp .ticks { display: flex; gap: 4px; margin-left: auto; } .comp .ticks i { width: 18px; height: 4px; background: rgba(255,255,255,0.3); } .comp .ticks i.on { background: #fff; }
+  .hint { margin-top: 12px; color: var(--soft); font-size: 13px; line-height: 1.55; max-width: 920px; }
+  .options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; max-width: 920px; }
+  .option { border: 1px solid rgba(255,255,255,0.25); border-radius: 10px; padding: 14px 16px; cursor: pointer; }
+  .option.selected { border-color: var(--ink); background: rgba(255,255,255,0.08); }
+  .option h3 { margin: 0 0 6px; font-size: 15px; } .option p { margin: 0; color: var(--soft); font-size: 13px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Living frames that unfurl and collapse</h1>
+  <p class="sub">Scroll the project text. When a sentence with media lights up, the old frame collapses away and the new one appears. Three readings of “unfurling from nothing” —
+    switch with the tabs. Sentence 5 shows a live component (play / step the landing loop).</p>
+  <div class="bar">
+    <button class="tab" data-style="trace" aria-pressed="false">trace · the line draws itself around</button>
+    <button class="tab" data-style="unfurl" aria-pressed="true">unfurl · point → line → frame</button>
+    <button class="tab" data-style="bloom" aria-pressed="false">bloom · uncrumples like a sheet of paper</button>
+    <button class="tab" id="replay">replay current</button>
+    <span class="count" id="count"></span>
+  </div>
+  <div id="fit">
+    <div class="screen" id="screen">
+      <img class="backdrop" src="/files/turnstile-bg.png" alt="">
+      <img class="drawing" src="/files/turnstile-tw.png" alt="">
+      <div class="nav"><b>ryan kim</b><span class="r"></span><span>about</span><span class="r"></span><span>projects</span><span class="r"></span><span class="dim">experience</span></div>
+      <div class="kids"><div class="on">this website</div><div>rebase</div><div>mango</div></div>
+      <div class="frame" id="frame">
+        <div class="media" id="media"></div>
+        <svg viewBox="-20 -20 480 288"><path id="line" fill="none" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>
+      </div>
+      <div class="panel">
+        <div class="head"><h2>this website</h2><p>Next.js, React, TypeScript, WebGL2</p></div>
+        <div class="viewport" id="vp"><div class="text" id="text"></div></div>
+      </div>
+    </div>
+  </div>
+  <p class="hint">Throwaway prototype. Sentences without media leave the current frame up. Frame size and placement are placeholders; the wobble and 8fps boil match the piano player.</p>
+  <div class="options">
+    <div class="option" data-choice="trace" onclick="toggleSelect(this)"><h3>trace</h3><p>The line draws itself, then the media fills in.</p></div>
+    <div class="option" data-choice="unfurl" onclick="toggleSelect(this)"><h3>unfurl</h3><p>A point stretches into a line, the line opens into the frame.</p></div>
+    <div class="option" data-choice="bloom" onclick="toggleSelect(this)"><h3>bloom</h3><p>Starts as a crumpled ball, unfolds unevenly, creases fade as it flattens.</p></div>
+  </div>
+</div>
+<script>
+(() => {
+  const W = 440, H = 248, R = 10, ENTER_MS = 620, EXIT_MS = 320;
+  const SENTENCES = [
+    { t: 'remember painting over my drawing on the about page?', media: 'about' },
+    { t: 'that’s a custom webgl2 shader i wrote. <span class="link">here’s how it works →</span>' },
+    { t: 'my old portfolio was a hand-drawn interactive view of my own desk, but it felt static.', media: 'old' },
+    { t: 'so i rebuilt it as an animated hand-drawn world you navigate, where each section is its own scene.', media: 'train' },
+    { t: 'i challenged myself to learn animation and built a custom frame-by-frame scene system in next.js + react.', media: 'frames' },
+    { t: 'clicking through the nav plays the hand-drawn sequences forward or backward to move you from one place to the next.' },
+    { t: 'this project is where my love for illustration, design, and frontend engineering all meet.' },
+  ];
+  const screen = document.getElementById('screen'), fit = document.getElementById('fit');
+  const vp = document.getElementById('vp'), text = document.getElementById('text'), count = document.getElementById('count');
+  const media = document.getElementById('media'), line = document.getElementById('line'), frameEl = document.getElementById('frame');
+  text.innerHTML = SENTENCES.map((s, i) => `<span class="s" data-i="${i}">${s.t}</span>`).join(' ');
+  const spans = [...text.querySelectorAll('.s')];
+  let scale = 1, style = 'unfurl';
+  function fitScreen() { scale = Math.min(1, fit.clientWidth / 1200); screen.style.transform = `scale(${scale})`; fit.style.height = 750 * scale + 'px'; }
+  fitScreen(); addEventListener('resize', fitScreen);
+
+  // ---- media content ----
+  let compTimer = 0;
+  function build(kind) {
+    clearInterval(compTimer);
+    if (kind === 'about') return '<img class="inv" src="/files/about-small.png" alt="">';
+    if (kind === 'old') return '<img src="/files/oldwebsite.png" alt="">';
+    if (kind === 'train') return '<img class="inv" src="/files/train.png" alt="">';
+    return `<div class="comp"><div class="view">${[1, 2, 3, 4].map(i => `<img src="/files/loop${i}.png" style="opacity:${i === 1 ? 1 : 0}">`).join('')}</div>
+      <div class="ctl"><button data-a="play">pause</button><button data-a="step">step</button><span id="fr">frame 1/4</span><span class="ticks">${'<i></i>'.repeat(4)}</span></div></div>`;
+  }
+  function wire(kind) {
+    if (kind !== 'frames') return;
+    const imgs = [...media.querySelectorAll('.view img')], ticks = [...media.querySelectorAll('.ticks i')];
+    let f = 0, playing = true;
+    const show = () => { imgs.forEach((im, i) => im.style.opacity = i === f ? 1 : 0); ticks.forEach((t, i) => t.classList.toggle('on', i === f)); media.querySelector('#fr').textContent = `frame ${f + 1}/4`; };
+    const step = () => { f = (f + 1) % 4; show(); };
+    show(); compTimer = setInterval(() => playing && step(), 180);
+    media.querySelector('[data-a="play"]').onclick = e => { playing = !playing; e.target.textContent = playing ? 'pause' : 'play'; };
+    media.querySelector('[data-a="step"]').onclick = () => { playing = false; media.querySelector('[data-a="play"]').textContent = 'play'; step(); };
+  }
+
+  // ---- noise + wobbled rounded rect ----
+  const fract = x => x - Math.floor(x);
+  function hash(x, y) { x = fract(x * 123.34); y = fract(y * 345.45); const d = x * (x + 34.345) + y * (y + 34.345); return fract((x + d) * (y + d)); }
+  function noise(x, y) { const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const t = hash(ix, iy) + (hash(ix + 1, iy) - hash(ix, iy)) * ux, b = hash(ix, iy + 1) + (hash(ix + 1, iy + 1) - hash(ix, iy + 1)) * ux; return t + (b - t) * uy; }
+  // Points (with outward normals) around a w×h rounded rect centred in the W×H box, clockwise from the top-left.
+  function rrect(w, h, r) {
+    const cx = W / 2, cy = H / 2, x0 = cx - w / 2, y0 = cy - h / 2, x1 = cx + w / 2, y1 = cy + h / 2, pts = [];
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    const seg = (ax, ay, bx, by, nx, ny) => { const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 3)); for (let i = 0; i < n; i++) pts.push([ax + (bx - ax) * i / n, ay + (by - ay) * i / n, nx, ny]); };
+    const arc = (ox, oy, a0) => { for (let i = 0; i < 6; i++) { const a = a0 + (i / 6) * Math.PI / 2; pts.push([ox + Math.cos(a) * r, oy + Math.sin(a) * r, Math.cos(a), Math.sin(a)]); } };
+    seg(x0 + r, y0, x1 - r, y0, 0, -1); arc(x1 - r, y0 + r, -Math.PI / 2);
+    seg(x1, y0 + r, x1, y1 - r, 1, 0); arc(x1 - r, y1 - r, 0);
+    seg(x1 - r, y1, x0 + r, y1, 0, 1); arc(x0 + r, y1 - r, Math.PI / 2);
+    seg(x0, y1 - r, x0, y0 + r, -1, 0); arc(x0 + r, y0 + r, Math.PI);
+    return pts;
+  }
+  function wobble(pts, seed) {
+    const sx = seed * 17.31, sy = seed * 9.13;
+    return pts.map(([x, y, nx, ny]) => { const d = (noise(x * 0.07 + sx, y * 0.07 + sy) - 0.5) * 4 + (noise(x * 0.21 + sx * 1.7, y * 0.21 + sy * 1.7) - 0.5) * 1.375; return [x + nx * d, y + ny * d]; });
+  }
+
+  // ---- shape over progress p (0 = nothing, 1 = full frame) for each style ----
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+  const easeOut = x => 1 - Math.pow(1 - x, 3);
+  function shapeAt(p) {
+    if (style === 'unfurl') {
+      const a = easeOut(clamp01(p / 0.42)), b = easeOut(clamp01((p - 0.42) / 0.58));
+      return { w: Math.max(0.6, W * a), h: Math.max(0.6, H * b), r: R, draw: 1, fill: b > 0.02 ? 1 : 0 };
+    }
+    if (style === 'bloom') return { w: W, h: H, r: R, draw: 1, fill: 1 };
+    // trace
+    return { w: W, h: H, r: R, draw: easeOut(clamp01(p / 0.75)), fill: clamp01((p - 0.6) / 0.4) };
+  }
+
+  // ---- uncrumple: a crumpled ball that unfolds unevenly and flattens ----
+  let crumple = null;
+  function newCrumple() {
+    const rnd = () => Math.random();
+    return {
+      jag: Array.from({ length: 9 }, () => rnd() * 2 - 1),           // angular facets around the edge
+      lag: Array.from({ length: 6 }, () => rnd()),                    // which parts open late
+      rot: (rnd() < 0.5 ? -1 : 1) * (8 + rnd() * 8),                  // starting tilt, degrees
+      creases: Array.from({ length: 5 }, () => [rnd() * W, rnd() < 0.5 ? 0 : H, rnd() * W, rnd() < 0.5 ? H : 0].map((v, i) => i % 2 ? v : v)),
+    };
+  }
+  // Piecewise-linear around the loop (facets), and smooth (lag), both over u in [0, 1).
+  const lin = (arr, u) => { const n = arr.length, x = u * n, i = Math.floor(x) % n, f = x - Math.floor(x); return arr[i] + (arr[(i + 1) % n] - arr[i]) * f; };
+  const smooth = (arr, u) => { const n = arr.length, x = u * n, i = Math.floor(x) % n, f = x - Math.floor(x), k = f * f * (3 - 2 * f); return arr[i] + (arr[(i + 1) % n] - arr[i]) * k; };
+  // Holds crumpled for a beat, then opens and eases flat.
+  const unfold = p => { const x = clamp01(p); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+  function crumplePoints(p) {
+    const e = unfold(p), loose = 1 - e, cx = W / 2, cy = H / 2;
+    return rrect(W, H, R).map(([x, y, nx, ny]) => {
+      const u = (Math.atan2((y - cy) / H, (x - cx) / W) + Math.PI) / (2 * Math.PI);
+      const pull = 0.7 * Math.pow(loose, 1.1) * smooth(crumple.lag, u);        // late-opening parts tucked in
+      const jag = 0.34 * H * Math.pow(loose, 1.4) * lin(crumple.jag, u);        // crumpled facets along the edge
+      return [cx + (x - cx) * (1 - pull) + nx * jag, cy + (y - cy) * (1 - pull) + ny * jag, nx, ny];
+    });
+  }
+
+  // ---- animation state ----
+  let shown = null, want = null, p = 0, dir = 0, t0 = 0, from = 0, lastKey = '';
+  function setWant(kind) {
+    if (kind === want) return; want = kind;
+    if (shown && p > 0) { dir = -1; t0 = performance.now(); from = p; }   // collapse the old one first
+    else start();
+  }
+  function start() {
+    shown = want; if (!shown) { p = 0; dir = 0; return; }
+    media.innerHTML = build(shown); wire(shown); dir = 1; t0 = performance.now(); from = 0; p = 0;
+    crumple = newCrumple();
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'creases'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('preserveAspectRatio', 'none');
+    svg.innerHTML = crumple.creases.map(([x1, y1, x2, y2]) =>
+      `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(0,25,80,0.55)" stroke-width="1.2"/>` +
+      `<line x1="${x1 + 1}" y1="${y1}" x2="${x2 + 1}" y2="${y2}" stroke="rgba(255,255,255,0.55)" stroke-width="1"/>`).join('');
+    media.appendChild(svg);
+  }
+  function frame(now) {
+    const enterMs = style === 'bloom' ? 900 : ENTER_MS, exitMs = style === 'bloom' ? 420 : EXIT_MS;
+    if (window.__forceP !== undefined) { p = window.__forceP; dir = 0; }
+    else if (dir === 1) { p = Math.min(1, from + (now - t0) / enterMs); if (p >= 1) dir = 0; }
+    else if (dir === -1) { p = Math.max(0, from - (now - t0) / exitMs); if (p <= 0) { media.innerHTML = ''; clearInterval(compTimer); start(); } }
+    const seed = Math.floor(now / 125) % 997;
+    const key = seed + ':' + p.toFixed(4) + style;
+    if (key !== lastKey) {
+      lastKey = key;
+      if (p <= 0 || !shown) { line.setAttribute('d', ''); media.style.clipPath = 'inset(50%)'; }
+      else {
+        const sh = shapeAt(p);
+        const bloom = style === 'bloom' && crumple;
+        const pts = wobble(bloom ? crumplePoints(p) : rrect(sh.w, sh.h, sh.r), seed);
+        if (bloom) {
+          const e = unfold(p);
+          frameEl.style.transform = `rotate(${crumple.rot * (1 - e)}deg) scale(${0.14 + 0.86 * e})`;
+          const cr = media.querySelector('.creases'); if (cr) cr.style.opacity = String(Math.pow(1 - e, 1.1));
+        } else {
+          frameEl.style.transform = '';
+          const cr = media.querySelector('.creases'); if (cr) cr.style.opacity = '0';
+        }
+        const d = 'M' + pts.map(q => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join('L') + 'Z';
+        line.setAttribute('d', d);
+        let L = 0; for (let i = 0; i < pts.length; i++) { const a = pts[i], b = pts[(i + 1) % pts.length]; L += Math.hypot(b[0] - a[0], b[1] - a[1]); }
+        line.style.strokeDasharray = `${L} ${L}`; line.style.strokeDashoffset = String(L * (1 - sh.draw));
+        media.style.clipPath = sh.fill > 0 ? `path("${d}")` : 'inset(50%)';
+        media.style.opacity = sh.fill;
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  // ---- glide reading ----
+  const READ_Y = 150;
+  const mediaFor = i => { for (let k = i; k >= 0; k--) if (SENTENCES[k].media) return SENTENCES[k].media; return null; };
+  let active = -1;
+  function onScroll() {
+    const top = vp.getBoundingClientRect().top / scale; let i = 0;
+    spans.forEach((s, k) => { const r = s.getClientRects()[0]; if (r && r.top / scale - top <= READ_Y) i = k; });
+    if (i === active) return; active = i;
+    spans.forEach((s, k) => s.classList.toggle('on', k === i));
+    count.textContent = `sentence ${i + 1} / ${SENTENCES.length}`;
+    setWant(mediaFor(i));
+  }
+  vp.addEventListener('scroll', onScroll); onScroll();
+
+  document.querySelectorAll('.tab[data-style]').forEach(t => t.addEventListener('click', () => {
+    style = t.dataset.style; document.querySelectorAll('.tab[data-style]').forEach(x => x.setAttribute('aria-pressed', String(x === t)));
+    replay();
+  }));
+  function replay() { const k = want; want = null; shown = null; p = 0; dir = 0; media.innerHTML = ''; setWant(k); }
+  document.getElementById('replay').addEventListener('click', replay);
+})();
+</script>
+</body>
+</html>
