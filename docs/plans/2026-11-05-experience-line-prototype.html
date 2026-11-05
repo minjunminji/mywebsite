@@ -293,13 +293,14 @@ body {
     const mapLeft = Math.max(10, Math.round(W * 0.25 - mapW * 0.62));
     const top = 140, bottom = H - 110;
     const mainX = mapLeft + mapW * 0.62;
-    const y = (m) => top + ((m - 3) / (23 - 3)) * (bottom - top);
-    // One line, stations in the order they started; the train rides straight down it.
-    const mainLine = [[mainX, y(3)], [mainX, y(PRESENT)]];
-    const stationPt = JOBS.map((job) => [mainX, y(job.start)]);
+    // One line, stations evenly spaced in the order they started; the train
+    // rides straight down it to the "now" terminus.
+    const mainLine = [[mainX, top], [mainX, bottom]];
+    const first = top + 36, last = bottom - 80;
+    const stationPt = JOBS.map((_, j) => [mainX, first + ((last - first) * j) / (JOBS.length - 1)]);
     const route = stationPt;
     const stationDist = stationPt.map((p) => p[1] - stationPt[0][1]);
-    M = { mapLeft, mapW, top, bottom, mainX, y, mainLine, stationPt, route, stationDist, routeLen: pathLen(route) };
+    M = { mapLeft, mapW, top, bottom, nowY: bottom, mainX, mainLine, stationPt, route, stationDist, routeLen: pathLen(route) };
 
     JOBS.forEach((job, j) => {
       const [sx, sy] = stationPt[j];
@@ -322,20 +323,12 @@ body {
     const k = reduced ? 1 : ease(clamp01((now - arriveAt) / MAP_DRAFT_MS));
     const visible = (yy) => clamp01(((g.top + (g.bottom - g.top) * k) - yy) / 40 + 1);
 
-    // Years
-    [[3, '2025'], [12, '2026']].forEach(([m, label], i) => {
-      const yy = g.y(m); const a = visible(yy) * 0.55;
-      sketch(ctx, [[g.mapLeft, yy], [g.mapLeft + 10, yy]], 1, boil + 70 + i, 1, 0.4, 1, a);
-      ctx.globalAlpha = a; ctx.font = `11px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillText(label, g.mapLeft + 16, yy);
-    });
-
     // The line, faint; the stretch the train has covered, bright.
     sketch(ctx, g.mainLine, k, boil + 1, 2.2, 0.8, 2, 0.32);
     sketch(ctx, resampleTo(g.route, trainDist), k, boil + 5, 2.2, 0.8, 2.4, 1);
 
     // Terminus: now
-    const ny = g.y(PRESENT);
+    const ny = g.nowY;
     const na = visible(ny);
     sketch(ctx, [[g.mainX - 8, ny], [g.mainX + 8, ny]], na, boil + 20, 1, 0.4, 2, na);
     ctx.globalAlpha = na * 0.7; ctx.font = `11px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
