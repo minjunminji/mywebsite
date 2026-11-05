@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Throwaway prototype: annotated about drawing. Open from a repo checkout (or a static server at the repo root)
+     so the ../../public and ../../ font paths resolve. -->
+<title>Annotated About</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+@font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskRegular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskBold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+/* Layout: one full-window sheet. The 16:9 drawing is contain-fit, and every
+   callout and the title block are placed in the drawing's own 1920x1080 pixel
+   space, so they stay pinned to the objects they point at at any window size. */
+:root {
+  --paper: #0041ba;
+  --ink: #ffffff;
+  --ink-soft: rgba(255, 255, 255, 0.78);
+  --ink-faint: rgba(255, 255, 255, 0.45);
+  --chrome: rgba(0, 38, 112, 0.92);
+  --chrome-line: rgba(255, 255, 255, 0.28);
+  --font: "Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --s: 0.75;
+  color-scheme: light;
+}
+html { height: 100%; box-sizing: border-box; overflow: hidden; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+
+.stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.stage > canvas, .stage > img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; user-select: none; }
+#drawing { object-fit: contain; filter: invert(1); z-index: 2; }
+#reveal { z-index: 1; }
+#ink { z-index: 3; }
+
+/* Site chrome, static here, so the screen reads like the real about stop. */
+.nav { position: absolute; top: 22px; left: 10px; display: flex; align-items: center; gap: 12px; font-size: 16px; z-index: 6; }
+.nav b { font-weight: 700; }
+.nav i { width: 22px; height: 1px; background: var(--ink); display: block; }
+.nav .dim { color: var(--ink-faint); }
+.nav i.dim { background: var(--ink-faint); }
+.tldr { position: absolute; top: 22px; right: 10px; font-size: 16px; z-index: 6; }
+
+/* Callouts */
+.spot { position: absolute; border-radius: 50%; z-index: 4; }
+.note {
+  position: absolute; margin: 0; z-index: 5;
+  font-size: max(12px, calc(26px * var(--s)));
+  line-height: 1.25; opacity: 0; will-change: opacity, transform;
+  pointer-events: none;
+}
+.note.left { text-align: right; }
+.note.big .n-title { font-size: 1.5em; font-weight: 700; line-height: 1.15; }
+.n-title { display: block; text-wrap: balance; }
+.n-sub { display: block; text-wrap: balance; margin-top: 0.3em; font-size: 0.76em; line-height: 1.45; color: var(--ink-soft); }
+.piano {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer;
+  text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.2em;
+}
+.piano:focus-visible, .controls button:focus-visible, .controls input:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+
+/* Title block: the drafting sheet's label, bottom-left. Lines are drawn on the ink canvas. */
+.titleblock {
+  position: absolute; z-index: 5; opacity: 0;
+  display: grid; grid-template-columns: auto auto auto;
+  font-size: max(10px, calc(19px * var(--s)));
+}
+.tb-cell { display: flex; flex-direction: column; gap: 0.2em; padding: 0.5em 0.8em 0.55em; min-width: 0; }
+.tb-cell.wide { grid-column: 1 / -1; }
+.tb-k { font-family: var(--mono); font-size: 0.62em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); }
+.tb-v { font-size: 1em; white-space: nowrap; }
+.tb-v.big { font-size: 1.35em; font-weight: 700; }
+
+.toast {
+  position: absolute; left: 50%; bottom: 28px; transform: translate(-50%, 8px);
+  background: var(--chrome); border: 1px solid var(--chrome-line); border-radius: 999px;
+  padding: 8px 16px; font-size: 14px; opacity: 0; transition: opacity 200ms ease, transform 200ms ease; z-index: 8; pointer-events: none;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+/* Prototype controls: not part of the design. */
+.controls {
+  position: fixed; z-index: 10;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: calc(100vw - 24px);
+  background: var(--chrome); border: 1px solid var(--chrome-line); border-radius: 14px;
+  padding: 8px 10px; font-size: 13px;
+}
+.c-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding: 0 4px; }
+.seg { display: flex; gap: 2px; border: 1px solid var(--chrome-line); border-radius: 999px; padding: 2px; }
+.controls button {
+  font: inherit; color: var(--ink-soft); background: transparent; border: 0; border-radius: 999px; padding: 5px 11px; cursor: pointer;
+}
+.controls button:hover { color: var(--ink); }
+.seg button[aria-pressed="true"] { color: var(--paper); background: var(--ink); }
+#replay { border: 1px solid var(--chrome-line); }
+.chk { display: flex; align-items: center; gap: 6px; color: var(--ink-soft); padding: 0 4px; cursor: pointer; }
+.chk input { accent-color: var(--ink); margin: 0; }
+.narrow-note { display: none; flex-basis: 100%; color: var(--ink-soft); font-size: 12px; padding: 0 4px; }
+@media (max-width: 760px) {
+  .narrow-note { display: block; }
+  .nav, .tldr { font-size: 13px; }
+  .nav { gap: 8px; } .nav i { width: 12px; }
+}
+</style>
+
+<div class="stage" id="stage">
+  <canvas id="reveal" aria-hidden="true"></canvas>
+  <img id="drawing" alt="Hand-drawn sketch of Ryan sitting on a train bench, hands on his knees, a backpack between his feet" draggable="false">
+  <canvas id="ink" aria-hidden="true"></canvas>
+  <div id="spots"></div>
+  <div id="notes"></div>
+
+  <nav class="nav" aria-label="Story navigation (static in this prototype)">
+    <b>ryan kim</b><i></i><span>about</span><i class="dim"></i><span class="dim">projects</span><i class="dim"></i><span class="dim">experience</span>
+  </nav>
+  <div class="tldr">tldr</div>
+
+  <section class="titleblock" id="titleblock" aria-label="title block">
+    <div class="tb-cell wide"><span class="tb-k">title</span><span class="tb-v big">ryan kim, mid-commute</span></div>
+    <div class="tb-cell"><span class="tb-k">drawn by</span><span class="tb-v">r. kim</span></div>
+    <div class="tb-cell"><span class="tb-k">scale</span><span class="tb-v">1 : 1</span></div>
+    <div class="tb-cell"><span class="tb-k">date</span><span class="tb-v">2026.11</span></div>
+    <div class="tb-cell"><span class="tb-k">rev</span><span class="tb-v">junior year</span></div>
+    <div class="tb-cell"><span class="tb-k">ref</span><span class="tb-v">jujutsu kaisen</span></div>
+    <div class="tb-cell"><span class="tb-k">sheet</span><span class="tb-v">1 of 3</span></div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<div class="controls" role="group" aria-label="Prototype controls">
+  <span class="c-label">prototype</span>
+  <div class="seg" aria-label="How callouts appear">
+    <button type="button" id="mode-draft" data-mode="draft" aria-pressed="false">draft in</button>
+    <button type="button" id="mode-hover" data-mode="hover" aria-pressed="false">on hover</button>
+    <button type="button" id="mode-both" data-mode="both" aria-pressed="true">draft in + focus</button>
+  </div>
+  <button type="button" id="replay">replay</button>
+  <label class="chk" for="tb-toggle"><input type="checkbox" id="tb-toggle" checked> title block</label>
+  <span class="narrow-note">built for desktop; on phones the site shows the tldr instead</span>
+</div>
+
+<script>
+(() => {
+  // ---------- assets ----------
+  const inRepo = /\/docs\/plans\//.test(location.pathname);
+  const FRAME_DIR = inRepo ? '../../public/Animation/' : 'assets/';
+  const REF_SRC = inRepo ? '../../public/about_ref.webp' : 'assets/about_ref.webp';
+  const FRAMES = [1, 2, 3, 4].map((i) => `${FRAME_DIR}aboutloop${i}.webp`);
+  const IMG_W = 1920, IMG_H = 1080;
+  const LOOP_MS = 180; // same as the site's rest loops
+
+  // ---------- content (image px) ----------
+  // anchor: the point on the drawing. elbow: where the leader meets the shelf.
+  // side: which way the shelf (and its note) runs from the elbow.
+  // spot: hover area on the drawing, centre + radii.
+  const CALLOUTS = [
+    { id: 'hello', anchor: [1322, 486], elbow: [1185, 214], side: 'left', maxW: 480, big: true,
+      spot: { c: [1318, 508], r: [58, 64] },
+      title: "hi, i'm ryan 👋", sub: 'i love building things that make me or other people happy' },
+    { id: 'ubc', anchor: [1314, 812], elbow: [1298, 1010], side: 'left', maxW: 470,
+      spot: { c: [1310, 800], r: [48, 50] },
+      title: 'junior in computer engineering at ubc', sub: 'class of 2028' },
+    { id: 'piano', anchor: [1283, 712], elbow: [735, 568], side: 'left', maxW: 420,
+      spot: { c: [1310, 702], r: [72, 28] },
+      title: ['these hands play ', { piano: 'piano' }], sub: 'chopin, mostly' },
+    { id: 'cook', anchor: [936, 452], elbow: [735, 372], side: 'left', maxW: 420,
+      spot: { c: [940, 450], r: [62, 52] },
+      title: 'i also like to cook' },
+    { id: 'soccer', anchor: [1398, 890], elbow: [1560, 1010], side: 'right', maxW: 330,
+      spot: { c: [1312, 885], r: [126, 30] },
+      title: 'and play soccer' },
+    { id: 'ref', anchor: [1500, 452], elbow: [1760, 214], side: 'left', maxW: 470,
+      spot: { c: [1505, 470], r: [90, 80] },
+      title: 'drawn from a jujutsu kaisen frame', sub: 'paint over the train to see it' },
+  ];
+
+  // ---------- timing ----------
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const OPEN_MS = reduced ? 280 : 1100;
+  const CLOSE_MS = reduced ? 200 : 460;
+  const STAGGER_MS = 420;
+  const FIRST_MS = 450;
+  const BOIL_MS = 125; // 8fps, same as the piano player's line
+  const DIM = 0.26;    // unfocused callouts, close to the faint text in projects
+
+  // ---------- elements ----------
+  const stage = document.getElementById('stage');
+  const drawing = document.getElementById('drawing');
+  const ink = document.getElementById('ink');
+  const ictx = ink.getContext('2d');
+  const reveal = document.getElementById('reveal');
+  const rctx = reveal.getContext('2d');
+  const notesEl = document.getElementById('notes');
+  const spotsEl = document.getElementById('spots');
+  const tbEl = document.getElementById('titleblock');
+  const toast = document.getElementById('toast');
+  const INK = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#fff';
+
+  // ---------- noise (same recipe as sketchOutline.ts) ----------
+  const fract = (x) => x - Math.floor(x);
+  function hash(x, y) {
+    x = fract(x * 123.34); y = fract(y * 345.45);
+    const d = x * (x + 34.345) + y * (y + 34.345);
+    return fract((x + d) * (y + d));
+  }
+  function noise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const top = hash(ix, iy) + (hash(ix + 1, iy) - hash(ix, iy)) * ux;
+    const bot = hash(ix, iy + 1) + (hash(ix + 1, iy + 1) - hash(ix, iy + 1)) * ux;
+    return top + (bot - top) * uy;
+  }
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+  // ---------- build DOM ----------
+  const notes = CALLOUTS.map((c, i) => {
+    const el = document.createElement('p');
+    el.className = `note ${c.side}${c.big ? ' big' : ''}`;
+    const t = document.createElement('span');
+    t.className = 'n-title';
+    const parts = Array.isArray(c.title) ? c.title : [c.title];
+    parts.forEach((part) => {
+      if (typeof part === 'string') t.append(part);
+      else {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'piano'; b.textContent = part.piano;
+        b.addEventListener('click', () => showToast('the piano player opens from here'));
+        t.append(b);
+      }
+    });
+    el.append(t);
+    if (c.sub) {
+      const s = document.createElement('span');
+      s.className = 'n-sub'; s.textContent = c.sub;
+      el.append(s);
+    }
+    el.addEventListener('pointerenter', () => enter(i));
+    el.addEventListener('pointerleave', () => leave(i));
+    notesEl.append(el);
+    return el;
+  });
+  const spots = CALLOUTS.map((c, i) => {
+    const el = document.createElement('div');
+    el.className = 'spot';
+    el.addEventListener('pointerenter', () => enter(i));
+    el.addEventListener('pointerleave', () => leave(i));
+    spotsEl.append(el);
+    return el;
+  });
+
+  // ---------- state ----------
+  const state = CALLOUTS.map(() => ({ p: 0, target: 0, lit: 1 }));
+  const tb = { p: 0, target: 0, on: true };
+  let mode = 'both';
+  let focus = null;
+  let timers = [];
+  let leaveTimer = 0;
+
+  try { const m = localStorage.getItem('annotated-about-mode'); if (m === 'draft' || m === 'hover' || m === 'both') mode = m; } catch (e) {}
+
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function runSequence() {
+    clearTimers();
+    state.forEach((st) => { st.p = 0; st.target = 0; });
+    tb.p = 0; tb.target = 0;
+    CALLOUTS.forEach((_, i) => timers.push(setTimeout(() => { state[i].target = 1; }, FIRST_MS + i * STAGGER_MS)));
+    timers.push(setTimeout(() => { tb.target = 1; }, FIRST_MS + CALLOUTS.length * STAGGER_MS + 150));
+  }
+  function setMode(m) {
+    mode = m; focus = null;
+    try { localStorage.setItem('annotated-about-mode', m); } catch (e) {}
+    document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === m)));
+    if (m === 'hover') {
+      clearTimers();
+      state.forEach((st) => { st.target = 0; });
+      tb.target = 1;
+    } else runSequence();
+  }
+  function enter(i) {
+    clearTimeout(leaveTimer);
+    if (mode === 'hover') state.forEach((st, j) => { st.target = j === i ? 1 : 0; });
+    if (mode !== 'draft') focus = i;
+  }
+  function leave(i) {
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => {
+      if (mode === 'hover') state[i].target = 0;
+      focus = null;
+    }, 260);
+  }
+
+  let toastTimer = 0;
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 2200);
+  }
+
+  // ---------- layout ----------
+  let W = 0, H = 0, s = 1, ox = 0, oy = 0, dpr = 1;
+  let geo = [];
+  let tbLines = [];
+  const P = (x, y) => [ox + x * s, oy + y * s];
+
+  function layout() {
+    const r = stage.getBoundingClientRect();
+    W = r.width; H = r.height;
+    s = Math.min(W / IMG_W, H / IMG_H);
+    ox = (W - IMG_W * s) / 2; oy = (H - IMG_H * s) / 2;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    stage.style.setProperty('--s', s.toFixed(4));
+    ink.width = Math.round(W * dpr); ink.height = Math.round(H * dpr);
+    reveal.width = Math.round(W); reveal.height = Math.round(H);
+    makeSprite();
+
+    geo = CALLOUTS.map((c, i) => {
+      const sp = spots[i];
+      const [cx, cy] = P(c.spot.c[0], c.spot.c[1]);
+      const rx = c.spot.r[0] * s, ry = c.spot.r[1] * s;
+      Object.assign(sp.style, { left: `${cx - rx}px`, top: `${cy - ry}px`, width: `${rx * 2}px`, height: `${ry * 2}px` });
+
+      const el = notes[i];
+      el.style.maxWidth = `${c.maxW * s}px`;
+      el.style.width = 'max-content';
+      const nw = el.offsetWidth, nh = el.offsetHeight;
+      const anchor = P(c.anchor[0], c.anchor[1]);
+      const elbow = P(c.elbow[0], c.elbow[1]);
+      const dir = c.side === 'left' ? -1 : 1;
+      const gap = Math.max(6, 10 * s);
+      el.style.left = `${dir < 0 ? elbow[0] - gap - nw : elbow[0] + gap}px`;
+      el.style.top = `${elbow[1] - nh - Math.max(5, 8 * s)}px`;
+
+      // Leader from the object out to the elbow, overshooting a touch like a
+      // drafted line; shelf from the elbow under the note, overshooting its end.
+      const lx = elbow[0] - anchor[0], ly = elbow[1] - anchor[1];
+      const ll = Math.hypot(lx, ly) || 1;
+      const over = 6;
+      const leader = [anchor, [elbow[0] + (lx / ll) * over, elbow[1] + (ly / ll) * over]];
+      const end = elbow[0] + dir * (nw + gap * 2);
+      const shelf = [[elbow[0] - dir * 4, elbow[1]], [end + dir * 8, elbow[1]]];
+      return { anchor, leader, shelf };
+    });
+
+    // Title block: pinned to the drawing's bottom-left corner.
+    const [tx, tyBottom] = P(70, 1045);
+    tbEl.style.left = `${tx}px`;
+    tbEl.style.top = `${tyBottom - tbEl.offsetHeight}px`;
+    const sr = stage.getBoundingClientRect();
+    const br = tbEl.getBoundingClientRect();
+    const L = br.left - sr.left, T = br.top - sr.top, R = L + br.width, B = T + br.height;
+    tbLines = [[[L, T], [R, T], [R, B], [L, B], [L, T - 3]]];
+    tbEl.querySelectorAll('.tb-cell').forEach((cell) => {
+      const cr = cell.getBoundingClientRect();
+      const cl = cr.left - sr.left, ct = cr.top - sr.top;
+      if (ct > T + 1) tbLines.push([[cl - 3, ct], [cl + cr.width + 3, ct]]);
+      if (cl > L + 1) tbLines.push([[cl, ct - 3], [cl, ct + cr.height + 3]]);
+    });
+  }
+
+  // ---------- sketchy line drawing ----------
+  function resample(pts, step) {
+    const out = []; let acc = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+      const len = Math.hypot(bx - ax, by - ay) || 1e-6;
+      const nx = -(by - ay) / len, ny = (bx - ax) / len;
+      const n = Math.max(1, Math.ceil(len / step));
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) {
+        const t = k / n;
+        out.push({ x: ax + (bx - ax) * t, y: ay + (by - ay) * t, nx, ny, s: acc + len * t });
+      }
+      acc += len;
+    }
+    return { samples: out, len: acc };
+  }
+  function sketch(pts, prog, seed, amp, fine, width, alpha) {
+    if (prog <= 0 || alpha <= 0) return;
+    const { samples, len } = resample(pts, 5);
+    const stop = len * prog;
+    const off = (p) => (noise(p.s * 0.045 + seed * 17.31, seed * 9.13) - 0.5) * amp
+      + (noise(p.s * 0.17 + seed * 29.7, seed * 3.1 + 7.7) - 0.5) * fine;
+    ictx.beginPath();
+    let prev = null;
+    for (const p of samples) {
+      let q = p;
+      if (p.s > stop) {
+        if (!prev) break;
+        const t = (stop - prev.s) / (p.s - prev.s || 1);
+        q = { x: prev.x + (p.x - prev.x) * t, y: prev.y + (p.y - prev.y) * t, nx: p.nx, ny: p.ny, s: stop };
+      }
+      const d = off(q);
+      const x = q.x + q.nx * d, y = q.y + q.ny * d;
+      if (!prev) ictx.moveTo(x, y); else ictx.lineTo(x, y);
+      prev = p;
+      if (p.s > stop) break;
+    }
+    ictx.lineWidth = width; ictx.globalAlpha = alpha; ictx.stroke();
+  }
+  function blob(cx, cy, r, seed, fill, alpha) {
+    if (r <= 0 || alpha <= 0) return;
+    ictx.beginPath();
+    const n = 14;
+    for (let k = 0; k <= n; k++) {
+      const a = (k / n) * Math.PI * 2;
+      const rr = r * (1 + (noise(Math.cos(a) * 1.6 + seed * 7.1, Math.sin(a) * 1.6 + seed * 3.3) - 0.5) * 0.4);
+      const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+      if (k === 0) ictx.moveTo(x, y); else ictx.lineTo(x, y);
+    }
+    ictx.closePath();
+    ictx.globalAlpha = alpha;
+    if (fill) ictx.fill(); else { ictx.lineWidth = 1.4; ictx.stroke(); }
+  }
+
+  // ---------- reveal (simplified stand-in for RevealFluid) ----------
+  const refImg = new Image(); refImg.src = REF_SRC;
+  const sprite = document.createElement('canvas');
+  let brushR = 60;
+  const REVEAL_MS = 2500;
+  let stamps = [];
+  let last = null;
+  let revealDirty = false;
+  function makeSprite() {
+    brushR = Math.max(36, 120 * s);
+    const d = Math.ceil(brushR * 2);
+    sprite.width = sprite.height = d;
+    const g = sprite.getContext('2d');
+    const grad = g.createRadialGradient(brushR, brushR, 0, brushR, brushR, brushR);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.6, 'rgba(255,255,255,0.9)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = grad; g.fillRect(0, 0, d, d);
+  }
+  stage.addEventListener('pointermove', (e) => {
+    const r = stage.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top, t = performance.now();
+    if (last) {
+      const dx = x - last.x, dy = y - last.y, dist = Math.hypot(dx, dy);
+      const step = brushR * 0.3;
+      const n = Math.floor(dist / step);
+      for (let k = 1; k <= n; k++) stamps.push({ x: last.x + (dx * k * step) / dist, y: last.y + (dy * k * step) / dist, t });
+    }
+    stamps.push({ x, y, t });
+    last = { x, y };
+  });
+  stage.addEventListener('pointerleave', () => { last = null; });
+  function renderReveal(now) {
+    stamps = stamps.filter((st) => now - st.t < REVEAL_MS);
+    if (!stamps.length && !revealDirty) return;
+    rctx.globalCompositeOperation = 'source-over';
+    rctx.clearRect(0, 0, reveal.width, reveal.height);
+    revealDirty = stamps.length > 0;
+    if (!stamps.length || !refImg.complete) return;
+    for (const st of stamps) {
+      const age = (now - st.t) / REVEAL_MS;
+      rctx.globalAlpha = 1 - age * age;
+      rctx.drawImage(sprite, st.x - brushR, st.y - brushR);
+    }
+    rctx.globalAlpha = 1;
+    rctx.globalCompositeOperation = 'source-in';
+    rctx.drawImage(refImg, ox, oy, IMG_W * s, IMG_H * s);
+    rctx.globalCompositeOperation = 'source-over';
+  }
+
+  // ---------- drawing loop ----------
+  FRAMES.forEach((src) => { const im = new Image(); im.src = src; });
+  drawing.src = FRAMES[0];
+  let frame = 0;
+  setInterval(() => { frame = (frame + 1) % FRAMES.length; drawing.src = FRAMES[frame]; }, LOOP_MS);
+
+  // ---------- main loop ----------
+  let then = performance.now();
+  function tick(now) {
+    const dt = Math.min(64, now - then); then = now;
+    const boil = reduced ? 0 : Math.floor(now / BOIL_MS);
+
+    state.forEach((st, i) => {
+      if (st.p < st.target) st.p = Math.min(st.target, st.p + dt / OPEN_MS);
+      else if (st.p > st.target) st.p = Math.max(st.target, st.p - dt / CLOSE_MS);
+      const litTarget = mode === 'both' && focus !== null ? (i === focus ? 1 : DIM) : 1;
+      st.lit += (litTarget - st.lit) * Math.min(1, dt / 110);
+    });
+    const tbTarget = tb.on ? tb.target : 0;
+    if (tb.p < tbTarget) tb.p = Math.min(tbTarget, tb.p + dt / (reduced ? 280 : 900));
+    else if (tb.p > tbTarget) tb.p = Math.max(tbTarget, tb.p - dt / 300);
+
+    ictx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ictx.clearRect(0, 0, W, H);
+    ictx.strokeStyle = INK; ictx.fillStyle = INK;
+    ictx.lineCap = 'round'; ictx.lineJoin = 'round';
+
+    CALLOUTS.forEach((c, i) => {
+      const st = state[i], g = geo[i], el = notes[i];
+      if (!g) return;
+      const seed = boil + i * 3.17;
+      if (st.p <= 0.001) {
+        el.style.opacity = '0'; el.style.pointerEvents = 'none';
+        if (mode === 'hover') {
+          // Datum marker: a breathing ring that says "there's something here".
+          const pulse = reduced ? 0.8 : 0.55 + 0.45 * Math.sin(now / 520 + i * 1.3);
+          blob(g.anchor[0], g.anchor[1], Math.max(6, 12 * s), seed, false, 0.5 + 0.4 * pulse);
+          blob(g.anchor[0], g.anchor[1], 2.6, seed + 1, true, 0.95);
+        }
+        return;
+      }
+      let dotK = clamp01(st.p / 0.08);
+      let leadK = ease(clamp01((st.p - 0.05) / 0.45));
+      let shelfK = ease(clamp01((st.p - 0.48) / 0.27));
+      let textK = clamp01((st.p - 0.68) / 0.32);
+      let fade = 1;
+      if (reduced) { dotK = leadK = shelfK = 1; textK = 1; fade = st.p; }
+      const a = st.lit * fade;
+      blob(g.anchor[0], g.anchor[1], Math.max(3, 4.5 * s) * dotK, seed, true, a);
+      sketch(g.leader, leadK, seed + 0.4, 2.4, 0.9, 1.6, a);
+      sketch(g.leader, leadK, seed + 5.2, 3.2, 1.2, 1, a * 0.3);
+      sketch(g.shelf, shelfK, seed + 0.9, 2, 0.8, 1.6, a);
+      sketch(g.shelf, shelfK, seed + 6.1, 2.8, 1.1, 1, a * 0.3);
+      el.style.opacity = String(textK * st.lit * fade);
+      el.style.transform = `translateY(${(1 - textK) * 6}px)`;
+      el.style.pointerEvents = textK > 0.5 ? 'auto' : 'none';
+    });
+
+    // Title block
+    const tk = reduced ? 1 : ease(tb.p);
+    const ta = reduced ? tb.p : 1;
+    tbLines.forEach((pts, k) => {
+      sketch(pts, tk, boil + 40 + k * 1.9, 1.6, 0.7, k === 0 ? 1.5 : 1.1, (k === 0 ? 0.95 : 0.6) * ta);
+    });
+    tbEl.style.opacity = String(clamp01((tb.p - 0.5) / 0.5));
+
+    renderReveal(now);
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- controls ----------
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  document.getElementById('replay').addEventListener('click', () => setMode(mode));
+  document.getElementById('tb-toggle').addEventListener('change', (e) => { tb.on = e.target.checked; });
+
+  new ResizeObserver(layout).observe(stage);
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  setMode(mode);
+  requestAnimationFrame((t) => { then = t; tick(t); });
+})();
+</script>
+
+</html>
