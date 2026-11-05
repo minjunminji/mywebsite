@@ -2,7 +2,7 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Throwaway prototype: experience as a line map with living diagrams and lit reading.
+<!-- Throwaway prototype: experience as a line map, one stop at a time, with living diagrams.
      Open from a repo checkout so the ../../ font paths resolve. -->
 <title>Experience Line</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -10,8 +10,9 @@
 @font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskRegular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskBold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
 /* Layout: three columns on one blueprint sheet. Left, the line map (time runs
-   down, the train sits at the job you're reading). Middle, that job's living
-   diagram in the uncrumpling frame. Right, the projects-style lit reading. */
+   down; the train rides to one stop at a time). Middle, that stop's living
+   diagram in the uncrumpling frame. Right, the stop's card: company, role and
+   numbered bullets, each one driving its state of the diagram. */
 :root {
   --paper: #0041ba;
   --ink: #ffffff;
@@ -54,29 +55,28 @@ body {
 .creases { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .outline { position: absolute; pointer-events: none; }
 
-/* Reading panel */
-.panel { position: absolute; z-index: 5; display: flex; flex-direction: column; }
-.sign { transition: opacity 140ms ease, transform 140ms ease; }
-.sign.swap { opacity: 0; transform: translateY(-4px); }
-.sign h2 { margin: 0; font-size: clamp(26px, 2.5vw, 38px); line-height: 1; font-weight: 700; text-wrap: balance; }
-.sign p { margin: 8px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft); }
-.viewport { position: relative; flex: 1; min-height: 0; margin-top: 22px; overflow: hidden; }
-.text {
-  position: relative; will-change: transform;
-  font-size: clamp(19px, 2vw, 30px); line-height: 1.22; font-weight: 700; letter-spacing: -0.01em;
+/* Stop card */
+.panel { position: absolute; z-index: 5; display: flex; flex-direction: column; justify-content: center; }
+.card { transition: opacity 160ms ease, transform 160ms ease; }
+.card.swap { opacity: 0; transform: translateY(6px); }
+.stop { margin: 0 0 14px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid); }
+.card h2 { margin: 0; font-size: clamp(28px, 2.8vw, 44px); line-height: 1; font-weight: 700; text-wrap: balance; }
+.sub { margin: 10px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft); }
+.bullets { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.bullets li { position: relative; padding-left: 32px; font-size: clamp(15px, 1.25vw, 19px); line-height: 1.45; outline: none; }
+.bullets .n {
+  position: absolute; left: 0; top: 0.18em; width: 19px; height: 19px; border-radius: 50%;
+  display: grid; place-items: center; font-family: var(--mono); font-size: 11px; line-height: 1;
+  border: 1px solid var(--ink-mid); color: var(--ink-soft); transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
 }
-.job { display: block; }
-.job + .job { margin-top: 1.1em; }
-.marker {
-  display: block; margin-bottom: 0.55em;
-  font-family: var(--mono); font-size: 12px; font-weight: 400; letter-spacing: 0.08em; color: var(--ink-mid);
-  transition: color 240ms ease;
-}
-.marker.on { color: var(--ink); }
-.c { color: var(--ink-faint); transition: color 240ms ease; }
-.c.on { color: var(--ink); }
+.bullets li.on .n { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.bullets .bar { display: block; height: 1.5px; width: 0; margin-top: 7px; background: var(--ink); opacity: 0.55; }
+.bullets li.on .bar { animation: barfill var(--cycle, 5000ms) linear forwards; }
+.bullets li.on.held .bar, .bullets li.on.still .bar { animation: none; width: 100%; }
+@keyframes barfill { to { width: 100%; } }
+.bullets li:focus-visible { outline: 2px dashed var(--ink); outline-offset: 4px; }
 .hint {
-  margin-top: 10px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid);
+  position: absolute; left: 0; bottom: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid);
   transition: opacity 400ms ease; pointer-events: none;
 }
 
@@ -111,11 +111,13 @@ body {
   </div>
 
   <aside class="panel" id="panel" aria-label="experience">
-    <div class="sign" id="sign" aria-live="polite"><h2 id="sign-title"></h2><p id="sign-sub"></p></div>
-    <div class="viewport" id="viewport">
-      <div class="text" id="text"></div>
+    <div class="card" id="card" aria-live="polite">
+      <p class="stop" id="stop"></p>
+      <h2 id="sign-title"></h2>
+      <p class="sub" id="sign-sub"></p>
+      <ol class="bullets" id="bullets"></ol>
     </div>
-    <div class="hint" id="hint">scroll to ride the line ↓</div>
+    <div class="hint" id="hint">scroll for the next stop ↓</div>
   </aside>
 
   <nav class="nav" aria-label="Story navigation (static in this prototype)">
@@ -176,9 +178,8 @@ body {
   const OPEN_MS = 900, CLOSE_MS = 420, FADE_MS = 220;
   const BOIL_MS = 125;
   const WOBBLE_AMP = 4, WOBBLE_FINE = 1.375;
-  const SPOT = 120;        // reading spot, px below the top of the text viewport
-  const MIN_DWELL = 90;    // px of scroll each chunk stays lit, at least
-  const GLIDE = 0.22;
+  const CYCLE_MS = 5000;   // each bullet holds the diagram this long before the next
+  const STEP_PX = 60;      // wheel travel that moves one stop
   const MAP_DRAFT_MS = 1400;
   const MEDIA_DELAY_MS = 700;
   const INK = '#ffffff';
@@ -294,92 +295,97 @@ body {
   const outlineC = document.getElementById('outline'), octx = outlineC.getContext('2d');
   const diagC = document.getElementById('diagram'), dctx = diagC.getContext('2d');
   const creasesEl = document.getElementById('creases');
-  const panel = document.getElementById('panel'), viewport = document.getElementById('viewport'), textEl = document.getElementById('text');
-  const sign = document.getElementById('sign'), signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
+  const panel = document.getElementById('panel'), card = document.getElementById('card'), bulletsEl = document.getElementById('bullets');
+  const stopEl = document.getElementById('stop'), signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
   const hint = document.getElementById('hint');
 
-  // Reading text: one block, a faint station marker before each job.
-  const chunkEls = [], chunkJob = [], chunkLocal = [], markerEls = [];
-  JOBS.forEach((job, j) => {
-    const g = document.createElement('span'); g.className = 'job';
-    const m = document.createElement('span'); m.className = 'marker'; m.textContent = `${job.years} · ${job.company}`;
-    g.append(m); markerEls.push(m);
-    job.chunks.forEach((t, k) => {
-      const c = document.createElement('span'); c.className = 'c'; c.textContent = t + ' ';
-      g.append(c); chunkEls.push(c); chunkJob.push(j); chunkLocal.push(k);
-    });
-    textEl.append(g);
-  });
-  const jobFirstChunk = JOBS.map((_, j) => chunkJob.indexOf(j));
+  document.documentElement.style.setProperty('--cycle', `${CYCLE_MS}ms`);
 
   const hits = JOBS.map((job, j) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'hit';
-    b.setAttribute('aria-label', `read ${job.company}`);
-    b.addEventListener('click', () => jumpTo(j));
+    b.setAttribute('aria-label', `go to ${job.company}`);
+    b.addEventListener('click', () => { setJob(j); everStepped = true; });
     hitsEl.append(b); return b;
   });
 
-  // ================= reading =================
-  let starts = [], budgets = [], total = 0;
-  let scrollPos = 0, scrollTarget = 0, active = -1, activeJob = -1, everScrolled = false;
+  // ================= stops =================
+  // One job on screen at a time. The card shows all of its bullets at full
+  // strength; the diagram shows one bullet's state, picked by hover/focus or
+  // a slow cycle.
+  let activeJob = -1, activeBullet = 0, bulletEls = [], held = false, bulletSince = 0, everStepped = false;
+  let swapTimer = 0;
 
-  function measureText() {
-    textEl.style.paddingTop = `${SPOT}px`;
-    textEl.style.paddingBottom = `${viewport.clientHeight}px`;
-    const raw = chunkEls.map((el) => el.offsetTop - SPOT);
-    starts = []; raw.forEach((s, i) => starts.push(Math.max(s, i ? starts[i - 1] : 0)));
-    budgets = starts.map((s, i) => (i + 1 < starts.length ? Math.max(starts[i + 1] - s, MIN_DWELL) : MIN_DWELL));
-    total = budgets.reduce((a, b) => a + b, 0);
+  function renderCard(j) {
+    const job = JOBS[j];
+    held = false;
+    stopEl.textContent = `stop ${j + 1} of ${JOBS.length}`;
+    signTitle.textContent = job.company;
+    signSub.textContent = `${job.title} · ${job.years}`;
+    bulletsEl.innerHTML = '';
+    bulletEls = job.chunks.map((text, i) => {
+      const li = document.createElement('li'); li.tabIndex = 0;
+      const n = document.createElement('span'); n.className = 'n'; n.setAttribute('aria-hidden', 'true'); n.textContent = String(i + 1);
+      const tx = document.createElement('span'); tx.textContent = text;
+      const bar = document.createElement('span'); bar.className = 'bar'; bar.setAttribute('aria-hidden', 'true');
+      li.append(n, tx, bar);
+      const hold = () => { held = true; setBullet(i); };
+      const release = () => { held = false; setBullet(activeBullet); };
+      li.addEventListener('pointerenter', hold); li.addEventListener('pointerleave', release);
+      li.addEventListener('focus', hold); li.addEventListener('blur', release);
+      bulletsEl.append(li); return li;
+    });
+    setBullet(0);
   }
-  function readingAt(scroll) {
-    let from = 0; const n = starts.length;
-    for (let i = 0; i < n; i++) {
-      if (scroll < from + budgets[i] || i === n - 1) {
-        const next = i + 1 < n ? starts[i + 1] : starts[i];
-        const along = clamp01((scroll - from) / budgets[i]);
-        return { chunk: i, offset: starts[i] + (next - starts[i]) * along };
-      }
-      from += budgets[i];
-    }
-    return { chunk: 0, offset: 0 };
+  function setBullet(i) {
+    activeBullet = i; bulletSince = performance.now();
+    bulletEls.forEach((li, k) => {
+      li.classList.toggle('on', k === i); li.classList.toggle('held', held); li.classList.toggle('still', reduced);
+      if (k === i) { const bar = li.querySelector('.bar'); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
+    });
   }
-  function scrollFor(chunk) { let s = 0; for (let i = 0; i < chunk; i++) s += budgets[i]; return s + 1; }
-  function setTarget(v) { scrollTarget = Math.min(Math.max(v, 0), Math.max(0, total - 1)); if (v > 4) everScrolled = true; }
-  function jumpTo(j) { setTarget(scrollFor(jobFirstChunk[j])); }
+  function setJob(j, instant = false) {
+    j = Math.min(JOBS.length - 1, Math.max(0, j));
+    if (j === activeJob && !instant) return;
+    activeJob = j; activeBullet = 0; bulletSince = performance.now();
+    clearTimeout(swapTimer);
+    if (instant) { renderCard(j); card.classList.remove('swap'); return; }
+    card.classList.add('swap');
+    swapTimer = setTimeout(() => { renderCard(j); card.classList.remove('swap'); }, 160);
+  }
+  function step(d) { const j = activeJob + d; if (j >= 0 && j < JOBS.length) { setJob(j); everStepped = true; } }
+  function autoCycle(now) {
+    if (reduced || held || activeJob < 0 || !bulletEls.length) return;
+    if (now - bulletSince > CYCLE_MS) setBullet((activeBullet + 1) % bulletEls.length);
+  }
 
+  // One gesture, one stop: after a step, the wheel stays locked until the
+  // gesture (and a trackpad's momentum) has gone quiet.
+  let wheelAcc = 0, lastWheel = 0, lockedAt = 0, locked = false;
   window.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
-    setTarget(scrollTarget + d);
+    const now = performance.now();
+    if (locked) {
+      if (now - lastWheel > 180 && now - lockedAt > 450) locked = false;
+      else { lastWheel = now; return; }
+    }
+    if (now - lastWheel > 300) wheelAcc = 0;
+    lastWheel = now;
+    wheelAcc += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+    if (Math.abs(wheelAcc) >= STEP_PX) { step(Math.sign(wheelAcc)); wheelAcc = 0; locked = true; lockedAt = now; }
   }, { passive: false });
   let touchY = null;
   window.addEventListener('touchstart', (e) => { touchY = e.touches[0].clientY; }, { passive: true });
-  window.addEventListener('touchmove', (e) => { if (touchY === null) return; const y = e.touches[0].clientY; setTarget(scrollTarget + (touchY - y) * 1.4); touchY = y; }, { passive: true });
+  window.addEventListener('touchend', (e) => {
+    if (touchY === null) return;
+    const dy = touchY - e.changedTouches[0].clientY; touchY = null;
+    if (Math.abs(dy) > 50) step(Math.sign(dy));
+  }, { passive: true });
   window.addEventListener('keydown', (e) => {
-    const step = { ArrowDown: 80, ArrowUp: -80, PageDown: 320, PageUp: -320, ' ': e.shiftKey ? -320 : 320 }[e.key];
-    if (step !== undefined) { e.preventDefault(); setTarget(scrollTarget + step); }
-    if (e.key === 'Home') setTarget(0);
-    if (e.key === 'End') setTarget(total);
+    if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(e.key) || (e.key === ' ' && !e.shiftKey)) { e.preventDefault(); step(1); }
+    if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key) || (e.key === ' ' && e.shiftKey)) { e.preventDefault(); step(-1); }
+    if (e.key === 'Home') { setJob(0); everStepped = true; }
+    if (e.key === 'End') { setJob(JOBS.length - 1); everStepped = true; }
   });
-
-  function setActive(chunk) {
-    if (chunk === active) return;
-    if (active >= 0) chunkEls[active].classList.remove('on');
-    chunkEls[chunk].classList.add('on');
-    active = chunk;
-    const j = chunkJob[chunk];
-    if (j !== activeJob) {
-      if (activeJob >= 0) markerEls[activeJob].classList.remove('on');
-      markerEls[j].classList.add('on');
-      const job = JOBS[j];
-      if (activeJob < 0) { signTitle.textContent = job.company; signSub.textContent = `${job.title} · ${job.years}`; }
-      else {
-        sign.classList.add('swap');
-        setTimeout(() => { signTitle.textContent = job.company; signSub.textContent = `${job.title} · ${job.years}`; sign.classList.remove('swap'); }, 140);
-      }
-      activeJob = j;
-    }
-  }
 
   // ================= layout =================
   let W = 0, H = 0, dpr = 1;
@@ -394,7 +400,7 @@ body {
 
     // Panel
     const pw = Math.min(480, Math.max(320, W * 0.33));
-    Object.assign(panel.style, { right: '32px', top: '96px', bottom: '40px', width: `${pw}px` });
+    Object.assign(panel.style, { right: '32px', top: '90px', bottom: '40px', width: `${pw}px` });
     const panelLeft = W - 32 - pw;
 
     // Map strip
@@ -439,8 +445,6 @@ body {
     diagC.width = Math.round(F.w * dpr); diagC.height = Math.round(F.h * dpr);
     baseLoop = roundRectLoop(F.w, F.h, 10);
 
-    measureText();
-    setTarget(Math.min(scrollTarget, total - 1));
   }
 
   // ================= map drawing =================
@@ -581,7 +585,7 @@ body {
   const PINS = (() => { const r = rng(7); return Array.from({ length: 250 }, () => [24 + r() * 432, 112 + r() * 172]); })();
   const BOATS = (() => { const r = rng(11); return Array.from({ length: 200 }, () => ({ x: r() * 480, y: r() * 210, h: r() * Math.PI * 2, v: 3 + r() * 6 })); })();
 
-  // ================= the diagrams: one per job, one state per sentence =================
+  // ================= the diagrams: one per job, one state per bullet =================
   const DIAGRAMS = {
     paladin: [
       (t) => {
@@ -783,13 +787,13 @@ body {
     if (seq.shown !== want) {
       if (seq.shown === -1 || seq.progress <= 0) {
         seq.shown = want; seq.progress = 0; seq.crumple = newCrumple(); renderCreases(seq.crumple);
-        if (want >= 0) { clipEl.setAttribute('aria-label', DIAGRAM_LABELS[JOBS[want].key]); jobShownAt = now; dState = { cur: chunkLocal[active], prev: -1, changedAt: now, prevAt: now, job: want }; }
+        if (want >= 0) { clipEl.setAttribute('aria-label', DIAGRAM_LABELS[JOBS[want].key]); jobShownAt = now; dState = { cur: activeBullet, prev: -1, changedAt: now, prevAt: now, job: want }; }
       } else seq.progress = Math.max(0, seq.progress - dt / (reduced ? FADE_MS : CLOSE_MS));
     } else if (seq.shown >= 0) seq.progress = Math.min(1, seq.progress + dt / (reduced ? FADE_MS : OPEN_MS));
 
-    // Within a job, a new sentence morphs the diagram in place.
+    // Within a job, a new bullet morphs the diagram in place.
     if (seq.shown >= 0 && seq.shown === activeJob) {
-      const local = chunkLocal[active];
+      const local = activeBullet;
       if (local !== dState.cur) { dState.prev = dState.cur; dState.prevAt = dState.changedAt; dState.cur = local; dState.changedAt = now; }
     }
   }
@@ -833,12 +837,8 @@ body {
     const dt = Math.min(64, now - then); then = now;
     const boil = reduced ? 0 : Math.floor(now / BOIL_MS) % 997;
 
-    scrollPos += (scrollTarget - scrollPos) * GLIDE;
-    if (Math.abs(scrollTarget - scrollPos) < 0.3) scrollPos = scrollTarget;
-    const r = readingAt(scrollPos);
-    setActive(r.chunk);
-    textEl.style.transform = `translateY(${-r.offset}px)`;
-    hint.style.opacity = everScrolled ? '0' : '1';
+    hint.style.opacity = everStepped ? '0' : '1';
+    autoCycle(now);
 
     if (M) {
       const target = M.stationDist[activeJob];
@@ -852,14 +852,14 @@ body {
   }
 
   document.getElementById('replay').addEventListener('click', () => {
-    arriveAt = performance.now(); scrollTarget = scrollPos = 0; everScrolled = false;
+    arriveAt = performance.now(); everStepped = false; setJob(0, true);
     seq = { shown: -1, progress: 0, crumple: newCrumple() }; trainDist = 0;
   });
 
   new ResizeObserver(() => layout()).observe(stage);
   layout();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
-  setActive(0);
+  setJob(0, true);
   trainDist = M ? M.stationDist[0] : 0;
   requestAnimationFrame((t) => { then = t; tick(t); });
 })();
