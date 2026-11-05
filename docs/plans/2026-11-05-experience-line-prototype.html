@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Throwaway prototype: experience as a line map, one stop at a time.
+     Open from a repo checkout so the ../../ font paths resolve. -->
+<title>Experience Line</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+@font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskRegular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskBold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
+/* Layout: two halves of one blueprint sheet. Left, the line map (time runs
+   down; the train rides to one stop at a time). Right, that stop's card:
+   company, role and bullets, all at full strength. */
+:root {
+  --paper: #0041ba;
+  --ink: #ffffff;
+  --ink-soft: rgba(255, 255, 255, 0.78);
+  --ink-mid: rgba(255, 255, 255, 0.5);
+  --ink-faint: rgba(255, 255, 255, 0.22);
+  --chrome: rgba(0, 38, 112, 0.92);
+  --chrome-line: rgba(255, 255, 255, 0.28);
+  --font: "Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+html { height: 100%; box-sizing: border-box; overflow: hidden; }
+*, *::before, *::after { box-sizing: inherit; }
+body {
+  height: 100%; overflow: hidden;
+  background: var(--paper); color: var(--ink); font-family: var(--font);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0;
+}
+.stage { position: relative; width: 100%; height: 100%; overflow: hidden; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+
+.nav { position: absolute; top: 22px; left: 10px; display: flex; align-items: center; gap: 12px; font-size: 16px; z-index: 6; }
+.nav b { font-weight: 700; }
+.nav i { width: 22px; height: 1px; background: var(--ink); display: block; }
+.nav .ring { border: 1.5px solid var(--ink); border-radius: 999px; padding: 1px 8px; }
+.tldr { position: absolute; top: 22px; right: 10px; font-size: 16px; z-index: 6; }
+
+.hit {
+  position: absolute; z-index: 3; background: transparent; border: 0; padding: 0; cursor: pointer; border-radius: 8px;
+}
+.hit:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
+
+/* Stop card */
+.panel { position: absolute; z-index: 5; display: flex; flex-direction: column; justify-content: center; }
+.card { transition: opacity 160ms ease, transform 160ms ease; }
+.card.swap { opacity: 0; transform: translateY(6px); }
+.card h2 { margin: 0; font-size: clamp(28px, 2.8vw, 44px); line-height: 1; font-weight: 700; text-wrap: balance; }
+.sub { margin: 10px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft); }
+.bullets { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.bullets li { position: relative; padding-left: 1.1em; font-size: clamp(15px, 1.3vw, 20px); line-height: 1.5; }
+.bullets li::before { content: "›"; position: absolute; left: 0; color: var(--ink-soft); }
+.hint {
+  position: absolute; left: 0; bottom: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid);
+  transition: opacity 400ms ease; pointer-events: none;
+}
+
+.controls {
+  position: fixed; z-index: 10;
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; max-width: calc(100vw - 24px);
+  background: var(--chrome); border: 1px solid var(--chrome-line); border-radius: 14px; padding: 8px 10px; font-size: 13px;
+}
+.c-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding: 0 4px; }
+.controls button { font: inherit; color: var(--ink-soft); background: transparent; border: 1px solid var(--chrome-line); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.controls button:hover { color: var(--ink); }
+.controls button:focus-visible { outline: 2px dashed var(--ink); outline-offset: 3px; }
+.narrow-note { display: none; flex-basis: 100%; color: var(--ink-soft); font-size: 12px; padding: 0 4px; }
+@media (max-width: 760px) {
+  .narrow-note { display: block; }
+  .nav, .tldr { font-size: 13px; } .nav { gap: 8px; } .nav i { width: 12px; }
+}
+</style>
+
+<div class="stage" id="stage">
+  <canvas id="map" aria-hidden="true"></canvas>
+  <div id="hits"></div>
+
+
+  <aside class="panel" id="panel" aria-label="experience">
+    <div class="card" id="card" aria-live="polite">
+      <h2 id="sign-title"></h2>
+      <p class="sub" id="sign-sub"></p>
+      <ol class="bullets" id="bullets"></ol>
+    </div>
+    <div class="hint" id="hint">scroll for the next stop ↓</div>
+  </aside>
+
+  <nav class="nav" aria-label="Story navigation (static in this prototype)">
+    <b>ryan kim</b><i></i><span>about</span><i></i><span>projects</span><i></i><span class="ring">experience</span>
+  </nav>
+  <div class="tldr">tldr</div>
+</div>
+
+<div class="controls" role="group" aria-label="Prototype controls">
+  <span class="c-label">prototype</span>
+  <button type="button" id="replay">replay arrival</button>
+  <span class="narrow-note">built for desktop; on phones the site shows the tldr instead</span>
+</div>
+
+<script>
+(() => {
+  // ================= content =================
+  // Months are counted from Jan 2025 = 0. Present is Nov 2026.
+  const PRESENT = 22;
+  const JOBS = [
+    { key: 'paladin', company: 'paladin technologies', title: 'systems engineering intern', years: '2025',
+      line: 'main', start: 4, end: 7,
+      chunks: [
+        'automated an eight-hour geospatial workflow in python, bringing it down to under 30 seconds.',
+        'designed a mapping format adopted across 250+ city of vancouver surveillance sites.',
+      ] },
+    { key: 'sailbot', company: 'ubc sailbot', title: 'website team lead', years: '2025 – now',
+      line: 'main', start: 9.5, end: PRESENT,
+      chunks: [
+        'lead seven developers and designers, turning what the team needs into scoped projects.',
+        'spotted a gap in recruiting and prototyped a portal with shared applications and a review board for each team.',
+        'built a ship-tracking pipeline for about 200 vessels, avoiding a $25k/year external service.',
+      ] },
+    { key: 'shopify', company: 'shopify', title: 'software engineering intern', years: '2026',
+      line: 'main', start: 16, end: 19,
+      chunks: [
+        "shipped mobile experiences that turn a merchant's description of their business into an ai-generated storefront.",
+        'built custom skia animations for ios and android, refining motion, accessibility, and loading states with designers.',
+        'made the generation flow more reliable, fixing stale results, stuck progress, and an intermittent graphics crash.',
+      ] },
+    { key: 'superpilot', company: 'superpilot', title: 'software engineering intern', years: '2026 – now',
+      line: 'main', start: 20, end: PRESENT,
+      chunks: [
+        'prototyped an ai agent that researches a brand, builds its landing page, and reviews its own work on desktop and mobile.',
+        'cut generation costs by 55% and roughly halved runtime through prompt optimization, caching, and model selection.',
+        "evaluated it against the existing generator to shape the team's approach to page generation.",
+      ] },
+  ];
+  // ================= timing / look =================
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const BOIL_MS = 125;
+  const STEP_PX = 60;      // wheel travel that moves one stop
+  const MAP_DRAFT_MS = 1400;
+  const INK = '#ffffff';
+  const PAPER = '#0041ba';
+  const FONT = '"Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif';
+  const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+  // ================= helpers =================
+  const fract = (x) => x - Math.floor(x);
+  function hash(x, y) { x = fract(x * 123.34); y = fract(y * 345.45); const d = x * (x + 34.345) + y * (y + 34.345); return fract((x + d) * (y + d)); }
+  function noise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const a = hash(ix, iy) + (hash(ix + 1, iy) - hash(ix, iy)) * ux;
+    const b = hash(ix, iy + 1) + (hash(ix + 1, iy + 1) - hash(ix, iy + 1)) * ux;
+    return a + (b - a) * uy;
+  }
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+
+  function resample(pts, step) {
+    const out = []; let acc = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+      const len = Math.hypot(bx - ax, by - ay) || 1e-6;
+      const nx = -(by - ay) / len, ny = (bx - ax) / len;
+      const n = Math.max(1, Math.ceil(len / step));
+      for (let k = i === 0 ? 0 : 1; k <= n; k++) { const t = k / n; out.push({ x: ax + (bx - ax) * t, y: ay + (by - ay) * t, nx, ny, s: acc + len * t }); }
+      acc += len;
+    }
+    return { samples: out, len: acc };
+  }
+  function pathLen(pts) { let L = 0; for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); return L; }
+  function pointAt(pts, d) {
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const L = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      if (acc + L >= d || i === pts.length - 1) {
+        const t = L ? clamp01((d - acc) / L) : 0;
+        return { x: lerp(pts[i - 1][0], pts[i][0], t), y: lerp(pts[i - 1][1], pts[i][1], t), ang: Math.atan2(pts[i][1] - pts[i - 1][1], pts[i][0] - pts[i - 1][0]) };
+      }
+      acc += L;
+    }
+    return { x: pts[0][0], y: pts[0][1], ang: 0 };
+  }
+  // A pencil polyline: jittered along its normal by noise, drawn up to `prog`.
+  function sketch(ctx, pts, prog, seed, amp, fine, width, alpha, step = 5) {
+    if (prog <= 0 || alpha <= 0.002 || pts.length < 2) return;
+    const { samples, len } = resample(pts, step);
+    const stop = len * Math.min(prog, 1);
+    const off = (p) => (noise(p.s * 0.045 + seed * 17.31, seed * 9.13) - 0.5) * amp + (noise(p.s * 0.17 + seed * 29.7, seed * 3.1 + 7.7) - 0.5) * fine;
+    ctx.beginPath();
+    let prev = null;
+    for (const p of samples) {
+      let q = p;
+      if (p.s > stop) { if (!prev) break; const t = (stop - prev.s) / (p.s - prev.s || 1); q = { x: lerp(prev.x, p.x, t), y: lerp(prev.y, p.y, t), nx: p.nx, ny: p.ny, s: stop }; }
+      const d = off(q); const x = q.x + q.nx * d, y = q.y + q.ny * d;
+      if (!prev) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      prev = p;
+      if (p.s > stop) break;
+    }
+    ctx.lineWidth = width; ctx.globalAlpha = alpha; ctx.stroke();
+  }
+
+  // ================= DOM =================
+  const stage = document.getElementById('stage');
+  const mapC = document.getElementById('map'), mctx = mapC.getContext('2d');
+  const hitsEl = document.getElementById('hits');
+  const panel = document.getElementById('panel'), card = document.getElementById('card'), bulletsEl = document.getElementById('bullets');
+  const signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
+  const hint = document.getElementById('hint');
+
+  const hits = JOBS.map((job, j) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'hit';
+    b.setAttribute('aria-label', `go to ${job.company}`);
+    b.addEventListener('click', () => { setJob(j); everStepped = true; });
+    hitsEl.append(b); return b;
+  });
+
+  // ================= stops =================
+  // One job on screen at a time, every bullet at full strength.
+  let activeJob = -1, everStepped = false;
+  let swapTimer = 0;
+
+  function renderCard(j) {
+    const job = JOBS[j];
+    signTitle.textContent = job.company;
+    signSub.textContent = `${job.title} · ${job.years}`;
+    bulletsEl.innerHTML = '';
+    job.chunks.forEach((text) => { const li = document.createElement('li'); li.textContent = text; bulletsEl.append(li); });
+  }
+  function setJob(j, instant = false) {
+    j = Math.min(JOBS.length - 1, Math.max(0, j));
+    if (j === activeJob && !instant) return;
+    activeJob = j;
+    clearTimeout(swapTimer);
+    if (instant) { renderCard(j); card.classList.remove('swap'); return; }
+    card.classList.add('swap');
+    swapTimer = setTimeout(() => { renderCard(j); card.classList.remove('swap'); }, 160);
+  }
+  function step(d) { const j = activeJob + d; if (j >= 0 && j < JOBS.length) { setJob(j); everStepped = true; } }
+  // One gesture, one stop: after a step, the wheel stays locked until the
+  // gesture (and a trackpad's momentum) has gone quiet.
+  let wheelAcc = 0, lastWheel = 0, lockedAt = 0, locked = false;
+  window.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const now = performance.now();
+    if (locked) {
+      if (now - lastWheel > 180 && now - lockedAt > 450) locked = false;
+      else { lastWheel = now; return; }
+    }
+    if (now - lastWheel > 300) wheelAcc = 0;
+    lastWheel = now;
+    wheelAcc += e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+    if (Math.abs(wheelAcc) >= STEP_PX) { step(Math.sign(wheelAcc)); wheelAcc = 0; locked = true; lockedAt = now; }
+  }, { passive: false });
+  let touchY = null;
+  window.addEventListener('touchstart', (e) => { touchY = e.touches[0].clientY; }, { passive: true });
+  window.addEventListener('touchend', (e) => {
+    if (touchY === null) return;
+    const dy = touchY - e.changedTouches[0].clientY; touchY = null;
+    if (Math.abs(dy) > 50) step(Math.sign(dy));
+  }, { passive: true });
+  window.addEventListener('keydown', (e) => {
+    if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(e.key) || (e.key === ' ' && !e.shiftKey)) { e.preventDefault(); step(1); }
+    if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(e.key) || (e.key === ' ' && e.shiftKey)) { e.preventDefault(); step(-1); }
+    if (e.key === 'Home') { setJob(0); everStepped = true; }
+    if (e.key === 'End') { setJob(JOBS.length - 1); everStepped = true; }
+  });
+
+  // ================= layout =================
+  let W = 0, H = 0, dpr = 1;
+  let M = null;        // map geometry
+
+  function layout() {
+    const r = stage.getBoundingClientRect(); W = r.width; H = r.height;
+    dpr = Math.min(devicePixelRatio || 1, 2);
+    mapC.width = Math.round(W * dpr); mapC.height = Math.round(H * dpr);
+
+    // Panel
+    const panelLeft = Math.round(W * 0.5);
+    const pw = Math.min(540, W - panelLeft - 40);
+    Object.assign(panel.style, { left: `${panelLeft}px`, top: '90px', bottom: '40px', width: `${pw}px` });
+
+    // Map strip
+    const mapW = Math.min(360, Math.max(220, W * 0.26));
+    const mapLeft = Math.max(10, Math.round(W * 0.25 - mapW * 0.62));
+    const top = 140, bottom = H - 110;
+    const mainX = mapLeft + mapW * 0.62;
+    // One line, stations evenly spaced in the order they started; the train
+    // rides straight down it to the "now" terminus.
+    const mainLine = [[mainX, top], [mainX, bottom]];
+    const first = top + 36, last = bottom - 80;
+    const stationPt = JOBS.map((_, j) => [mainX, first + ((last - first) * j) / (JOBS.length - 1)]);
+    const route = stationPt;
+    const stationDist = stationPt.map((p) => p[1] - stationPt[0][1]);
+    M = { mapLeft, mapW, top, bottom, nowY: bottom, mainX, mainLine, stationPt, route, stationDist, routeLen: pathLen(route) };
+
+    JOBS.forEach((job, j) => {
+      const [sx, sy] = stationPt[j];
+      const left = job.line === 'main' ? mapLeft : sx - 14;
+      const right = job.line === 'main' ? sx + 14 : Math.min(panelLeft - 20, sx + 150);
+      Object.assign(hits[j].style, { left: `${left}px`, top: `${sy - 18}px`, width: `${right - left}px`, height: '40px' });
+    });
+
+
+  }
+
+  // ================= map drawing =================
+  let arriveAt = performance.now();
+  let trainDist = 0;
+  function drawMap(now, boil) {
+    const g = M; if (!g) return;
+    const ctx = mctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const k = reduced ? 1 : ease(clamp01((now - arriveAt) / MAP_DRAFT_MS));
+    const visible = (yy) => clamp01(((g.top + (g.bottom - g.top) * k) - yy) / 40 + 1);
+
+    // The line, faint; the stretch the train has covered, bright.
+    sketch(ctx, g.mainLine, k, boil + 1, 2.2, 0.8, 2, 0.32);
+    sketch(ctx, resampleTo(g.route, trainDist), k, boil + 5, 2.2, 0.8, 2.4, 1);
+
+    // Terminus: now
+    const ny = g.nowY;
+    const na = visible(ny);
+    sketch(ctx, [[g.mainX - 8, ny], [g.mainX + 8, ny]], na, boil + 20, 1, 0.4, 2, na);
+    ctx.globalAlpha = na * 0.7; ctx.font = `11px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText('now', g.mainX, ny + 10);
+
+    // Stations + labels
+    JOBS.forEach((job, j) => {
+      const [sx, sy] = g.stationPt[j];
+      const a = visible(sy);
+      if (a <= 0) return;
+      const on = j === activeJob;
+      ring(ctx, sx, sy, on ? 8.5 : 7, boil + 30 + j, a, on);
+      const left = job.line === 'main';
+      const lx = left ? sx - 16 : sx + 16;
+      ctx.textAlign = left ? 'right' : 'left'; ctx.textBaseline = 'alphabetic';
+      ctx.globalAlpha = a * (on ? 1 : 0.55);
+      ctx.font = `${on ? 700 : 400} 15px ${FONT}`;
+      ctx.fillText(job.company, lx, sy + 1);
+      ctx.globalAlpha = a * (on ? 0.85 : 0.45);
+      ctx.font = `11px ${MONO}`;
+      ctx.fillText(job.years, lx, sy + 16);
+    });
+
+    // The train: a little car on the line, easing to the station you're reading.
+    if (k > 0.9) {
+      const p = pointAt(g.route, trainDist);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.ang + Math.PI / 2);
+      ctx.globalAlpha = clamp01((k - 0.9) / 0.1);
+      ctx.fillStyle = INK; ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(-5, -10, 10, 20, 4); else ctx.rect(-5, -10, 10, 20);
+      ctx.fill();
+      ctx.fillStyle = PAPER; ctx.fillRect(-2.5, -6, 5, 4);
+      ctx.restore();
+      ctx.fillStyle = INK;
+      if (activeJob === JOBS.length - 1 && Math.abs(trainDist - g.stationDist[3]) < 2) {
+        ctx.globalAlpha = 0.85; ctx.font = `11px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText('you are here', g.mainX - 16, g.stationPt[3][1] + 31);
+      }
+    }
+  }
+  function resampleTo(route, d) {
+    const out = [route[0]]; let acc = 0;
+    for (let i = 1; i < route.length; i++) {
+      const L = Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]);
+      if (acc + L >= d) { const t = L ? (d - acc) / L : 0; out.push([lerp(route[i - 1][0], route[i][0], t), lerp(route[i - 1][1], route[i][1], t)]); return out; }
+      out.push(route[i]); acc += L;
+    }
+    return out;
+  }
+  function ring(ctx, cx, cy, r, seed, a, filled) {
+    const pts = [];
+    for (let i = 0; i <= 18; i++) { const t = (i / 18) * Math.PI * 2; const rr = r * (1 + (noise(Math.cos(t) * 1.4 + seed * 7.1, Math.sin(t) * 1.4 + seed * 3.3) - 0.5) * 0.25); pts.push([cx + Math.cos(t) * rr, cy + Math.sin(t) * rr]); }
+    ctx.globalAlpha = a; ctx.fillStyle = filled ? INK : PAPER;
+    ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = INK;
+    sketch(ctx, pts, 1, seed, 0.8, 0.3, 1.8, a, 3);
+  }
+
+  // ================= main loop =================
+  let then = performance.now();
+  function tick(now) {
+    const dt = Math.min(64, now - then); then = now;
+    const boil = reduced ? 0 : Math.floor(now / BOIL_MS) % 997;
+
+    hint.style.opacity = everStepped ? '0' : '1';
+
+    if (M) {
+      const target = M.stationDist[activeJob];
+      trainDist += (target - trainDist) * Math.min(1, dt / (reduced ? 1 : 260));
+      if (Math.abs(target - trainDist) < 0.5) trainDist = target;
+    }
+    drawMap(now, boil);
+    requestAnimationFrame(tick);
+  }
+
+  document.getElementById('replay').addEventListener('click', () => {
+    arriveAt = performance.now(); everStepped = false; setJob(0, true);
+    trainDist = 0;
+  });
+
+  new ResizeObserver(() => layout()).observe(stage);
+  layout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout);
+  setJob(0, true);
+  trainDist = M ? M.stationDist[0] : 0;
+  requestAnimationFrame((t) => { then = t; tick(t); });
+})();
+</script>
+
+</html>

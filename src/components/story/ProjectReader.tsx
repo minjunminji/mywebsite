@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ownsKeys, scrollsElsewhere } from './inputOwnership';
 import { glideStep, readingAt, readingTimeline, wheelDeltaPx, type ReadingTimeline } from './projectReading';
 import { chunkSegments, type ProjectChunk } from './storyData';
 import { INK, inkAlpha } from '@/theme';
@@ -38,26 +39,6 @@ type Props = {
   onActionIntent?: (action: 'shaderExplainer') => void;
   nextProject?: { title: string; onNavigate: () => void };
 };
-
-/** True if `target` sits inside something else that can scroll vertically. */
-function scrollsElsewhere(target: Element | null, stopAt: Element): boolean {
-  for (let el = target; el && el !== document.body; el = el.parentElement) {
-    if (el === stopAt) return false;
-    if (el.matches('[role="dialog"], [data-piano-player]')) return true;
-    const { overflowY } = getComputedStyle(el);
-    if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) return true;
-  }
-  return false;
-}
-
-/** Keys that type or activate shouldn't scroll the page instead. */
-function ownsKeys(target: EventTarget | null): boolean {
-  return (
-    target instanceof Element &&
-    target.closest('input, textarea, select, button, a, [role="button"], [contenteditable="true"], [role="dialog"]') !==
-      null
-  );
-}
 
 export default function ProjectReader({ chunks, active, onActiveChunk, onAction, onActionIntent, nextProject }: Props) {
   const viewportRef = useRef<HTMLDivElement | null>(null);

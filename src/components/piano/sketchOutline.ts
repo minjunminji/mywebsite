@@ -155,7 +155,7 @@ function hash(x: number, y: number) {
   const d = x * (x + 34.345) + y * (y + 34.345);
   return fract((x + d) * (y + d));
 }
-function noise(x: number, y: number) {
+export function noise(x: number, y: number) {
   const ix = Math.floor(x);
   const iy = Math.floor(y);
   const fx = x - ix;
