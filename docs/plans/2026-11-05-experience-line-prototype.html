@@ -51,7 +51,6 @@ body {
 .panel { position: absolute; z-index: 5; display: flex; flex-direction: column; justify-content: center; }
 .card { transition: opacity 160ms ease, transform 160ms ease; }
 .card.swap { opacity: 0; transform: translateY(6px); }
-.stop { margin: 0 0 14px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid); }
 .card h2 { margin: 0; font-size: clamp(28px, 2.8vw, 44px); line-height: 1; font-weight: 700; text-wrap: balance; }
 .sub { margin: 10px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft); }
 .bullets { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
@@ -87,7 +86,6 @@ body {
 
   <aside class="panel" id="panel" aria-label="experience">
     <div class="card" id="card" aria-live="polite">
-      <p class="stop" id="stop"></p>
       <h2 id="sign-title"></h2>
       <p class="sub" id="sign-sub"></p>
       <ol class="bullets" id="bullets"></ol>
@@ -116,29 +114,29 @@ body {
     { key: 'paladin', company: 'paladin technologies', title: 'systems engineering intern', years: '2025',
       line: 'main', start: 4, end: 7,
       chunks: [
-        'i automated an eight-hour geospatial workflow in python, bringing it down to under 30 seconds.',
-        'the mapping format i designed was adopted across 250+ city of vancouver surveillance sites.',
+        'automated an eight-hour geospatial workflow in python, bringing it down to under 30 seconds.',
+        'designed a mapping format adopted across 250+ city of vancouver surveillance sites.',
       ] },
     { key: 'sailbot', company: 'ubc sailbot', title: 'website team lead', years: '2025 – now',
       line: 'branch', start: 9.5, end: PRESENT,
       chunks: [
-        'i lead seven developers and designers, turning what the team needs into scoped projects.',
-        'i spotted a gap in recruiting and prototyped a portal with shared applications and a review board for each team.',
-        "i built a ship-tracking pipeline for about 200 vessels, so we didn't need a $25k/year external service.",
+        'lead seven developers and designers, turning what the team needs into scoped projects.',
+        'spotted a gap in recruiting and prototyped a portal with shared applications and a review board for each team.',
+        'built a ship-tracking pipeline for about 200 vessels, avoiding a $25k/year external service.',
       ] },
     { key: 'shopify', company: 'shopify', title: 'software engineering intern', years: '2026',
       line: 'main', start: 16, end: 19,
       chunks: [
-        "i shipped mobile experiences that turn a merchant's description of their business into an ai-generated storefront.",
-        'i built custom skia animations for ios and android, refining motion, accessibility, and loading states with designers.',
-        'i made the generation flow more reliable, fixing stale results, stuck progress, and an intermittent graphics crash.',
+        "shipped mobile experiences that turn a merchant's description of their business into an ai-generated storefront.",
+        'built custom skia animations for ios and android, refining motion, accessibility, and loading states with designers.',
+        'made the generation flow more reliable, fixing stale results, stuck progress, and an intermittent graphics crash.',
       ] },
     { key: 'superpilot', company: 'superpilot', title: 'software engineering intern', years: '2026 – now',
       line: 'main', start: 20, end: PRESENT,
       chunks: [
-        'i prototyped an ai agent that researches a brand, builds its landing page, and reviews its own work on desktop and mobile.',
-        'prompt optimization, caching, and model selection cut generation costs by 55% and roughly halved runtime.',
-        "we evaluated it against the existing generator to shape the team's approach to page generation.",
+        'prototyped an ai agent that researches a brand, builds its landing page, and reviews its own work on desktop and mobile.',
+        'cut generation costs by 55% and roughly halved runtime through prompt optimization, caching, and model selection.',
+        "evaluated it against the existing generator to shape the team's approach to page generation.",
       ] },
   ];
   // ================= timing / look =================
@@ -215,7 +213,7 @@ body {
   const mapC = document.getElementById('map'), mctx = mapC.getContext('2d');
   const hitsEl = document.getElementById('hits');
   const panel = document.getElementById('panel'), card = document.getElementById('card'), bulletsEl = document.getElementById('bullets');
-  const stopEl = document.getElementById('stop'), signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
+  const signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
   const hint = document.getElementById('hint');
 
   const hits = JOBS.map((job, j) => {
@@ -232,7 +230,6 @@ body {
 
   function renderCard(j) {
     const job = JOBS[j];
-    stopEl.textContent = `stop ${j + 1} of ${JOBS.length}`;
     signTitle.textContent = job.company;
     signSub.textContent = `${job.title} · ${job.years}`;
     bulletsEl.innerHTML = '';
