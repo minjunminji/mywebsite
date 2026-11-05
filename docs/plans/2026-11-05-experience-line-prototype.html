@@ -118,7 +118,7 @@ body {
         'designed a mapping format adopted across 250+ city of vancouver surveillance sites.',
       ] },
     { key: 'sailbot', company: 'ubc sailbot', title: 'website team lead', years: '2025 – now',
-      line: 'branch', start: 9.5, end: PRESENT,
+      line: 'main', start: 9.5, end: PRESENT,
       chunks: [
         'lead seven developers and designers, turning what the team needs into scoped projects.',
         'spotted a gap in recruiting and prototyped a portal with shared applications and a review board for each team.',
@@ -292,25 +292,14 @@ body {
     const mapW = Math.min(360, Math.max(220, W * 0.26));
     const mapLeft = Math.max(10, Math.round(W * 0.25 - mapW * 0.62));
     const top = 140, bottom = H - 110;
-    const mainX = mapLeft + mapW * 0.62, branchX = mainX + Math.min(64, mapW * 0.22);
+    const mainX = mapLeft + mapW * 0.62;
     const y = (m) => top + ((m - 3) / (23 - 3)) * (bottom - top);
-    const cub = (p0, p1, p2, p3, n = 14) => Array.from({ length: n + 1 }, (_, i) => {
-      const t = i / n, u = 1 - t;
-      return [u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]];
-    });
-    const curve = cub([mainX, y(7.3)], [mainX, y(8.3)], [branchX, y(8.1)], [branchX, y(9.2)]);
+    // One line, stations in the order they started; the train rides straight down it.
     const mainLine = [[mainX, y(3)], [mainX, y(PRESENT)]];
-    const branchLine = [...curve, [branchX, y(PRESENT)]];
-    const transfer = [[branchX, y(16)], [mainX, y(16)]];
-    const stationPt = JOBS.map((job) => [job.line === 'main' ? mainX : branchX, y(job.start)]);
-    // The train's route: paladin → branch → sailbot → down the branch → transfer → shopify → superpilot.
-    const route = [stationPt[0], [mainX, y(7.3)], ...curve.slice(1), stationPt[1], [branchX, y(16)], stationPt[2], stationPt[3]];
-    const stationDist = stationPt.map((p) => {
-      let best = 0, bestD = Infinity; const L = pathLen(route);
-      for (let d = 0; d <= L; d += 1) { const q = pointAt(route, d); const dd = Math.hypot(q.x - p[0], q.y - p[1]); if (dd < bestD) { bestD = dd; best = d; } }
-      return best;
-    });
-    M = { mapLeft, mapW, top, bottom, mainX, branchX, y, mainLine, branchLine, transfer, stationPt, route, stationDist, routeLen: pathLen(route) };
+    const stationPt = JOBS.map((job) => [mainX, y(job.start)]);
+    const route = stationPt;
+    const stationDist = stationPt.map((p) => p[1] - stationPt[0][1]);
+    M = { mapLeft, mapW, top, bottom, mainX, y, mainLine, stationPt, route, stationDist, routeLen: pathLen(route) };
 
     JOBS.forEach((job, j) => {
       const [sx, sy] = stationPt[j];
@@ -341,34 +330,16 @@ body {
       ctx.fillText(label, g.mapLeft + 16, yy);
     });
 
-    // Base lines, faint
+    // The line, faint; the stretch the train has covered, bright.
     sketch(ctx, g.mainLine, k, boil + 1, 2.2, 0.8, 2, 0.32);
-    sketch(ctx, g.branchLine, k, boil + 2, 2.2, 0.8, 2, 0.32);
-    if (k > 0.62) { // interchange: a double line between the tracks
-      const p = clamp01((k - 0.62) / 0.15);
-      sketch(ctx, g.transfer.map(([x, yy]) => [x, yy - 3]), p, boil + 3, 1, 0.4, 1.2, 0.5);
-      sketch(ctx, g.transfer.map(([x, yy]) => [x, yy + 3]), p, boil + 4, 1, 0.4, 1.2, 0.5);
-    }
-
-    // Travelled route, bright
-    const trav = resampleTo(g.route, trainDist);
-    sketch(ctx, trav, k, boil + 5, 2.2, 0.8, 2.4, 1);
-
-    // Tenure: a heavier line over the time you were there
-    JOBS.forEach((job, j) => {
-      const x = job.line === 'main' ? g.mainX : g.branchX;
-      const done = j <= activeJob;
-      const a = visible(g.y(job.start)) * (done ? 1 : 0.4);
-      sketch(ctx, [[x, g.y(job.start)], [x, g.y(job.end)]], k, boil + 10 + j, 1.6, 0.6, 5, a);
-    });
+    sketch(ctx, resampleTo(g.route, trainDist), k, boil + 5, 2.2, 0.8, 2.4, 1);
 
     // Terminus: now
     const ny = g.y(PRESENT);
     const na = visible(ny);
     sketch(ctx, [[g.mainX - 8, ny], [g.mainX + 8, ny]], na, boil + 20, 1, 0.4, 2, na);
-    sketch(ctx, [[g.branchX - 8, ny], [g.branchX + 8, ny]], na, boil + 21, 1, 0.4, 2, na);
     ctx.globalAlpha = na * 0.7; ctx.font = `11px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-    ctx.fillText('now', (g.mainX + g.branchX) / 2, ny + 10);
+    ctx.fillText('now', g.mainX, ny + 10);
 
     // Stations + labels
     JOBS.forEach((job, j) => {
@@ -377,7 +348,6 @@ body {
       if (a <= 0) return;
       const on = j === activeJob;
       ring(ctx, sx, sy, on ? 8.5 : 7, boil + 30 + j, a, on);
-      if (j === 2) ring(ctx, g.branchX, sy, 5.5, boil + 40, a * 0.8, false); // interchange on the branch
       const left = job.line === 'main';
       const lx = left ? sx - 16 : sx + 16;
       ctx.textAlign = left ? 'right' : 'left'; ctx.textBaseline = 'alphabetic';
