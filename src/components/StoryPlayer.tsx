@@ -694,7 +694,7 @@ export default function StoryPlayer() {
             zIndex: 4,
           }}
         >
-          <ExperienceSection />
+          <ExperienceSection shown={onExperience} active={onExperience && !tldrOpen && !explainerOpen} />
         </div>
       ) : null}
 
