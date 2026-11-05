@@ -2,17 +2,16 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- Throwaway prototype: experience as a line map, one stop at a time, with living diagrams.
+<!-- Throwaway prototype: experience as a line map, one stop at a time.
      Open from a repo checkout so the ../../ font paths resolve. -->
 <title>Experience Line</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 @font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskRegular.ttf') format('truetype'); font-weight: 400; font-display: swap; }
 @font-face { font-family: 'Alte Haas Grotesk'; src: url('../../AlteHaasGroteskBold.ttf') format('truetype'); font-weight: 700; font-display: swap; }
-/* Layout: three columns on one blueprint sheet. Left, the line map (time runs
-   down; the train rides to one stop at a time). Middle, that stop's living
-   diagram in the uncrumpling frame. Right, the stop's card: company, role and
-   numbered bullets, each one driving its state of the diagram. */
+/* Layout: two halves of one blueprint sheet. Left, the line map (time runs
+   down; the train rides to one stop at a time). Right, that stop's card:
+   company, role and bullets, all at full strength. */
 :root {
   --paper: #0041ba;
   --ink: #ffffff;
@@ -48,13 +47,6 @@ body {
 }
 .hit:focus-visible { outline: 2px dashed var(--ink); outline-offset: 2px; }
 
-/* Living frame */
-.frame { position: absolute; z-index: 4; transform-origin: 50% 50%; visibility: hidden; }
-.clip { position: absolute; inset: 0; background: var(--paper); }
-.clip canvas { display: block; width: 100%; height: 100%; }
-.creases { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.outline { position: absolute; pointer-events: none; }
-
 /* Stop card */
 .panel { position: absolute; z-index: 5; display: flex; flex-direction: column; justify-content: center; }
 .card { transition: opacity 160ms ease, transform 160ms ease; }
@@ -63,18 +55,8 @@ body {
 .card h2 { margin: 0; font-size: clamp(28px, 2.8vw, 44px); line-height: 1; font-weight: 700; text-wrap: balance; }
 .sub { margin: 10px 0 0; font-size: 13px; font-weight: 700; letter-spacing: 0.03em; color: var(--ink-soft); }
 .bullets { list-style: none; margin: 30px 0 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
-.bullets li { position: relative; padding-left: 32px; font-size: clamp(15px, 1.25vw, 19px); line-height: 1.45; outline: none; }
-.bullets .n {
-  position: absolute; left: 0; top: 0.18em; width: 19px; height: 19px; border-radius: 50%;
-  display: grid; place-items: center; font-family: var(--mono); font-size: 11px; line-height: 1;
-  border: 1px solid var(--ink-mid); color: var(--ink-soft); transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
-}
-.bullets li.on .n { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-.bullets .bar { display: block; height: 1.5px; width: 0; margin-top: 7px; background: var(--ink); opacity: 0.55; }
-.bullets li.on .bar { animation: barfill var(--cycle, 5000ms) linear forwards; }
-.bullets li.on.held .bar, .bullets li.on.still .bar { animation: none; width: 100%; }
-@keyframes barfill { to { width: 100%; } }
-.bullets li:focus-visible { outline: 2px dashed var(--ink); outline-offset: 4px; }
+.bullets li { position: relative; padding-left: 1.1em; font-size: clamp(15px, 1.3vw, 20px); line-height: 1.5; }
+.bullets li::before { content: "›"; position: absolute; left: 0; color: var(--ink-soft); }
 .hint {
   position: absolute; left: 0; bottom: 0; font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; color: var(--ink-mid);
   transition: opacity 400ms ease; pointer-events: none;
@@ -102,13 +84,6 @@ body {
   <canvas id="map" aria-hidden="true"></canvas>
   <div id="hits"></div>
 
-  <div class="frame" id="frame">
-    <canvas class="outline" id="outline" aria-hidden="true"></canvas>
-    <div class="clip" id="clip" role="img">
-      <canvas id="diagram" aria-hidden="true"></canvas>
-      <svg class="creases" id="creases" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"></svg>
-    </div>
-  </div>
 
   <aside class="panel" id="panel" aria-label="experience">
     <div class="card" id="card" aria-live="polite">
@@ -166,22 +141,11 @@ body {
         "we evaluated it against the existing generator to shape the team's approach to page generation.",
       ] },
   ];
-  const DIAGRAM_LABELS = {
-    paladin: 'diagram: an eight-hour manual workflow against a 28-second python run, then 250+ sites on a city map',
-    sailbot: 'diagram: a team of seven, a shared application flowing into team review boards, then about 200 ships drifting',
-    shopify: 'diagram: a business description turning into a storefront on a phone, skia loaders, then a reliability checklist',
-    superpilot: 'diagram: a research, build, review agent loop, then cost and runtime bars shrinking, then a side-by-side evaluation',
-  };
-
   // ================= timing / look =================
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const OPEN_MS = 900, CLOSE_MS = 420, FADE_MS = 220;
   const BOIL_MS = 125;
-  const WOBBLE_AMP = 4, WOBBLE_FINE = 1.375;
-  const CYCLE_MS = 5000;   // each bullet holds the diagram this long before the next
   const STEP_PX = 60;      // wheel travel that moves one stop
   const MAP_DRAFT_MS = 1400;
-  const MEDIA_DELAY_MS = 700;
   const INK = '#ffffff';
   const PAPER = '#0041ba';
   const FONT = '"Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif';
@@ -246,60 +210,13 @@ body {
     ctx.lineWidth = width; ctx.globalAlpha = alpha; ctx.stroke();
   }
 
-  // ---- crumple (ported from src/components/story/crumple.ts) ----
-  function roundRectLoop(w, h, r) {
-    const rr = Math.max(0, Math.min(r, w / 2, h / 2)); const pts = [];
-    const line = (ax, ay, bx, by) => { const n = Math.max(1, Math.round(Math.hypot(bx - ax, by - ay) / 3)); for (let i = 0; i < n; i++) pts.push([ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n]); };
-    const arc = (cx, cy, a0) => { for (let i = 0; i < 6; i++) { const a = a0 + (i / 6) * (Math.PI / 2); pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]); } };
-    line(rr, 0, w - rr, 0); arc(w - rr, rr, -Math.PI / 2); line(w, rr, w, h - rr); arc(w - rr, h - rr, 0);
-    line(w - rr, h, rr, h); arc(rr, h - rr, Math.PI / 2); line(0, h - rr, 0, rr); arc(rr, rr, Math.PI);
-    return pts;
-  }
-  function newCrumple() {
-    const r = Math.random, edge = () => (r() < 0.5 ? 0 : 1);
-    return { jag: Array.from({ length: 9 }, () => r() * 2 - 1), lag: Array.from({ length: 6 }, () => r()),
-      rot: (r() < 0.5 ? -1 : 1) * (8 + r() * 8), creases: Array.from({ length: 5 }, () => [r(), edge(), r(), 1 - edge()]) };
-  }
-  const unfold = (p) => ease(clamp01(p));
-  const facet = (v, u) => { const n = v.length, x = u * n, i = Math.floor(x) % n, f = x - Math.floor(x); return v[i] + (v[(i + 1) % n] - v[i]) * f; };
-  const smoothv = (v, u) => { const n = v.length, x = u * n, i = Math.floor(x) % n, f = x - Math.floor(x); return v[i] + (v[(i + 1) % n] - v[i]) * f * f * (3 - 2 * f); };
-  function crumpleLoop(base, c, e, w, h) {
-    const loose = 1 - clamp01(e); if (loose === 0) return base.slice();
-    const cx = w / 2, cy = h / 2, n = base.length;
-    return base.map(([x, y], k) => {
-      const a = base[(k - 2 + n) % n], b = base[(k + 2) % n];
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const nx = (b[1] - a[1]) / len, ny = -(b[0] - a[0]) / len;
-      const u = (Math.atan2((y - cy) / h, (x - cx) / w) + Math.PI) / (2 * Math.PI);
-      const pull = 0.7 * Math.pow(loose, 1.1) * smoothv(c.lag, u);
-      const jag = 0.34 * h * Math.pow(loose, 1.4) * facet(c.jag, u);
-      return [cx + (x - cx) * (1 - pull) + nx * jag, cy + (y - cy) * (1 - pull) + ny * jag];
-    });
-  }
-  function wobbleLoop(loop, seed, amp, fineAmp) {
-    const n = loop.length, sx = seed * 17.31, sy = seed * 9.13;
-    return loop.map(([x, y], k) => {
-      const a = loop[(k - 2 + n) % n], b = loop[(k + 2) % n];
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const tx = (b[0] - a[0]) / len, ty = (b[1] - a[1]) / len;
-      const d = (noise(x * 0.07 + sx, y * 0.07 + sy) - 0.5) * amp + (noise(x * 0.21 + sx * 1.7, y * 0.21 + sy * 1.7) - 0.5) * fineAmp;
-      return [x - ty * d, y + tx * d];
-    });
-  }
-
   // ================= DOM =================
   const stage = document.getElementById('stage');
   const mapC = document.getElementById('map'), mctx = mapC.getContext('2d');
   const hitsEl = document.getElementById('hits');
-  const frameEl = document.getElementById('frame'), clipEl = document.getElementById('clip');
-  const outlineC = document.getElementById('outline'), octx = outlineC.getContext('2d');
-  const diagC = document.getElementById('diagram'), dctx = diagC.getContext('2d');
-  const creasesEl = document.getElementById('creases');
   const panel = document.getElementById('panel'), card = document.getElementById('card'), bulletsEl = document.getElementById('bullets');
   const stopEl = document.getElementById('stop'), signTitle = document.getElementById('sign-title'), signSub = document.getElementById('sign-sub');
   const hint = document.getElementById('hint');
-
-  document.documentElement.style.setProperty('--cycle', `${CYCLE_MS}ms`);
 
   const hits = JOBS.map((job, j) => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'hit';
@@ -309,55 +226,28 @@ body {
   });
 
   // ================= stops =================
-  // One job on screen at a time. The card shows all of its bullets at full
-  // strength; the diagram shows one bullet's state, picked by hover/focus or
-  // a slow cycle.
-  let activeJob = -1, activeBullet = 0, bulletEls = [], held = false, bulletSince = 0, everStepped = false;
+  // One job on screen at a time, every bullet at full strength.
+  let activeJob = -1, everStepped = false;
   let swapTimer = 0;
 
   function renderCard(j) {
     const job = JOBS[j];
-    held = false;
     stopEl.textContent = `stop ${j + 1} of ${JOBS.length}`;
     signTitle.textContent = job.company;
     signSub.textContent = `${job.title} · ${job.years}`;
     bulletsEl.innerHTML = '';
-    bulletEls = job.chunks.map((text, i) => {
-      const li = document.createElement('li'); li.tabIndex = 0;
-      const n = document.createElement('span'); n.className = 'n'; n.setAttribute('aria-hidden', 'true'); n.textContent = String(i + 1);
-      const tx = document.createElement('span'); tx.textContent = text;
-      const bar = document.createElement('span'); bar.className = 'bar'; bar.setAttribute('aria-hidden', 'true');
-      li.append(n, tx, bar);
-      const hold = () => { held = true; setBullet(i); };
-      const release = () => { held = false; setBullet(activeBullet); };
-      li.addEventListener('pointerenter', hold); li.addEventListener('pointerleave', release);
-      li.addEventListener('focus', hold); li.addEventListener('blur', release);
-      bulletsEl.append(li); return li;
-    });
-    setBullet(0);
-  }
-  function setBullet(i) {
-    activeBullet = i; bulletSince = performance.now();
-    bulletEls.forEach((li, k) => {
-      li.classList.toggle('on', k === i); li.classList.toggle('held', held); li.classList.toggle('still', reduced);
-      if (k === i) { const bar = li.querySelector('.bar'); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; }
-    });
+    job.chunks.forEach((text) => { const li = document.createElement('li'); li.textContent = text; bulletsEl.append(li); });
   }
   function setJob(j, instant = false) {
     j = Math.min(JOBS.length - 1, Math.max(0, j));
     if (j === activeJob && !instant) return;
-    activeJob = j; activeBullet = 0; bulletSince = performance.now();
+    activeJob = j;
     clearTimeout(swapTimer);
     if (instant) { renderCard(j); card.classList.remove('swap'); return; }
     card.classList.add('swap');
     swapTimer = setTimeout(() => { renderCard(j); card.classList.remove('swap'); }, 160);
   }
   function step(d) { const j = activeJob + d; if (j >= 0 && j < JOBS.length) { setJob(j); everStepped = true; } }
-  function autoCycle(now) {
-    if (reduced || held || activeJob < 0 || !bulletEls.length) return;
-    if (now - bulletSince > CYCLE_MS) setBullet((activeBullet + 1) % bulletEls.length);
-  }
-
   // One gesture, one stop: after a step, the wheel stays locked until the
   // gesture (and a trackpad's momentum) has gone quiet.
   let wheelAcc = 0, lastWheel = 0, lockedAt = 0, locked = false;
@@ -390,8 +280,6 @@ body {
   // ================= layout =================
   let W = 0, H = 0, dpr = 1;
   let M = null;        // map geometry
-  let F = { x: 0, y: 0, w: 0, h: 0, pad: 0 };
-  const DW = 480, DH = 300;
 
   function layout() {
     const r = stage.getBoundingClientRect(); W = r.width; H = r.height;
@@ -399,13 +287,13 @@ body {
     mapC.width = Math.round(W * dpr); mapC.height = Math.round(H * dpr);
 
     // Panel
-    const pw = Math.min(480, Math.max(320, W * 0.33));
-    Object.assign(panel.style, { right: '32px', top: '90px', bottom: '40px', width: `${pw}px` });
-    const panelLeft = W - 32 - pw;
+    const panelLeft = Math.round(W * 0.5);
+    const pw = Math.min(540, W - panelLeft - 40);
+    Object.assign(panel.style, { left: `${panelLeft}px`, top: '90px', bottom: '40px', width: `${pw}px` });
 
     // Map strip
-    const mapLeft = Math.max(10, W * 0.025);
-    const mapW = Math.min(300, Math.max(200, W * 0.2));
+    const mapW = Math.min(360, Math.max(220, W * 0.26));
+    const mapLeft = Math.max(10, Math.round(W * 0.25 - mapW * 0.62));
     const top = 140, bottom = H - 110;
     const mainX = mapLeft + mapW * 0.62, branchX = mainX + Math.min(64, mapW * 0.22);
     const y = (m) => top + ((m - 3) / (23 - 3)) * (bottom - top);
@@ -434,16 +322,6 @@ body {
       Object.assign(hits[j].style, { left: `${left}px`, top: `${sy - 18}px`, width: `${right - left}px`, height: '40px' });
     });
 
-    // Frame: centred between the map and the panel.
-    const areaL = Math.max(mapLeft + mapW + 30, branchX + 150), areaR = panelLeft - 30;
-    const fw = Math.max(240, Math.min(560, (areaR - areaL) * 0.94));
-    const fh = Math.round((fw * DH) / DW);
-    F = { w: Math.round(fw), h: fh, x: Math.round((areaL + areaR) / 2 - fw / 2), y: Math.round(H * 0.54 - fh / 2), pad: Math.ceil(fh * 0.36) + 10 };
-    Object.assign(frameEl.style, { left: `${F.x}px`, top: `${F.y}px`, width: `${F.w}px`, height: `${F.h}px` });
-    outlineC.width = Math.round((F.w + 2 * F.pad) * dpr); outlineC.height = Math.round((F.h + 2 * F.pad) * dpr);
-    Object.assign(outlineC.style, { left: `${-F.pad}px`, top: `${-F.pad}px`, width: `${F.w + 2 * F.pad}px`, height: `${F.h + 2 * F.pad}px` });
-    diagC.width = Math.round(F.w * dpr); diagC.height = Math.round(F.h * dpr);
-    baseLoop = roundRectLoop(F.w, F.h, 10);
 
   }
 
@@ -549,288 +427,6 @@ body {
     sketch(ctx, pts, 1, seed, 0.8, 0.3, 1.8, a, 3);
   }
 
-  // ================= diagram primitives (480x300 logical space) =================
-  let A = 1, SEED = 0;
-  const ctxD = dctx;
-  function L(pts, o = {}) { sketch(ctxD, pts, o.prog ?? 1, SEED + (o.k || 0), o.amp ?? 1.6, o.fine ?? 0.6, o.w ?? 1.3, (o.a ?? 1) * A); }
-  function R(x, y, w, h, o = {}) { L([[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y - 1.5]], o); }
-  function C(cx, cy, r, o = {}) { const pts = []; for (let i = 0; i <= 24; i++) { const t = (i / 24) * Math.PI * 2; pts.push([cx + Math.cos(t) * r, cy + Math.sin(t) * r]); } L(pts, { amp: 1, fine: 0.4, ...o }); }
-  function T(s, x, y, o = {}) {
-    ctxD.globalAlpha = (o.a ?? 1) * A; ctxD.fillStyle = INK;
-    ctxD.font = `${o.bold ? 700 : 400} ${o.size || 12}px ${o.mono ? MONO : FONT}`;
-    ctxD.textAlign = o.align || 'left'; ctxD.textBaseline = o.base || 'alphabetic';
-    ctxD.fillText(s, x, y);
-  }
-  function hatch(x, y, w, h, gap = 6, a = 0.8) {
-    if (w <= 0 || h <= 0) return;
-    ctxD.save(); ctxD.beginPath(); ctxD.rect(x, y, w, h); ctxD.clip();
-    ctxD.globalAlpha = a * A; ctxD.lineWidth = 1; ctxD.beginPath();
-    for (let k = -h; k < w; k += gap) { const j = (noise(k * 0.3, SEED) - 0.5) * 2; ctxD.moveTo(x + k + j, y + h); ctxD.lineTo(x + k + h - j, y); }
-    ctxD.stroke(); ctxD.restore();
-  }
-  function arrow(x1, y1, x2, y2, o = {}) {
-    L([[x1, y1], [x2, y2]], o);
-    const a = Math.atan2(y2 - y1, x2 - x1), s = 7;
-    L([[x2 - Math.cos(a - 0.45) * s, y2 - Math.sin(a - 0.45) * s], [x2, y2], [x2 - Math.cos(a + 0.45) * s, y2 - Math.sin(a + 0.45) * s]], { ...o, k: (o.k || 0) + 0.5, amp: 0.6 });
-  }
-  function phone(x, y, w, h, k = 0) {
-    const loop = roundRectLoop(w, h, 14).map(([px, py]) => [x + px, y + py]); loop.push(loop[0]);
-    L(loop, { k, amp: 1.2 });
-    L([[x + w / 2 - 12, y + 8], [x + w / 2 + 12, y + 8]], { k: k + 1, w: 2, amp: 0.4 });
-  }
-  function dot(x, y, r, a = 1) { ctxD.globalAlpha = a * A; ctxD.beginPath(); ctxD.arc(x, y, r, 0, Math.PI * 2); ctxD.fill(); }
-  function wrap(s, n) { const out = []; let line = ''; s.split(' ').forEach((w) => { if ((line + ' ' + w).trim().length > n) { out.push(line.trim()); line = w; } else line += ' ' + w; }); if (line.trim()) out.push(line.trim()); return out; }
-
-  // Fixed random layouts
-  const PINS = (() => { const r = rng(7); return Array.from({ length: 250 }, () => [24 + r() * 432, 112 + r() * 172]); })();
-  const BOATS = (() => { const r = rng(11); return Array.from({ length: 200 }, () => ({ x: r() * 480, y: r() * 210, h: r() * Math.PI * 2, v: 3 + r() * 6 })); })();
-
-  // ================= the diagrams: one per job, one state per bullet =================
-  const DIAGRAMS = {
-    paladin: [
-      (t) => {
-        T('one geospatial workflow', 28, 46, { mono: 1, size: 11, a: 0.7 });
-        [['by hand', 112], ['python', 192]].forEach(([label, y], i) => { T(label, 28, y + 4, { mono: 1, size: 12 }); R(112, y - 16, 270, 32, { k: i }); });
-        const p1 = (t % 8000) / 8000;
-        hatch(112, 96, 270 * p1, 32, 7, 0.7);
-        T(`${(p1 * 8).toFixed(1)} h`, 396, 116, { size: 14 });
-        const p2 = ease(clamp01(t / 500));
-        hatch(112, 176, 270 * p2, 32, 4, 0.95);
-        if (p2 >= 1) T('28 s', 396, 196, { size: 14, bold: 1 });
-        T('~1,000× faster', 112, 262, { mono: 1, size: 11, a: clamp01((t - 700) / 300) });
-      },
-      (t) => {
-        L([[0, 92], [70, 84], [130, 100], [190, 86], [250, 98], [320, 78], [390, 92], [480, 80]], { k: 1, w: 1.5 });
-        for (let x = 40; x < 470; x += 52) L([[x, 104 + (x % 3) * 3], [x + 6, 292]], { k: 2 + x, a: 0.22, amp: 1 });
-        for (let y = 130; y < 300; y += 40) L([[6, y], [474, y + 4]], { k: 3 + y, a: 0.22, amp: 1 });
-        const n = Math.floor(250 * ease(clamp01(t / 2600)));
-        for (let i = 0; i < n; i++) dot(PINS[i][0], PINS[i][1], 2.1, 0.95);
-        T(`${n}${n >= 250 ? '+' : ''}`, 456, 46, { size: 32, bold: 1, align: 'right' });
-        T('sites, one mapping format', 456, 66, { mono: 1, size: 10, align: 'right', a: 0.8 });
-        ctxD.globalAlpha = A; ctxD.fillStyle = PAPER; ctxD.fillRect(22, 214, 118, 66); ctxD.fillStyle = INK;
-        R(22, 214, 118, 66, { k: 9 });
-        T('sites.kmz', 34, 236, { mono: 1, size: 11 });
-        [250, 262, 274].forEach((y, i) => L([[34, y - 4], [34 + [80, 60, 70][i], y - 4]], { k: 10 + i, a: 0.6, amp: 0.8 }));
-        T('city of vancouver', 24, 46, { mono: 1, size: 11, a: 0.7 });
-      },
-    ],
-    sailbot: [
-      (t) => {
-        R(180, 132, 120, 44, { k: 1 });
-        T('website team', 240, 159, { mono: 1, size: 11, align: 'center' });
-        for (let i = 0; i < 7; i++) {
-          const a = clamp01((t - i * 120) / 300);
-          if (a <= 0) continue;
-          const ang = Math.PI * (1.12 + (i / 6) * 0.76);
-          const x = 240 + Math.cos(ang) * 170, y = 150 + Math.sin(ang) * 112;
-          C(x, y - 6, 9, { k: 20 + i, a });
-          L([[x - 12, y + 14], [x - 8, y + 6], [x + 8, y + 6], [x + 12, y + 14]], { k: 30 + i, a, amp: 0.6 });
-          L([[x, y + 16], [lerp(x, 240, 0.86), lerp(y + 16, 132, 0.86)]], { k: 40 + i, a: a * 0.5, amp: 1 });
-        }
-        T('seven developers + designers', 240, 196, { mono: 1, size: 10, align: 'center', a: 0.75 });
-        const b = clamp01((t - 1000) / 600);
-        if (b > 0) {
-          R(18, 240, 108, 34, { k: 50, a: b }); T('mechanical', 72, 262, { mono: 1, size: 10, align: 'center', a: b });
-          R(354, 240, 108, 34, { k: 51, a: b }); T('electrical', 408, 262, { mono: 1, size: 10, align: 'center', a: b });
-          arrow(130, 252, 196, 182, { k: 52, prog: b, a: 0.7 });
-          arrow(350, 252, 284, 182, { k: 53, prog: b, a: 0.7 });
-          T('needs → scoped projects', 240, 290, { mono: 1, size: 10, align: 'center', a: b * 0.8 });
-        }
-      },
-      (t) => {
-        T('shared', 66, 92, { mono: 1, size: 10, align: 'center', a: 0.7 });
-        R(18, 104, 96, 74, { k: 1 }); T('application', 66, 124, { mono: 1, size: 10, align: 'center' });
-        [140, 152, 164].forEach((y, i) => L([[30, y], [30 + [70, 54, 62][i], y]], { k: 2 + i, a: 0.6, amp: 0.7 }));
-        const cols = [['mech', 158], ['elec', 262], ['software', 366]];
-        cols.forEach(([name, x], i) => { R(x, 30, 96, 252, { k: 10 + i, a: 0.8 }); T(name, x + 48, 52, { mono: 1, size: 11, align: 'center' }); L([[x + 8, 62], [x + 88, 62]], { k: 13 + i, a: 0.5, amp: 0.6 }); });
-        const loopT = t % 9750; const n = Math.floor(loopT / 650); const f = ease((loopT % 650) / 650);
-        const slot = (i) => [cols[i % 3][1] + 13, 72 + Math.floor(i / 3) * 40];
-        for (let i = 0; i < Math.min(n, 15); i++) { const [x, y] = slot(i); R(x, y, 70, 30, { k: 60 + i, amp: 1 }); L([[x + 8, y + 12], [x + 48, y + 12]], { k: 80 + i, a: 0.6, amp: 0.5 }); }
-        if (n < 15) { const [x, y] = slot(n); const fx = lerp(32, x, f), fy = lerp(126, y, f); R(fx, fy, 70, 30, { k: 99, amp: 1 }); }
-      },
-      (t) => {
-        ctxD.strokeStyle = INK; ctxD.lineWidth = 1;
-        BOATS.forEach((b) => {
-          const tt = t / 1000;
-          const x = ((b.x + Math.cos(b.h) * b.v * tt) % 480 + 480) % 480;
-          const y = 82 + (((b.y + Math.sin(b.h) * b.v * tt) % 210) + 210) % 210;
-          const c = Math.cos(b.h), s = Math.sin(b.h);
-          ctxD.globalAlpha = 0.8 * A; ctxD.beginPath();
-          ctxD.moveTo(x + c * 5, y + s * 5); ctxD.lineTo(x - c * 3 - s * 2.5, y - s * 3 + c * 2.5); ctxD.lineTo(x - c * 3 + s * 2.5, y - s * 3 - c * 2.5); ctxD.closePath(); ctxD.stroke();
-        });
-        ctxD.globalAlpha = A; ctxD.fillStyle = PAPER; ctxD.fillRect(0, 0, 480, 76); ctxD.fillStyle = INK;
-        L([[0, 78], [480, 76]], { k: 1, a: 0.5 });
-        T('~200 vessels, live', 24, 42, { size: 18, bold: 1 });
-        T('$25k / yr', 456, 42, { size: 18, align: 'right' });
-        L([[366, 36], [460, 34]], { k: 2, w: 2, prog: ease(clamp01((t - 500) / 500)) });
-        T('replaced by our own pipeline', 456, 62, { mono: 1, size: 10, align: 'right', a: clamp01((t - 900) / 300) * 0.8 });
-      },
-    ],
-    shopify: [
-      (t) => {
-        T('a merchant describes their business', 18, 84, { mono: 1, size: 10, a: 0.7 });
-        R(18, 96, 196, 78, { k: 1 });
-        const full = 'a candle shop in vancouver, warm and minimal';
-        const shown = full.slice(0, Math.floor(full.length * clamp01(t / 1600)));
-        wrap(shown, 24).forEach((ln, i) => T(ln, 30, 120 + i * 17, { mono: 1, size: 11 }));
-        if (t < 1700 && Math.floor(t / 400) % 2 === 0) T('▍', 30 + (wrap(shown, 24).slice(-1)[0] || '').length * 6.6, 120 + (Math.max(1, wrap(shown, 24).length) - 1) * 17, { mono: 1, size: 11 });
-        arrow(222, 136, 270, 136, { k: 2, prog: ease(clamp01((t - 1500) / 300)) });
-        phone(284, 14, 132, 272, 3);
-        const blocks = [[296, 36, 108, 14], [296, 58, 108, 72, 'h'], [296, 140, 51, 50], [353, 140, 51, 50], [296, 196, 51, 50], [353, 196, 51, 50], [296, 256, 108, 16]];
-        blocks.forEach(([x, y, w, h, kind], i) => {
-          const a = clamp01((t - 1800 - i * 200) / 260);
-          if (a <= 0) return;
-          R(x, y, w, h, { k: 10 + i, a, amp: 1 });
-          if (kind) hatch(x, y, w, h, 6, 0.6 * a);
-        });
-      },
-      (t) => {
-        [['ios', 64], ['android', 284]].forEach(([name, x], i) => {
-          T(name, x + 66, 24, { mono: 1, size: 11, align: 'center', a: 0.8 });
-          phone(x, 34, 132, 250, 1 + i * 5);
-          const cx = x + 66, cy = 150, tt = t / 700 + i * 2.1, rot = t / 900;
-          for (const [r0, ka] of [[34, 1], [22, 0.55]]) {
-            const pts = [];
-            for (let s = 0; s <= 40; s++) {
-              const th = (s / 40) * Math.PI * 2;
-              const rr = r0 * (1 + (noise(Math.cos(th) * 1.3 + tt, Math.sin(th) * 1.3 + tt * 0.7) - 0.5) * 0.5);
-              pts.push([cx + Math.cos(th + rot) * rr, cy + Math.sin(th + rot) * rr]);
-            }
-            L(pts, { k: 20 + i + r0, a: ka, amp: 0.6, fine: 0.3, w: 1.5 });
-          }
-          T('generating' + '.'.repeat(1 + (Math.floor(t / 400) % 3)), cx - 30, 222, { mono: 1, size: 10, a: 0.8 });
-        });
-      },
-      (t) => {
-        T('generation progress', 40, 40, { mono: 1, size: 10, a: 0.7 });
-        R(40, 50, 400, 22, { k: 1 });
-        const p = ease(clamp01((t % 3600) / 2400));
-        hatch(40, 50, 400 * p, 22, 5, 0.85);
-        T(p >= 1 ? 'done' : `${Math.round(p * 100)}%`, 440, 92, { mono: 1, size: 11, align: 'right' });
-        ['stale results', 'stuck progress', 'graphics crash'].forEach((label, i) => {
-          const y = 140 + i * 50;
-          R(60, y - 15, 22, 22, { k: 10 + i });
-          T(label, 100, y + 2, { size: 16 });
-          const tick = ease(clamp01((t - 500 - i * 450) / 350));
-          L([[63, y - 5], [70, y + 3], [86, y - 18]], { k: 20 + i, prog: tick, w: 2, amp: 0.8 });
-          if (tick >= 1) T('fixed', 440, y + 2, { mono: 1, size: 10, align: 'right', a: 0.75 });
-        });
-      },
-    ],
-    superpilot: [
-      (t) => {
-        const nodes = [['research', 128, 66], ['build', 206, 210], ['review', 50, 210]];
-        nodes.forEach(([n, x, y], i) => { C(x, y, 32, { k: i }); T(n, x, y + 4, { mono: 1, size: 10, align: 'center' }); });
-        const edge = (a, b, k) => { const [, x1, y1] = nodes[a], [, x2, y2] = nodes[b]; const d = Math.hypot(x2 - x1, y2 - y1); const ux = (x2 - x1) / d, uy = (y2 - y1) / d; arrow(x1 + ux * 38, y1 + uy * 38, x2 - ux * 38, y2 - uy * 38, { k, a: 0.7 }); };
-        edge(0, 1, 5); edge(1, 2, 6); edge(2, 0, 7);
-        const ph = (t % 3600) / 3600; const seg = Math.floor(ph * 3), f = ph * 3 - seg;
-        const [, ax, ay] = nodes[seg], [, bx, by] = nodes[(seg + 1) % 3];
-        dot(lerp(ax, bx, f), lerp(ay, by, f), 4.5);
-        R(266, 34, 186, 124, { k: 10 }); L([[266, 48], [452, 48]], { k: 11, a: 0.6 });
-        phone(392, 138, 70, 146, 12);
-        const built = ph > 1 / 3 || t > 3600;
-        if (built) {
-          R(278, 58, 160, 12, { k: 20, amp: 1 }); R(278, 78, 94, 66, { k: 21, amp: 1 }); hatch(278, 78, 94, 66, 6, 0.55);
-          [84, 98, 112].forEach((y, i) => L([[382, y], [382 + [52, 40, 46][i], y]], { k: 22 + i, a: 0.6, amp: 0.6 }));
-          R(400, 160, 54, 10, { k: 30, amp: 1 }); R(400, 176, 54, 40, { k: 31, amp: 1 }); hatch(400, 176, 54, 40, 6, 0.55);
-        }
-        if (ph > 2 / 3 || t > 3600) {
-          L([[440, 22], [446, 28], [458, 14]], { k: 40, w: 2, amp: 0.6 });
-          L([[440, 128], [446, 134], [458, 120]], { k: 41, w: 2, amp: 0.6 });
-        }
-        T('desktop + mobile', 300, 180, { mono: 1, size: 10, a: 0.7 });
-      },
-      (t) => {
-        [['cost', 108, 0.55, '−55%'], ['runtime', 198, 0.5, '≈ ½']].forEach(([label, y, cut, tag], i) => {
-          T(label, 24, y + 4, { mono: 1, size: 12 });
-          R(104, y - 18, 300, 36, { k: i, a: 0.35 });
-          const p = ease(clamp01((t - 300 - i * 200) / 1200));
-          const w = 300 * (1 - cut * p);
-          hatch(104, y - 18, w, 36, 5, 0.85);
-          R(104, y - 18, w, 36, { k: 5 + i, amp: 1 });
-          T(tag, 416, y + 7, { size: 20, bold: 1, a: p });
-        });
-        T('prompts · caching · model choice', 104, 268, { mono: 1, size: 10, a: 0.75 });
-      },
-      (t) => {
-        [['existing', 54], ['prototype', 280]].forEach(([name, x], i) => {
-          R(x, 30, 150, 108, { k: i });
-          R(x + 12, 44, 126, 10, { k: 4 + i, a: 0.7, amp: 0.8 }); R(x + 12, 62, 70, 62, { k: 6 + i, a: 0.7, amp: 0.8 }); hatch(x + 12, 62, 70, 62, 7, 0.4);
-          T(name, x + 75, 156, { mono: 1, size: 11, align: 'center' });
-        });
-        T('vs', 242, 92, { size: 16, bold: 1, align: 'center' });
-        ['quality', 'cost', 'speed'].forEach((c, i) => {
-          const y = 196 + i * 30;
-          T(c, 24, y + 4, { mono: 1, size: 11, a: 0.8 });
-          L([[100, y + 12], [456, y + 12]], { k: 20 + i, a: 0.2, amp: 0.6 });
-          [129, 355].forEach((cx, j) => { const a = clamp01((t - 300 - (i * 2 + j) * 220) / 250); if (a > 0) C(cx, y, 6, { k: 30 + i * 2 + j, a }); });
-        });
-      },
-    ],
-  };
-
-  // ================= media sequencing =================
-  let baseLoop = [];
-  let seq = { shown: -1, progress: 0, crumple: newCrumple() };
-  let dState = { cur: 0, prev: -1, changedAt: 0, prevAt: 0, job: -1 };
-  let jobShownAt = 0;
-
-  function renderCreases(c) {
-    creasesEl.innerHTML = c.creases.map(([x1, y1, x2, y2]) =>
-      `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(0,25,80,0.55)" stroke-width="1.2" vector-effect="non-scaling-stroke"/>` +
-      `<line x1="${x1 + 0.003}" y1="${y1}" x2="${x2 + 0.003}" y2="${y2}" stroke="rgba(255,255,255,0.55)" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');
-  }
-  renderCreases(seq.crumple);
-
-  function stepMedia(now, dt) {
-    const want = now - arriveAt < MEDIA_DELAY_MS ? -1 : activeJob;
-    if (seq.shown !== want) {
-      if (seq.shown === -1 || seq.progress <= 0) {
-        seq.shown = want; seq.progress = 0; seq.crumple = newCrumple(); renderCreases(seq.crumple);
-        if (want >= 0) { clipEl.setAttribute('aria-label', DIAGRAM_LABELS[JOBS[want].key]); jobShownAt = now; dState = { cur: activeBullet, prev: -1, changedAt: now, prevAt: now, job: want }; }
-      } else seq.progress = Math.max(0, seq.progress - dt / (reduced ? FADE_MS : CLOSE_MS));
-    } else if (seq.shown >= 0) seq.progress = Math.min(1, seq.progress + dt / (reduced ? FADE_MS : OPEN_MS));
-
-    // Within a job, a new bullet morphs the diagram in place.
-    if (seq.shown >= 0 && seq.shown === activeJob) {
-      const local = activeBullet;
-      if (local !== dState.cur) { dState.prev = dState.cur; dState.prevAt = dState.changedAt; dState.cur = local; dState.changedAt = now; }
-    }
-  }
-
-  function drawFrame(now, boil) {
-    if (seq.shown < 0) { frameEl.style.visibility = 'hidden'; return; }
-    frameEl.style.visibility = 'visible';
-    const e = reduced ? 1 : unfold(seq.progress);
-    const c = seq.crumple;
-    const loop = wobbleLoop(crumpleLoop(baseLoop, c, e, F.w, F.h), boil, WOBBLE_AMP, WOBBLE_FINE);
-    const rot = reduced ? 0 : c.rot * (1 - e), sc = reduced ? 1 : 0.14 + 0.86 * e;
-    frameEl.style.transform = `rotate(${rot}deg) scale(${sc})`;
-    frameEl.style.opacity = reduced ? String(seq.progress) : '1';
-    clipEl.style.clipPath = `path("M${loop.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}Z")`;
-    creasesEl.style.opacity = String(reduced ? 0 : Math.pow(1 - e, 1.1));
-
-    octx.setTransform(dpr, 0, 0, dpr, F.pad * dpr, F.pad * dpr);
-    octx.clearRect(-F.pad, -F.pad, F.w + 2 * F.pad, F.h + 2 * F.pad);
-    octx.strokeStyle = INK; octx.lineJoin = 'round';
-    octx.beginPath(); loop.forEach(([x, y], i) => (i ? octx.lineTo(x, y) : octx.moveTo(x, y))); octx.closePath();
-    octx.globalAlpha = 1; octx.lineWidth = 1.4 / sc; octx.stroke();
-
-    // Diagram
-    const key = JOBS[seq.shown].key;
-    const states = DIAGRAMS[key];
-    dctx.setTransform((F.w / DW) * dpr, 0, 0, (F.h / DH) * dpr, 0, 0);
-    dctx.clearRect(0, 0, DW, DH);
-    dctx.strokeStyle = INK; dctx.fillStyle = INK; dctx.lineCap = 'round'; dctx.lineJoin = 'round';
-    SEED = boil;
-    const x = reduced ? 1 : clamp01((now - dState.changedAt) / 280);
-    const tt = (at) => (reduced ? 6000 : now - at);
-    if (dState.prev >= 0 && x < 1) { A = 1 - x; states[dState.prev](tt(dState.prevAt)); }
-    A = dState.prev >= 0 ? x : 1;
-    states[dState.cur](tt(dState.changedAt));
-    A = 1;
-  }
-
   // ================= main loop =================
   let then = performance.now();
   function tick(now) {
@@ -838,7 +434,6 @@ body {
     const boil = reduced ? 0 : Math.floor(now / BOIL_MS) % 997;
 
     hint.style.opacity = everStepped ? '0' : '1';
-    autoCycle(now);
 
     if (M) {
       const target = M.stationDist[activeJob];
@@ -846,14 +441,12 @@ body {
       if (Math.abs(target - trainDist) < 0.5) trainDist = target;
     }
     drawMap(now, boil);
-    stepMedia(now, dt);
-    drawFrame(now, boil);
     requestAnimationFrame(tick);
   }
 
   document.getElementById('replay').addEventListener('click', () => {
     arriveAt = performance.now(); everStepped = false; setJob(0, true);
-    seq = { shown: -1, progress: 0, crumple: newCrumple() }; trainDist = 0;
+    trainDist = 0;
   });
 
   new ResizeObserver(() => layout()).observe(stage);
